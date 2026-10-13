@@ -1,0 +1,40 @@
+# Backend
+backend/bin/
+backend/obj/
+backend/.vs/
+backend/*.user
+backend/*.suo
+backend/**/appsettings.json
+backend/**/appsettings.*.json
+!backend/appsettings.example.json
+*.log
+
+# Frontend
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/build/
+frontend/.idea/
+frontend/android/.gradle/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/
+frontend/macos/Pods/
+frontend/linux/flutter/ephemeral/
+frontend/windows/flutter/ephemeral/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+*.iml
+
+# Database
+database/*.bak
+database/*.mdf
+database/*.ldf
+
+# General
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
