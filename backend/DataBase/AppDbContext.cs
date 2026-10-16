@@ -6,17 +6,15 @@ namespace DataBase
     public class AppDbContext : DbContext
     {
         public DbSet<User> Users { get; set; }
-
         public DbSet<CustomerProfile> CustomerProfiles { get; set; }
-
         public DbSet<ProgrammerProfile> ProgrammerProfiles { get; set; }
 
-        // ===== NEW: Social Feature =====
         public DbSet<Post> Posts { get; set; }
         public DbSet<PostImage> PostImages { get; set; }
         public DbSet<PostLike> PostLikes { get; set; }
         public DbSet<PostComment> PostComments { get; set; }
         public DbSet<SupportMessage> SupportMessages { get; set; }
+        public DbSet<PostApplication> PostApplications { get; set; }
 
         public AppDbContext(
             DbContextOptions<AppDbContext> options)
@@ -29,9 +27,6 @@ namespace DataBase
         {
             base.OnModelCreating(modelBuilder);
 
-            // ============================================================
-            // USER
-            // ============================================================
             modelBuilder.Entity<User>()
                 .ToTable("Users");
 
@@ -51,9 +46,6 @@ namespace DataBase
                 .Property(u => u.UserType)
                 .IsRequired();
 
-            // ============================================================
-            // CUSTOMER PROFILE
-            // ============================================================
             modelBuilder.Entity<CustomerProfile>()
                 .ToTable("CustomerProfiles");
 
@@ -91,9 +83,6 @@ namespace DataBase
                 .HasForeignKey<CustomerProfile>(cp => cp.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // ============================================================
-            // PROGRAMMER PROFILE
-            // ============================================================
             modelBuilder.Entity<ProgrammerProfile>()
                 .ToTable("ProgrammerProfiles");
 
@@ -157,9 +146,6 @@ namespace DataBase
                 .HasForeignKey<ProgrammerProfile>(pp => pp.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // ============================================================
-            // POST
-            // ============================================================
             modelBuilder.Entity<Post>()
                 .ToTable("Posts");
 
@@ -178,9 +164,6 @@ namespace DataBase
                 .HasForeignKey(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // ============================================================
-            // POST IMAGE
-            // ============================================================
             modelBuilder.Entity<PostImage>()
                 .ToTable("PostImages");
 
@@ -193,9 +176,6 @@ namespace DataBase
                 .HasForeignKey(i => i.PostId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // ============================================================
-            // POST LIKE
-            // ============================================================
             modelBuilder.Entity<PostLike>()
                 .ToTable("PostLikes");
 
@@ -215,9 +195,6 @@ namespace DataBase
                 .HasForeignKey(l => l.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            // ============================================================
-            // POST COMMENT
-            // ============================================================
             modelBuilder.Entity<PostComment>()
                 .ToTable("PostComments");
 
@@ -236,9 +213,6 @@ namespace DataBase
                 .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            // ============================================================
-            // SUPPORT MESSAGE
-            // ============================================================
             modelBuilder.Entity<SupportMessage>()
                 .ToTable("SupportMessages");
 
@@ -253,6 +227,31 @@ namespace DataBase
                 .WithMany()
                 .HasForeignKey(sm => sm.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<PostApplication>()
+                .ToTable("PostApplications");
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => a.PostId);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => a.ProgrammerId);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => new { a.PostId, a.ProgrammerId })
+                .IsUnique();
+
+            modelBuilder.Entity<PostApplication>()
+                .HasOne(a => a.Post)
+                .WithMany(p => p.Applications)
+                .HasForeignKey(a => a.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasOne(a => a.Programmer)
+                .WithMany(u => u.Applications)
+                .HasForeignKey(a => a.ProgrammerId)
+                .OnDelete(DeleteBehavior.NoAction);
         }
     }
 }

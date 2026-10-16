@@ -92,4 +92,13 @@ class SessionManager {
     _cachedEmail = null;
     _cachedHasProfile = null;
   }
+  static Future<String?> getUserEmail() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('email');
+}
+
+static Future<String?> getUserName() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('userName');
+}
 }

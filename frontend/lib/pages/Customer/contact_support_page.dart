@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../services/post_service.dart';
+import '../../services/support_service.dart';
+import '../../services/session_manager.dart';
+import 'customer_support_messages_page.dart';
 
 class ContactSupportPage extends StatefulWidget {
   final int userId;
@@ -12,31 +14,69 @@ class ContactSupportPage extends StatefulWidget {
 
 class _ContactSupportPageState extends State<ContactSupportPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
 
   bool _isSending = false;
+  bool _isLoadingUser = true;
+
+  String _userName = '';
+  String _userEmail = '';
+  int _unreadRepliesCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+    _loadUnreadCount();
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
     _subjectController.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadUserInfo() async {
+    final name = await SessionManager.getUserName();
+    final email = await SessionManager.getUserEmail();
+
+    if (!mounted) return;
+
+    setState(() {
+      _userName = name ?? 'User';
+      _userEmail = email ?? '';
+      _isLoadingUser = false;
+    });
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await SupportService.getUnreadRepliesCount(widget.userId);
+    if (!mounted) return;
+    setState(() => _unreadRepliesCount = count);
+  }
+
   Future<void> _send() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_userEmail.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load your email. Please login again.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSending = true);
 
-    final result = await PostService.sendSupportMessage(
+    final result = await SupportService.sendMessage(
       userId: widget.userId,
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
+      name: _userName,
+      email: _userEmail,
       subject: _subjectController.text.trim(),
       message: _messageController.text.trim(),
     );
@@ -46,8 +86,6 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
 
     if (result['success'] == true) {
       _showSuccessDialog(result['ticketId']);
-      _nameController.clear();
-      _emailController.clear();
       _subjectController.clear();
       _messageController.clear();
     } else {
@@ -62,6 +100,19 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
         ),
       );
     }
+  }
+
+  Future<void> _openMyMessages() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerSupportMessagesPage(
+          userId: widget.userId,
+        ),
+      ),
+    );
+
+    if (mounted) _loadUnreadCount();
   }
 
   void _showSuccessDialog(dynamic ticketId) {
@@ -143,7 +194,10 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _openMyMessages();
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF8B5CF6),
                     foregroundColor: Colors.white,
@@ -152,11 +206,22 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
                     ),
                   ),
                   child: const Text(
-                    'Got it',
+                    'View My Messages',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 14,
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -191,187 +256,327 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
       backgroundColor: bgColor,
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ===== Header Icon =====
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.support_agent_rounded,
-                      size: 46,
-                      color: Color(0xFF8B5CF6),
-                    ),
-                  ),
+        child: _isLoadingUser
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF8B5CF6),
                 ),
-                const SizedBox(height: 18),
-
-                // ===== Title =====
-                Center(
-                  child: Text(
-                    'Contact Support',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: textPrimary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Center(
-                  child: Text(
-                    'We usually respond within 24 hours',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 28),
-
-                // ===== Form Card =====
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: borderColor,
-                      width: 1.2,
-                    ),
-                  ),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                child: Form(
+                  key: _formKey,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _field(
-                        controller: _nameController,
-                        label: 'Your Name',
-                        icon: Icons.person_outline_rounded,
-                        inputFill: inputFill,
-                        borderColor: borderColor,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty
-                                ? 'Name is required'
-                                : null,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        controller: _emailController,
-                        label: 'Email',
-                        icon: Icons.mail_outline_rounded,
-                        keyboardType: TextInputType.emailAddress,
-                        inputFill: inputFill,
-                        borderColor: borderColor,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Email is required';
-                          }
-                          final ok = RegExp(
-                            r'^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,}$',
-                          ).hasMatch(v.trim());
-                          if (!ok) return 'Enter a valid email';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        controller: _subjectController,
-                        label: 'Subject',
-                        icon: Icons.subject_rounded,
-                        inputFill: inputFill,
-                        borderColor: borderColor,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty
-                                ? 'Subject is required'
-                                : null,
-                      ),
-                      const SizedBox(height: 14),
-                      _field(
-                        controller: _messageController,
-                        label: 'Message',
-                        icon: Icons.message_outlined,
-                        maxLines: 6,
-                        inputFill: inputFill,
-                        borderColor: borderColor,
-                        textPrimary: textPrimary,
-                        textSecondary: textSecondary,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Message is required';
-                          }
-                          if (v.trim().length < 10) {
-                            return 'Message is too short';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 22),
-
-                      // ===== Send Button =====
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton(
-                          onPressed: _isSending ? null : _send,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF8B5CF6),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8B5CF6)
+                                .withOpacity(0.12),
+                            shape: BoxShape.circle,
                           ),
-                          child: _isSending
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.send_rounded, size: 18),
-                                    SizedBox(width: 10),
-                                    Text(
-                                      'SEND MESSAGE',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.2,
-                                      ),
-                                    ),
-                                  ],
+                          child: const Icon(
+                            Icons.support_agent_rounded,
+                            size: 46,
+                            color: Color(0xFF8B5CF6),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Text(
+                          'Contact Support',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Center(
+                        child: Text(
+                          'We usually respond within 24 hours',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _openMyMessages,
+                              style: TextButton.styleFrom(
+                                backgroundColor:
+                                    const Color(0xFF8B5CF6).withOpacity(0.10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.receipt_long_rounded,
+                                size: 16,
+                                color: Color(0xFF8B5CF6),
+                              ),
+                              label: const Text(
+                                'My Messages',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF8B5CF6),
+                                ),
+                              ),
+                            ),
+                            if (_unreadRepliesCount > 0)
+                              Positioned(
+                                top: -6,
+                                right: -6,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? const Color(0xFF0F172A)
+                                          : Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFFEF4444)
+                                            .withOpacity(0.5),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '$_unreadRepliesCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: borderColor,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: borderColor,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.lock_rounded,
+                                        size: 14,
+                                        color: Color(0xFF10B981),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Your Account Info',
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w900,
+                                          color: textSecondary,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _readOnlyRow(
+                                    icon: Icons.person_rounded,
+                                    label: _userName,
+                                    textPrimary: textPrimary,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _readOnlyRow(
+                                    icon: Icons.mail_rounded,
+                                    label: _userEmail.isEmpty
+                                        ? 'No email'
+                                        : _userEmail,
+                                    textPrimary: textPrimary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            _field(
+                              controller: _subjectController,
+                              label: 'Subject',
+                              icon: Icons.subject_rounded,
+                              inputFill: inputFill,
+                              borderColor: borderColor,
+                              textPrimary: textPrimary,
+                              textSecondary: textSecondary,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Subject is required';
+                                }
+                                if (v.trim().length < 3) {
+                                  return 'Subject is too short';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+
+                            _field(
+                              controller: _messageController,
+                              label: 'Message',
+                              icon: Icons.message_outlined,
+                              maxLines: 6,
+                              inputFill: inputFill,
+                              borderColor: borderColor,
+                              textPrimary: textPrimary,
+                              textSecondary: textSecondary,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Message is required';
+                                }
+                                if (v.trim().length < 10) {
+                                  return 'Message is too short';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 22),
+
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: _isSending ? null : _send,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      const Color(0xFF8B5CF6),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: _isSending
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child:
+                                            CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.send_rounded,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'SEND MESSAGE',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight:
+                                                  FontWeight.w900,
+                                              letterSpacing: 1.2,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
+      ),
+    );
+  }
+
+  Widget _readOnlyRow({
+    required IconData icon,
+    required String label,
+    required Color textPrimary,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: const Color(0xFF8B5CF6),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: textPrimary,
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 

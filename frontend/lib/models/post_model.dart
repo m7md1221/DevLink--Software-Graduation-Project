@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 class PostImage {
   final int id;
   final String url;
@@ -25,6 +23,8 @@ class PostModel {
   final int imageCount;
   final int likeCount;
   final int commentCount;
+  final int applicationsCount;
+  final bool isClosed;
   bool isLikedByMe;
   final bool isMine;
   final List<PostImage> images;
@@ -40,6 +40,8 @@ class PostModel {
     required this.imageCount,
     required this.likeCount,
     required this.commentCount,
+    required this.applicationsCount,
+    required this.isClosed,
     required this.isLikedByMe,
     required this.isMine,
     required this.images,
@@ -57,6 +59,8 @@ class PostModel {
       imageCount: json['imageCount'] ?? 0,
       likeCount: json['likeCount'] ?? 0,
       commentCount: json['commentCount'] ?? 0,
+      applicationsCount: json['applicationsCount'] ?? 0,
+      isClosed: json['isClosed'] == true,
       isLikedByMe: json['isLikedByMe'] == true,
       isMine: json['isMine'] == true,
       images: (json['images'] as List? ?? [])
@@ -188,6 +192,62 @@ class UserPublicProfile {
       avatarUrl: json['avatarUrl'],
       postCount: json['postCount'] ?? 0,
       createdAt: DateTime.tryParse(json['createdAt'] ?? ''),
+    );
+  }
+}
+
+class PostApplicationModel {
+  final int id;
+  final int postId;
+  final int programmerId;
+  final String programmerName;
+  final String? programmerSpecialty;
+  final dynamic programmerRating;
+  final bool programmerIsVerified;
+  final bool programmerHasImage;
+  final String? programmerAvatarUrl;
+  final String email;
+  final String proposal;
+  final dynamic price;
+  final String? duration;
+  final String status;
+  final DateTime createdAt;
+
+  PostApplicationModel({
+    required this.id,
+    required this.postId,
+    required this.programmerId,
+    required this.programmerName,
+    this.programmerSpecialty,
+    required this.programmerRating,
+    required this.programmerIsVerified,
+    required this.programmerHasImage,
+    this.programmerAvatarUrl,
+    required this.email,
+    required this.proposal,
+    this.price,
+    this.duration,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory PostApplicationModel.fromJson(Map<String, dynamic> json) {
+    return PostApplicationModel(
+      id: json['id'] ?? 0,
+      postId: json['postId'] ?? 0,
+      programmerId: json['programmerId'] ?? 0,
+      programmerName: json['programmerName'] ?? 'User',
+      programmerSpecialty: json['programmerSpecialty'],
+      programmerRating: json['programmerRating'],
+      programmerIsVerified: json['programmerIsVerified'] == true,
+      programmerHasImage: json['programmerHasImage'] == true,
+      programmerAvatarUrl: json['programmerAvatarUrl'],
+      email: json['email'] ?? '',
+      proposal: json['proposal'] ?? '',
+      price: json['price'],
+      duration: json['duration'],
+      status: json['status'] ?? 'Pending',
+      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
 }

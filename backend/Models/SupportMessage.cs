@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace DataBase.Models
+namespace DataBase
 {
     public class SupportMessage
     {
@@ -32,6 +32,12 @@ namespace DataBase.Models
         [Required]
         [MaxLength(20)]
         public string Status { get; set; } = "New";
+
+        public string? AdminReply { get; set; }
+
+        public DateTime? RepliedAt { get; set; }
+
+        public DateTime? CustomerReadReplyAt { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

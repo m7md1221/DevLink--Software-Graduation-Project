@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
 import 'comments_sheet.dart';
+import '../apply_to_post_page.dart';
+import '../post_applications_page.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
   final int currentUserId;
+  final String currentUserType;
   final VoidCallback onChanged;
   final VoidCallback? onOpenProfile;
 
@@ -13,6 +16,7 @@ class PostCard extends StatefulWidget {
     super.key,
     required this.post,
     required this.currentUserId,
+    this.currentUserType = 'Customer',
     required this.onChanged,
     this.onOpenProfile,
   });
@@ -25,7 +29,11 @@ class _PostCardState extends State<PostCard> {
   late bool _isLiked;
   late int _likeCount;
   late int _commentCount;
+  late int _applicationsCount;
+  late bool _isClosed;
   bool _isLiking = false;
+  bool _hasApplied = false;
+  bool _checkingApplied = true;
 
   @override
   void initState() {
@@ -33,6 +41,27 @@ class _PostCardState extends State<PostCard> {
     _isLiked = widget.post.isLikedByMe;
     _likeCount = widget.post.likeCount;
     _commentCount = widget.post.commentCount;
+    _applicationsCount = widget.post.applicationsCount;
+    _isClosed = widget.post.isClosed;
+    _checkApplied();
+  }
+
+  Future<void> _checkApplied() async {
+    if (widget.currentUserType != 'Programmer') {
+      setState(() => _checkingApplied = false);
+      return;
+    }
+
+    final applied = await PostService.hasUserApplied(
+      postId: widget.post.id,
+      userId: widget.currentUserId,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _hasApplied = applied;
+      _checkingApplied = false;
+    });
   }
 
   Future<void> _toggleLike() async {
@@ -69,6 +98,42 @@ class _PostCardState extends State<PostCard> {
     if (added == true) {
       setState(() => _commentCount++);
     }
+  }
+
+  Future<void> _openApply() async {
+    final applied = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ApplyToPostPage(
+          postId: widget.post.id,
+          programmerId: widget.currentUserId,
+          postAuthorName: widget.post.authorName,
+          postContent: widget.post.content,
+        ),
+      ),
+    );
+
+    if (applied == true) {
+      setState(() {
+        _hasApplied = true;
+        _applicationsCount++;
+      });
+    }
+  }
+
+  Future<void> _openApplications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostApplicationsPage(
+          postId: widget.post.id,
+          requesterId: widget.currentUserId,
+          postContent: widget.post.content,
+        ),
+      ),
+    );
+
+    if (mounted) widget.onChanged();
   }
 
   Future<void> _confirmDelete() async {
@@ -157,9 +222,6 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  // ============================================================
-  // FORMAT DATE & TIME
-  // ============================================================
   String _formatDateTime(DateTime date) {
     final local = date.isUtc ? date.toLocal() : date;
 
@@ -190,12 +252,24 @@ class _PostCardState extends State<PostCard> {
         ? const Color(0xFF334155)
         : const Color(0xFFE2E8F0);
 
+    final isProgrammer = widget.currentUserType == 'Programmer';
+    final canApply = isProgrammer &&
+        !widget.post.isMine &&
+        !_isClosed &&
+        !_hasApplied;
+    final canViewApplications = widget.post.isMine;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor, width: 1.2),
+        border: Border.all(
+          color: _isClosed
+              ? const Color(0xFF10B981).withOpacity(0.4)
+              : borderColor,
+          width: _isClosed ? 1.5 : 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isDark ? 0.25 : 0.05),
@@ -207,7 +281,6 @@ class _PostCardState extends State<PostCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ===== Header =====
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
             child: Row(
@@ -265,7 +338,37 @@ class _PostCardState extends State<PostCard> {
                     ),
                   ),
                 ),
-                if (widget.post.isMine)
+                if (_isClosed)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 12,
+                          color: Color(0xFF10B981),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Assigned',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (widget.post.isMine && !_isClosed)
                   PopupMenuButton<String>(
                     icon: Icon(
                       Icons.more_horiz_rounded,
@@ -305,7 +408,6 @@ class _PostCardState extends State<PostCard> {
             ),
           ),
 
-          // ===== Content =====
           if (widget.post.content != null &&
               widget.post.content!.trim().isNotEmpty)
             Padding(
@@ -321,54 +423,89 @@ class _PostCardState extends State<PostCard> {
               ),
             ),
 
-          // ===== Images =====
-          if (widget.post.images.isNotEmpty)
-            _buildImages(isDark),
+          if (widget.post.images.isNotEmpty) _buildImages(isDark),
 
-          // ===== Stats row =====
-          if (_likeCount > 0 || _commentCount > 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: Row(
-                children: [
-                  if (_likeCount > 0) ...[
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.favorite_rounded,
-                        size: 10,
-                        color: Colors.white,
-                      ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                if (_likeCount > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_likeCount',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 10,
+                      color: Colors.white,
                     ),
-                  ],
-                  const Spacer(),
-                  if (_commentCount > 0)
-                    Text(
-                      '$_commentCount comment${_commentCount > 1 ? "s" : ""}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$_likeCount',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textSecondary,
+                      fontWeight: FontWeight.w700,
                     ),
+                  ),
                 ],
-              ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: canViewApplications ? _openApplications : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.people_alt_rounded,
+                          size: 12,
+                          color: Color(0xFF3B82F6),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$_applicationsCount',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF3B82F6),
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_commentCount > 0) ...[
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 13,
+                    color: textSecondary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$_commentCount',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
             ),
+          ),
 
-          // ===== Actions =====
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Divider(
@@ -379,7 +516,7 @@ class _PostCardState extends State<PostCard> {
           ),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             child: Row(
               children: [
                 Expanded(
@@ -402,25 +539,33 @@ class _PostCardState extends State<PostCard> {
                     onTap: _openComments,
                   ),
                 ),
-                Expanded(
-                  child: _actionButton(
-                    icon: Icons.share_outlined,
-                    label: 'Share',
-                    color: textSecondary,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Share coming soon'),
-                          backgroundColor: const Color(0xFF8B5CF6),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      );
-                    },
+                if (canApply)
+                  Expanded(
+                    child: _actionButton(
+                      icon: Icons.send_rounded,
+                      label: 'Apply',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: _checkingApplied ? null : _openApply,
+                    ),
+                  )
+                else if (_hasApplied && !widget.post.isMine)
+                  Expanded(
+                    child: _actionButton(
+                      icon: Icons.check_circle_rounded,
+                      label: 'Applied',
+                      color: const Color(0xFF10B981),
+                      onTap: null,
+                    ),
+                  )
+                else if (canViewApplications)
+                  Expanded(
+                    child: _actionButton(
+                      icon: Icons.people_alt_rounded,
+                      label: 'View',
+                      color: const Color(0xFF3B82F6),
+                      onTap: _openApplications,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -435,32 +580,7 @@ class _PostCardState extends State<PostCard> {
     if (imgs.length == 1) {
       return AspectRatio(
         aspectRatio: 4 / 3,
-        child: Image.network(
-          PostService.getPostImageUrl(imgs[0].id),
-          fit: BoxFit.cover,
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              color: isDark
-                  ? const Color(0xFF0F172A)
-                  : const Color(0xFFF1F5F9),
-              child: const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            );
-          },
-          errorBuilder: (_, __, ___) => Container(
-            color: isDark
-                ? const Color(0xFF0F172A)
-                : const Color(0xFFF1F5F9),
-            child: const Center(
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: Color(0xFF94A3B8),
-              ),
-            ),
-          ),
-        ),
+        child: _image(imgs[0].id, isDark),
       );
     }
 
@@ -542,7 +662,7 @@ class _PostCardState extends State<PostCard> {
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Material(
       color: Colors.transparent,
@@ -556,12 +676,16 @@ class _PostCardState extends State<PostCard> {
             children: [
               Icon(icon, size: 18, color: color),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
                 ),
               ),
             ],
@@ -572,9 +696,6 @@ class _PostCardState extends State<PostCard> {
   }
 }
 
-// ============================================================
-// AVATAR
-// ============================================================
 class _Avatar extends StatelessWidget {
   final int userId;
   final bool hasImage;

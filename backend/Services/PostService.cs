@@ -41,6 +41,9 @@ namespace Services
                 var author = await GetAuthorInfo(post.UserId);
                 if (author == null) continue;
 
+                var appCount = await _context.PostApplications
+                    .CountAsync(a => a.PostId == post.Id);
+
                 result.Add(new
                 {
                     id = post.Id,
@@ -56,6 +59,8 @@ namespace Services
                     imageCount = post.Images.Count,
                     likeCount = post.Likes.Count,
                     commentCount = post.Comments.Count,
+                    applicationsCount = appCount,
+                    isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
                     images = post.Images
@@ -94,6 +99,9 @@ namespace Services
 
             foreach (var post in posts)
             {
+                var appCount = await _context.PostApplications
+                    .CountAsync(a => a.PostId == post.Id);
+
                 result.Add(new
                 {
                     id = post.Id,
@@ -108,6 +116,8 @@ namespace Services
                     imageCount = post.Images.Count,
                     likeCount = post.Likes.Count,
                     commentCount = post.Comments.Count,
+                    applicationsCount = appCount,
+                    isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
                     images = post.Images
@@ -195,7 +205,7 @@ namespace Services
         }
 
         // ============================================================
-        // DELETE POST (Soft Delete)
+        // DELETE POST
         // ============================================================
         public async Task<(bool success, string message)> DeletePost(
             int postId,
@@ -556,6 +566,220 @@ namespace Services
                     createdAt = p.CreatedAt
                 };
             }
+        }
+
+        // ============================================================
+        // APPLY TO POST (Programmer)
+        // ============================================================
+        public async Task<(bool success, string message, int? applicationId)>
+            ApplyToPost(
+                int postId,
+                int programmerId,
+                string proposal,
+                decimal? price,
+                string? duration)
+        {
+            if (string.IsNullOrWhiteSpace(proposal))
+            {
+                return (false, "Proposal is required", null);
+            }
+
+            if (proposal.Length > 2000)
+            {
+                return (false, "Proposal is too long (max 2000 chars)", null);
+            }
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == programmerId);
+
+            if (user == null)
+            {
+                return (false, "User not found", null);
+            }
+
+            if (user.UserType != "Programmer")
+            {
+                return (false, "Only programmers can apply", null);
+            }
+
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+
+            if (post == null)
+            {
+                return (false, "Post not found", null);
+            }
+
+            if (post.UserId == programmerId)
+            {
+                return (false, "You cannot apply to your own post", null);
+            }
+
+            if (post.IsClosed)
+            {
+                return (false, "This post is already closed", null);
+            }
+
+            var existing = await _context.PostApplications
+                .FirstOrDefaultAsync(a =>
+                    a.PostId == postId && a.ProgrammerId == programmerId);
+
+            if (existing != null)
+            {
+                return (false, "You have already applied to this post", null);
+            }
+
+            var application = new PostApplication
+            {
+                PostId = postId,
+                ProgrammerId = programmerId,
+                Proposal = proposal.Trim(),
+                Price = price,
+                Duration = duration?.Trim(),
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.PostApplications.Add(application);
+            await _context.SaveChangesAsync();
+
+            return (true, "Application submitted successfully", application.Id);
+        }
+
+        // ============================================================
+        // GET POST APPLICATIONS
+        // ============================================================
+        public async Task<List<object>> GetPostApplications(
+            int postId,
+            int requesterId)
+        {
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+
+            if (post == null) return new List<object>();
+
+            if (post.UserId != requesterId) return new List<object>();
+
+            var applications = await _context.PostApplications
+                .Where(a => a.PostId == postId)
+                .OrderBy(a => a.Status == "Accepted" ? 0 :
+                              a.Status == "Pending" ? 1 : 2)
+                .ThenByDescending(a => a.CreatedAt)
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var app in applications)
+            {
+                var programmer = await _context.ProgrammerProfiles
+                    .FirstOrDefaultAsync(pp => pp.UserId == app.ProgrammerId);
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Id == app.ProgrammerId);
+
+                result.Add(new
+                {
+                    id = app.Id,
+                    postId = app.PostId,
+                    programmerId = app.ProgrammerId,
+                    programmerName = programmer?.Nickname ?? "User",
+                    programmerSpecialty = programmer?.Specialty,
+                    programmerRating = programmer?.Rating ?? 0,
+                    programmerIsVerified = programmer?.IsVerified ?? false,
+                    programmerHasImage = programmer?.ProfileImage != null,
+                    programmerAvatarUrl = programmer?.ProfileImage != null
+                        ? $"/api/Posts/user/{app.ProgrammerId}/avatar"
+                        : null,
+                    email = user?.Email ?? "",
+                    proposal = app.Proposal,
+                    price = app.Price,
+                    duration = app.Duration,
+                    status = app.Status,
+                    createdAt = app.CreatedAt
+                });
+            }
+
+            return result;
+        }
+
+        // ============================================================
+        // ACCEPT APPLICATION
+        // ============================================================
+        public async Task<(bool success, string message)>
+            AcceptApplication(
+                int postId,
+                int applicationId,
+                int requesterId)
+        {
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+
+            if (post == null)
+            {
+                return (false, "Post not found");
+            }
+
+            if (post.UserId != requesterId)
+            {
+                return (false, "You can only manage your own posts");
+            }
+
+            if (post.IsClosed)
+            {
+                return (false, "This post is already closed");
+            }
+
+            var application = await _context.PostApplications
+                .FirstOrDefaultAsync(a =>
+                    a.Id == applicationId && a.PostId == postId);
+
+            if (application == null)
+            {
+                return (false, "Application not found");
+            }
+
+            if (application.Status != "Pending")
+            {
+                return (false, "This application is not pending");
+            }
+
+            application.Status = "Accepted";
+            application.UpdatedAt = DateTime.UtcNow;
+
+            var others = await _context.PostApplications
+                .Where(a => a.PostId == postId && a.Id != applicationId)
+                .ToListAsync();
+
+            foreach (var other in others)
+            {
+                other.Status = "Rejected";
+                other.UpdatedAt = DateTime.UtcNow;
+            }
+
+            post.IsClosed = true;
+            post.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return (true, "Application accepted successfully");
+        }
+
+        // ============================================================
+        // GET APPLICATIONS COUNT
+        // ============================================================
+        public async Task<int> GetApplicationsCount(int postId)
+        {
+            return await _context.PostApplications
+                .CountAsync(a => a.PostId == postId);
+        }
+
+        // ============================================================
+        // HAS USER APPLIED
+        // ============================================================
+        public async Task<bool> HasUserApplied(int postId, int userId)
+        {
+            return await _context.PostApplications
+                .AnyAsync(a => a.PostId == postId && a.ProgrammerId == userId);
         }
 
         // ============================================================

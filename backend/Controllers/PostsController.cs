@@ -17,7 +17,6 @@ namespace Controllers
         // ============================================================
         // FEED
         // ============================================================
-
         [HttpGet("feed")]
         public async Task<IActionResult> GetFeed(
             [FromQuery] int userId,
@@ -46,7 +45,6 @@ namespace Controllers
         // ============================================================
         // CREATE POST
         // ============================================================
-
         [HttpPost]
         public async Task<IActionResult> CreatePost(
             [FromForm] CreatePostDto model)
@@ -91,7 +89,6 @@ namespace Controllers
         // ============================================================
         // DELETE POST
         // ============================================================
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePost(
             int id,
@@ -113,7 +110,6 @@ namespace Controllers
         // ============================================================
         // LIKE / UNLIKE
         // ============================================================
-
         [HttpPost("{id}/like")]
         public async Task<IActionResult> ToggleLike(
             int id,
@@ -134,7 +130,6 @@ namespace Controllers
         // ============================================================
         // COMMENTS
         // ============================================================
-
         [HttpGet("{id}/comments")]
         public async Task<IActionResult> GetComments(int id)
         {
@@ -183,7 +178,6 @@ namespace Controllers
         // ============================================================
         // IMAGES
         // ============================================================
-
         [HttpGet("image/{imageId}")]
         public async Task<IActionResult> GetPostImage(int imageId)
         {
@@ -211,7 +205,6 @@ namespace Controllers
         // ============================================================
         // SEARCH
         // ============================================================
-
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             [FromQuery] string q,
@@ -227,7 +220,6 @@ namespace Controllers
         // ============================================================
         // PUBLIC PROFILE
         // ============================================================
-
         [HttpGet("profile/{userId}")]
         public async Task<IActionResult> GetUserProfile(int userId)
         {
@@ -237,6 +229,94 @@ namespace Controllers
                 return NotFound(new { message = "Profile not found" });
 
             return Ok(profile);
+        }
+
+        // ============================================================
+        // APPLY TO POST
+        // ============================================================
+        [HttpPost("{id}/apply")]
+        public async Task<IActionResult> ApplyToPost(
+            int id,
+            [FromBody] ApplyToPostDto model)
+        {
+            if (model.ProgrammerId <= 0)
+                return BadRequest(new { message = "ProgrammerId is required" });
+
+            if (string.IsNullOrWhiteSpace(model.Proposal))
+                return BadRequest(new { message = "Proposal is required" });
+
+            var (success, message, applicationId) =
+                await _postService.ApplyToPost(
+                    id,
+                    model.ProgrammerId,
+                    model.Proposal,
+                    model.Price,
+                    model.Duration);
+
+            if (!success)
+                return BadRequest(new { message });
+
+            return Ok(new { message, applicationId });
+        }
+
+        // ============================================================
+        // GET APPLICATIONS
+        // ============================================================
+        [HttpGet("{id}/applications")]
+        public async Task<IActionResult> GetApplications(
+            int id,
+            [FromQuery] int requesterId)
+        {
+            if (requesterId <= 0)
+                return BadRequest(new { message = "requesterId is required" });
+
+            var applications = await _postService.GetPostApplications(
+                id, requesterId);
+
+            return Ok(new { applications });
+        }
+
+        // ============================================================
+        // ACCEPT APPLICATION
+        // ============================================================
+        [HttpPost("{id}/applications/{applicationId}/accept")]
+        public async Task<IActionResult> AcceptApplication(
+            int id,
+            int applicationId,
+            [FromQuery] int requesterId)
+        {
+            if (requesterId <= 0)
+                return BadRequest(new { message = "requesterId is required" });
+
+            var (success, message) = await _postService.AcceptApplication(
+                id, applicationId, requesterId);
+
+            if (!success)
+                return BadRequest(new { message });
+
+            return Ok(new { message });
+        }
+
+        // ============================================================
+        // APPLICATIONS COUNT
+        // ============================================================
+        [HttpGet("{id}/applications/count")]
+        public async Task<IActionResult> GetApplicationsCount(int id)
+        {
+            var count = await _postService.GetApplicationsCount(id);
+            return Ok(new { count });
+        }
+
+        // ============================================================
+        // HAS USER APPLIED
+        // ============================================================
+        [HttpGet("{id}/has-applied")]
+        public async Task<IActionResult> HasUserApplied(
+            int id,
+            [FromQuery] int userId)
+        {
+            var hasApplied = await _postService.HasUserApplied(id, userId);
+            return Ok(new { hasApplied });
         }
 
         // ============================================================
@@ -291,5 +371,13 @@ namespace Controllers
     {
         public int UserId { get; set; }
         public string Content { get; set; } = string.Empty;
+    }
+
+    public class ApplyToPostDto
+    {
+        public int ProgrammerId { get; set; }
+        public string Proposal { get; set; } = string.Empty;
+        public decimal? Price { get; set; }
+        public string? Duration { get; set; }
     }
 }

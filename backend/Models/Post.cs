@@ -1,7 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using DataBase.Models;
 
-namespace DataBase.Models
+namespace DataBase
 {
     public class Post
     {
@@ -22,9 +23,11 @@ namespace DataBase.Models
 
         public bool IsDeleted { get; set; } = false;
 
-        // ===== Navigation =====
+        public bool IsClosed { get; set; } = false;
+
         public ICollection<PostImage> Images { get; set; } = new List<PostImage>();
         public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
         public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
+        public ICollection<PostApplication> Applications { get; set; } = new List<PostApplication>();
     }
 }

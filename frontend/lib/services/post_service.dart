@@ -6,18 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import '../models/post_model.dart';
 
 class PostService {
-  // ============================================================
-  // BASE URL — نفس login_page
-  // ============================================================
   static String get baseUrl {
     if (kIsWeb) return 'http://localhost:5133';
     if (Platform.isAndroid) return 'http://10.0.2.2:5133';
     return 'http://localhost:5133';
   }
 
-  // ============================================================
-  // GET FEED
-  // ============================================================
   static Future<List<PostModel>> getFeed({
     required int userId,
     int page = 1,
@@ -42,9 +36,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // GET USER POSTS
-  // ============================================================
   static Future<List<PostModel>> getUserPosts({
     required int userId,
     required int currentUserId,
@@ -68,9 +59,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // CREATE POST
-  // ============================================================
   static Future<Map<String, dynamic>> createPost({
     required int userId,
     String? content,
@@ -132,9 +120,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // DELETE POST
-  // ============================================================
   static Future<Map<String, dynamic>> deletePost({
     required int postId,
     required int userId,
@@ -161,9 +146,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // TOGGLE LIKE
-  // ============================================================
   static Future<Map<String, dynamic>> toggleLike({
     required int postId,
     required int userId,
@@ -193,9 +175,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // GET COMMENTS
-  // ============================================================
   static Future<List<CommentModel>> getComments(int postId) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/comments');
@@ -212,9 +191,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // ADD COMMENT
-  // ============================================================
   static Future<Map<String, dynamic>> addComment({
     required int postId,
     required int userId,
@@ -251,9 +227,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // DELETE COMMENT
-  // ============================================================
   static Future<Map<String, dynamic>> deleteComment({
     required int commentId,
     required int userId,
@@ -277,9 +250,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // SEARCH USERS
-  // ============================================================
   static Future<List<UserSearchResult>> searchUsers({
     required String query,
     String? userType,
@@ -303,9 +273,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // GET PUBLIC PROFILE
-  // ============================================================
   static Future<UserPublicProfile?> getUserProfile(int userId) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/profile/$userId');
@@ -320,9 +287,6 @@ class PostService {
     }
   }
 
-  // ============================================================
-  // HELPERS — URL builders
-  // ============================================================
   static String getPostImageUrl(int imageId) {
     return '$baseUrl/api/Posts/image/$imageId';
   }
@@ -331,9 +295,6 @@ class PostService {
     return '$baseUrl/api/Posts/user/$userId/avatar';
   }
 
-  // ============================================================
-  // CONTACT SUPPORT
-  // ============================================================
   static Future<Map<String, dynamic>> sendSupportMessage({
     int? userId,
     required String name,
@@ -372,6 +333,130 @@ class PostService {
       };
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> applyToPost({
+    required int postId,
+    required int programmerId,
+    required String proposal,
+    double? price,
+    String? duration,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/$postId/apply');
+
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'programmerId': programmerId,
+          'proposal': proposal,
+          'price': price,
+          'duration': duration,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'],
+          'applicationId': data['applicationId'],
+        };
+      }
+
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Failed',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<List<PostApplicationModel>> getPostApplications({
+    required int postId,
+    required int requesterId,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/Posts/$postId/applications?requesterId=$requesterId',
+      );
+
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['applications'] as List? ?? [];
+        return list.map((e) => PostApplicationModel.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> acceptApplication({
+    required int postId,
+    required int applicationId,
+    required int requesterId,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/Posts/$postId/applications/$applicationId/accept?requesterId=$requesterId',
+      );
+
+      final response = await http.post(uri);
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Failed',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<int> getApplicationsCount(int postId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/$postId/applications/count');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['count'] ?? 0;
+      }
+      return 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  static Future<bool> hasUserApplied({
+    required int postId,
+    required int userId,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/api/Posts/$postId/has-applied?userId=$userId',
+      );
+
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['hasApplied'] == true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 }
