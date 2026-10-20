@@ -21,9 +21,7 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/feed?userId=$userId&page=$page&pageSize=$pageSize',
       );
-
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['posts'] as List? ?? [];
@@ -31,7 +29,6 @@ class PostService {
       }
       return [];
     } catch (e) {
-      print('getFeed error: $e');
       return [];
     }
   }
@@ -44,9 +41,7 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/user/$userId?currentUserId=$currentUserId',
       );
-
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['posts'] as List? ?? [];
@@ -54,7 +49,6 @@ class PostService {
       }
       return [];
     } catch (e) {
-      print('getUserPosts error: $e');
       return [];
     }
   }
@@ -99,7 +93,6 @@ class PostService {
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -115,7 +108,6 @@ class PostService {
         'message': data['message'] ?? 'Failed to create post',
       };
     } catch (e) {
-      print('createPost error: $e');
       return {'success': false, 'message': 'Connection error: $e'};
     }
   }
@@ -129,18 +121,13 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/$postId?userId=$userId&isAdmin=$isAdmin',
       );
-
       final response = await http.delete(uri);
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed to delete',
-      };
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -152,13 +139,11 @@ class PostService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/like');
-
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'userId': userId}),
       );
-
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -168,7 +153,6 @@ class PostService {
           'likeCount': data['likeCount'] ?? 0,
         };
       }
-
       return {'success': false, 'message': data['message']};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
@@ -179,7 +163,6 @@ class PostService {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/comments');
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['comments'] as List? ?? [];
@@ -198,16 +181,11 @@ class PostService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/comments');
-
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': userId,
-          'content': content,
-        }),
+        body: jsonEncode({'userId': userId, 'content': content}),
       );
-
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -217,11 +195,7 @@ class PostService {
           'message': data['message'],
         };
       }
-
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed',
-      };
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -236,14 +210,12 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/comments/$commentId?userId=$userId&isAdmin=$isAdmin',
       );
-
       final response = await http.delete(uri);
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
       return {'success': false, 'message': data['message']};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
@@ -259,9 +231,7 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/search?q=${Uri.encodeComponent(query)}$typeParam',
       );
-
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['users'] as List? ?? [];
@@ -277,7 +247,6 @@ class PostService {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/profile/$userId');
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         return UserPublicProfile.fromJson(jsonDecode(response.body));
       }
@@ -304,7 +273,6 @@ class PostService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Support');
-
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
@@ -316,9 +284,7 @@ class PostService {
           'message': message,
         }),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -326,11 +292,7 @@ class PostService {
           'ticketId': data['ticketId'],
         };
       }
-
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed',
-      };
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -345,7 +307,6 @@ class PostService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/apply');
-
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
@@ -356,9 +317,7 @@ class PostService {
           'duration': duration,
         }),
       );
-
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -366,11 +325,7 @@ class PostService {
           'applicationId': data['applicationId'],
         };
       }
-
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed',
-      };
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -384,9 +339,7 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/$postId/applications?requesterId=$requesterId',
       );
-
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final list = data['applications'] as List? ?? [];
@@ -407,18 +360,12 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/$postId/applications/$applicationId/accept?requesterId=$requesterId',
       );
-
       final response = await http.post(uri);
       final data = jsonDecode(response.body);
-
       if (response.statusCode == 200) {
         return {'success': true, 'message': data['message']};
       }
-
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed',
-      };
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
     }
@@ -428,7 +375,6 @@ class PostService {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/applications/count');
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['count'] ?? 0;
@@ -447,9 +393,7 @@ class PostService {
       final uri = Uri.parse(
         '$baseUrl/api/Posts/$postId/has-applied?userId=$userId',
       );
-
       final response = await http.get(uri);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['hasApplied'] == true;
@@ -457,6 +401,56 @@ class PostService {
       return false;
     } catch (e) {
       return false;
+    }
+  }
+
+  static Future<List<PostModel>> getPendingPosts() async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/pending');
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['posts'] as List? ?? [];
+        return list.map((e) => PostModel.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> approvePost(int postId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/$postId/approve');
+      final response = await http.post(uri);
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> rejectPost({
+    required int postId,
+    required String reason,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/$postId/reject');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'reason': reason}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {'success': true, 'message': data['message']};
+      }
+      return {'success': false, 'message': data['message'] ?? 'Failed'};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
     }
   }
 }

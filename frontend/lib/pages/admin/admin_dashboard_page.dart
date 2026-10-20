@@ -8,7 +8,6 @@ import 'admin_users_page.dart';
 import 'admin_posts_page.dart';
 import 'admin_verifications_page.dart';
 import 'admin_add_admin_page.dart';
-import 'admin_support_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   final int userId;
@@ -106,13 +105,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  void _openSupport() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminSupportPage()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -145,6 +137,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     return Scaffold(
       body: Stack(
         children: [
+          // ===== Background Gradient =====
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -157,6 +150,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             ),
           ),
 
+          // ===== Grid Pattern =====
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
@@ -167,6 +161,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             ),
           ),
 
+          // ===== Glow Circles =====
           Positioned(
             top: -100,
             right: -100,
@@ -192,6 +187,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             ),
           ),
 
+          // ===== Content =====
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -250,6 +246,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
+  // ============================================================
+  // TOP BAR
+  // ============================================================
   Widget _buildTopBar(
     bool isDark,
     Color cardColor,
@@ -262,6 +261,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // ===== Left: Title =====
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,6 +287,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             ],
           ),
         ),
+
+        // ===== Right: Actions =====
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -326,6 +328,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
+  // ============================================================
+  // HERO CARD
+  // ============================================================
   Widget _buildHeroCard(bool isDesktop) {
     return Container(
       width: double.infinity,
@@ -428,6 +433,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
   Widget _buildSectionTitle(String text, Color textPrimary) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
@@ -443,6 +451,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
+  // ============================================================
+  // MANAGEMENT GRID
+  // ============================================================
   Widget _buildManagementGrid(
     bool isDark,
     Color cardColor,
@@ -480,15 +491,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
         color: const Color(0xFF8B5CF6),
         onTap: _openAddAdmin,
       ),
-      _MenuCardData(
-        icon: Icons.support_agent_rounded,
-        title: 'Support Messages',
-        subtitle: 'Reply to user messages',
-        color: const Color(0xFF10B981),
-        onTap: _openSupport,
-      ),
     ];
 
+    // Desktop/Tablet: 2x2 Grid
     if (isDesktop || isTablet) {
       return GridView.builder(
         shrinkWrap: true,
@@ -513,6 +518,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
       );
     }
 
+    // Mobile: vertical list
     return Column(
       children: cards.asMap().entries.map((entry) {
         final isLast = entry.key == cards.length - 1;
@@ -622,6 +628,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
+  // ============================================================
+  // HELPERS
+  // ============================================================
   Widget _glowCircle(double size, Color color) {
     return Container(
       width: size,
@@ -636,6 +645,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   }
 }
 
+// ============================================================
+// MENU CARD DATA
+// ============================================================
 class _MenuCardData {
   final IconData icon;
   final String title;
@@ -652,6 +664,9 @@ class _MenuCardData {
   });
 }
 
+// ============================================================
+// GRID PAINTER
+// ============================================================
 class _GridPainter extends CustomPainter {
   final Color color;
   _GridPainter({required this.color});

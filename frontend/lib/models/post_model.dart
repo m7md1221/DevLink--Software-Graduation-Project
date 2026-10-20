@@ -25,6 +25,7 @@ class PostModel {
   final int commentCount;
   final int applicationsCount;
   final bool isClosed;
+  final String status;
   bool isLikedByMe;
   final bool isMine;
   final List<PostImage> images;
@@ -42,6 +43,7 @@ class PostModel {
     required this.commentCount,
     required this.applicationsCount,
     required this.isClosed,
+    this.status = 'Approved',
     required this.isLikedByMe,
     required this.isMine,
     required this.images,
@@ -61,6 +63,7 @@ class PostModel {
       commentCount: json['commentCount'] ?? 0,
       applicationsCount: json['applicationsCount'] ?? 0,
       isClosed: json['isClosed'] == true,
+      status: json['status'] ?? 'Approved',
       isLikedByMe: json['isLikedByMe'] == true,
       isMine: json['isMine'] == true,
       images: (json['images'] as List? ?? [])
