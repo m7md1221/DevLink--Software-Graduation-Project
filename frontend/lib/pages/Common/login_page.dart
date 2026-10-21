@@ -9,7 +9,6 @@ import '../../services/api_service.dart';
 import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/theme_toggle.dart';
 import '../../theme/theme_manager.dart';
-import '../Customer/customer_profile_setup_page.dart';
 import '../Customer/customer_home_page.dart';
 import '../Programmer/programmer_profile_setup_page.dart';
 import '../Programmer/programmer_dashboard_page.dart';
@@ -221,15 +220,17 @@ class _LoginPageState extends State<LoginPage>
         );
 
         if (!mounted) return;
+        setState(() => isLoading = false);
         _navigateByUserType(userType, userId, hasProfile, email);
       } else {
+        setState(() => isLoading = false);
         showMessage('البريد أو كلمة المرور غير صحيح', false);
       }
     } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
       showMessage('تعذّر الاتصال بالخادم', false);
     }
-
-    if (mounted) setState(() => isLoading = false);
   }
 
   Future<void> _handleGoogleLogin(String idToken) async {
@@ -268,6 +269,9 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
+  // ============================================================
+  // ✅ التوجيه حسب نوع المستخدم
+  // ============================================================
   void _navigateByUserType(
     String userType,
     int userId,
@@ -275,25 +279,17 @@ class _LoginPageState extends State<LoginPage>
     String email,
   ) {
     if (userType == 'Customer') {
-      if (!hasProfile) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CustomerProfileSetupPage(userId: userId),
+      // 🟢 التوجيه المباشر للـ Feed
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CustomerHomePage(
+            userId: userId,
+            authorName: email,
+            authorType: 'Customer',
           ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CustomerHomePage(
-              userId: userId,
-              authorName: email,
-              authorType: 'Customer',
-            ),
-          ),
-        );
-      }
+        ),
+      );
     } else if (userType == 'Programmer') {
       if (!hasProfile) {
         Navigator.pushReplacement(
@@ -323,6 +319,7 @@ class _LoginPageState extends State<LoginPage>
   void showMessage(String message, bool success) {
     if (!mounted) return;
 
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(

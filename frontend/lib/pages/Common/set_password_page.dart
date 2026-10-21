@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/session_manager.dart';
-import '../Customer/customer_profile_setup_page.dart';
+import '../Customer/customer_profile_setup_page.dart'; // ✅ رجعناها
 import '../Programmer/programmer_profile_setup_page.dart';
 import 'login_page.dart';
 
@@ -29,7 +29,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
   final _passController = TextEditingController();
   final _confirmController = TextEditingController();
 
-  // ✅ نفس maxWidth المستخدم في AdminDashboardPage
   static const double maxWidth = 1200;
 
   bool _obscurePass = true;
@@ -96,6 +95,7 @@ class _SetPasswordPageState extends State<SetPasswordPage>
 
         if (!mounted) return;
 
+        // ✅ التوجيه لصفحة إعداد البروفايل أولاً
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -138,7 +138,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
         ? const Color(0xFF94A3B8)
         : const Color(0xFF64748B);
 
-    // ✅ تحديد حجم مناسب للديسكتوب
     final screenWidth = MediaQuery.of(context).size.width;
     final dialogMaxWidth = screenWidth > 1100 ? 480.0 : 400.0;
     final isDesktop = screenWidth > 1100;
@@ -261,7 +260,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
     return Scaffold(
       body: Stack(
         children: [
-          // ===== Background =====
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -294,11 +292,9 @@ class _SetPasswordPageState extends State<SetPasswordPage>
             child: _blurCircle(260, Colors.white.withOpacity(0.16)),
           ),
 
-          // ===== Content (Responsive + maxWidth) =====
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // ✅ نفس breakpoints الداشبورد
                 final isDesktop = constraints.maxWidth > 1100;
                 final isTablet = constraints.maxWidth > 700 &&
                     constraints.maxWidth <= 1100;
@@ -347,7 +343,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
                               ),
                               SizedBox(height: isDesktop ? 42 : 32),
 
-                              // ===== Form Card =====
                               Container(
                                 padding: EdgeInsets.all(isDesktop ? 32 : 22),
                                 decoration: BoxDecoration(
@@ -462,7 +457,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
                                       ),
                                       SizedBox(height: isDesktop ? 32 : 28),
 
-                                      // ===== Create Account Button =====
                                       SizedBox(
                                         width: double.infinity,
                                         height: isDesktop ? 60 : 54,

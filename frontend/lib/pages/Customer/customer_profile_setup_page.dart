@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl_phone_field_v2/intl_phone_field.dart';
 import '../../services/api_service.dart';
 import '../../services/session_manager.dart';
-import 'dashboard_placeholder_page.dart';
+import 'customer_home_page.dart'; // ✅ التوجيه لصفحة البوستات
 
 class CustomerProfileSetupPage extends StatefulWidget {
   final int userId;
@@ -41,7 +41,6 @@ class _CustomerProfileSetupPageState
   final Color accentColor = const Color(0xFF10B981);
   final Color accentDark = const Color(0xFF047857);
 
-  // ✅ نفس maxWidth المستخدم في AdminDashboardPage
   static const double maxWidth = 1200;
 
   late AnimationController _controller;
@@ -177,7 +176,6 @@ class _CustomerProfileSetupPageState
         ? const Color(0xFF94A3B8)
         : Colors.grey.shade600;
 
-    // ✅ تحديد حجم مناسب للديسكتوب
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 1100;
     final dialogMaxWidth = isDesktop ? 480.0 : 400.0;
@@ -243,11 +241,14 @@ class _CustomerProfileSetupPageState
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(ctx).pop();
+                          // ✅ التوجيه لصفحة البوستات
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DashboardPlaceholderPage(
+                              builder: (_) => CustomerHomePage(
                                 userId: widget.userId,
+                                authorName: _nicknameController.text.trim(),
+                                authorType: 'Customer',
                               ),
                             ),
                           );
@@ -340,11 +341,9 @@ class _CustomerProfileSetupPageState
             ),
           ),
 
-          // ===== Content (Responsive + maxWidth) =====
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // ✅ نفس breakpoints الداشبورد
                 final isDesktop = constraints.maxWidth > 1100;
                 final isTablet = constraints.maxWidth > 700 &&
                     constraints.maxWidth <= 1100;
@@ -370,7 +369,6 @@ class _CustomerProfileSetupPageState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ===== Back Button =====
                               Material(
                                 color: cardColor,
                                 borderRadius: BorderRadius.circular(14),
@@ -399,7 +397,6 @@ class _CustomerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 36 : 26),
 
-                              // ===== Icon =====
                               Center(
                                 child: Container(
                                   padding: EdgeInsets.all(
@@ -419,7 +416,6 @@ class _CustomerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 28 : 20),
 
-                              // ===== Title =====
                               Center(
                                 child: Text(
                                   'Complete Your Profile',
@@ -452,7 +448,6 @@ class _CustomerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 40 : 30),
 
-                              // ===== Form Card =====
                               Container(
                                 padding: EdgeInsets.all(
                                   isDesktop ? 32 : 22,
@@ -492,7 +487,6 @@ class _CustomerProfileSetupPageState
                                         height: isDesktop ? 32 : 28,
                                       ),
 
-                                      // ===== Nickname =====
                                       _buildLabel('Nickname', isDark),
                                       const SizedBox(height: 10),
                                       TextFormField(
@@ -525,7 +519,6 @@ class _CustomerProfileSetupPageState
                                       ),
                                       const SizedBox(height: 20),
 
-                                      // ===== Phone =====
                                       _buildLabel(
                                         'Phone Number',
                                         isDark,
@@ -627,7 +620,6 @@ class _CustomerProfileSetupPageState
                                       ),
                                       const SizedBox(height: 20),
 
-                                      // ===== Country =====
                                       _buildLabel('Country', isDark),
                                       const SizedBox(height: 10),
                                       TextFormField(
@@ -661,7 +653,6 @@ class _CustomerProfileSetupPageState
                                       ),
                                       const SizedBox(height: 20),
 
-                                      // ===== City =====
                                       _buildLabel(
                                         'City / Village',
                                         isDark,
@@ -700,7 +691,6 @@ class _CustomerProfileSetupPageState
                                         height: isDesktop ? 36 : 30,
                                       ),
 
-                                      // ===== Save Button =====
                                       SizedBox(
                                         width: double.infinity,
                                         height: isDesktop ? 62 : 58,
@@ -842,7 +832,6 @@ class _CustomerProfileSetupPageState
         ? const Color(0xFF64748B)
         : Colors.grey.shade500;
 
-    // ✅ حجم الصورة حسب الجهاز
     final imageSize = isDesktop ? 150.0 : 120.0;
     final iconSize = isDesktop ? 62.0 : 50.0;
 
