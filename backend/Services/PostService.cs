@@ -14,7 +14,7 @@ namespace Services
         }
 
         // ============================================================
-        // GET FEED
+        // GET FEED (Only Approved Posts)
         // ============================================================
         public async Task<List<object>> GetFeed(
             int currentUserId,
@@ -25,7 +25,7 @@ namespace Services
             if (pageSize < 1 || pageSize > 50) pageSize = 20;
 
             var posts = await _context.Posts
-                .Where(p => !p.IsDeleted)
+                .Where(p => !p.IsDeleted && p.Status == "Approved")
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -78,14 +78,14 @@ namespace Services
         }
 
         // ============================================================
-        // GET POSTS BY USER
+        // GET POSTS BY USER (Only Approved Posts)
         // ============================================================
         public async Task<List<object>> GetPostsByUser(
             int userId,
             int currentUserId)
         {
             var posts = await _context.Posts
-                .Where(p => p.UserId == userId && !p.IsDeleted)
+                .Where(p => p.UserId == userId && !p.IsDeleted && p.Status == "Approved")
                 .OrderByDescending(p => p.CreatedAt)
                 .Include(p => p.Images)
                 .Include(p => p.Likes)
@@ -135,7 +135,7 @@ namespace Services
         }
 
         // ============================================================
-        // CREATE POST
+        // CREATE POST (Status = Pending)
         // ============================================================
         public async Task<(bool success, string message, int? postId)> CreatePost(
             int userId,
@@ -177,7 +177,8 @@ namespace Services
             {
                 UserId = userId,
                 Content = hasContent ? content!.Trim() : null,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                Status = "Pending"
             };
 
             _context.Posts.Add(post);
@@ -511,7 +512,7 @@ namespace Services
                 return null;
 
             var postCount = await _context.Posts
-                .CountAsync(p => p.UserId == userId && !p.IsDeleted);
+                .CountAsync(p => p.UserId == userId && !p.IsDeleted && p.Status == "Approved");
 
             if (user.UserType == "Customer")
             {
@@ -780,6 +781,103 @@ namespace Services
         {
             return await _context.PostApplications
                 .AnyAsync(a => a.PostId == postId && a.ProgrammerId == userId);
+        }
+
+        // ============================================================
+        // ADMIN: Get Pending Posts
+        // ============================================================
+        public async Task<List<object>> GetPendingPosts()
+        {
+            var posts = await _context.Posts
+                .Where(p => p.Status == "Pending" && !p.IsDeleted)
+                .OrderByDescending(p => p.CreatedAt)
+                .Include(p => p.Images)
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var post in posts)
+            {
+                var author = await GetAuthorInfo(post.UserId);
+                if (author == null) continue;
+
+                result.Add(new
+                {
+                    id = post.Id,
+                    userId = post.UserId,
+                    authorName = author.Value.nickname,
+                    authorType = author.Value.userType,
+                    authorImage = author.Value.hasImage
+                        ? $"/api/Posts/user/{post.UserId}/avatar"
+                        : null,
+                    content = post.Content,
+                    createdAt = post.CreatedAt,
+                    imageCount = post.Images.Count,
+                    images = post.Images
+                        .OrderBy(i => i.SortOrder)
+                        .Select(i => new
+                        {
+                            id = i.Id,
+                            url = $"/api/Posts/image/{i.Id}"
+                        })
+                        .ToList()
+                });
+            }
+
+            return result;
+        }
+
+        // ============================================================
+        // ADMIN: Approve Post
+        // ============================================================
+        public async Task<(bool success, string message)> ApprovePost(int postId)
+        {
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId);
+
+            if (post == null) return (false, "Post not found");
+            if (post.Status == "Approved") return (true, "Already approved");
+
+            post.Status = "Approved";
+            post.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return (true, "Post approved successfully");
+        }
+
+        // ============================================================
+        // ADMIN: Reject Post
+        // ============================================================
+        public async Task<(bool success, string message)> RejectPost(
+            int postId, string reason)
+        {
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId);
+
+            if (post == null) return (false, "Post not found");
+
+            post.Status = "Rejected";
+            post.RejectionReason = reason.Trim();
+            post.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return (true, "Post rejected");
+        }
+
+        // ============================================================
+        // ADMIN: Get Post Author Email
+        // ============================================================
+        public async Task<string?> GetPostAuthorEmail(int postId)
+        {
+            var post = await _context.Posts
+                .FirstOrDefaultAsync(p => p.Id == postId);
+
+            if (post == null) return null;
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == post.UserId);
+
+            return user?.Email;
         }
 
         // ============================================================

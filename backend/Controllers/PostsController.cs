@@ -8,10 +8,12 @@ namespace Controllers
     public class PostsController : ControllerBase
     {
         private readonly PostService _postService;
+        private readonly EmailService _emailService;
 
-        public PostsController(PostService postService)
+        public PostsController(PostService postService, EmailService emailService)
         {
             _postService = postService;
+            _emailService = emailService;
         }
 
         // ============================================================
@@ -83,7 +85,12 @@ namespace Controllers
             if (!success)
                 return BadRequest(new { message });
 
-            return Ok(new { message, postId });
+            // ✅ الرسالة الجديدة
+            return Ok(new
+            {
+                message = "Post submitted successfully. Your post is now pending admin approval.",
+                postId
+            });
         }
 
         // ============================================================
@@ -259,9 +266,6 @@ namespace Controllers
             return Ok(new { message, applicationId });
         }
 
-        // ============================================================
-        // GET APPLICATIONS
-        // ============================================================
         [HttpGet("{id}/applications")]
         public async Task<IActionResult> GetApplications(
             int id,
@@ -270,15 +274,10 @@ namespace Controllers
             if (requesterId <= 0)
                 return BadRequest(new { message = "requesterId is required" });
 
-            var applications = await _postService.GetPostApplications(
-                id, requesterId);
-
+            var applications = await _postService.GetPostApplications(id, requesterId);
             return Ok(new { applications });
         }
 
-        // ============================================================
-        // ACCEPT APPLICATION
-        // ============================================================
         [HttpPost("{id}/applications/{applicationId}/accept")]
         public async Task<IActionResult> AcceptApplication(
             int id,
@@ -297,9 +296,6 @@ namespace Controllers
             return Ok(new { message });
         }
 
-        // ============================================================
-        // APPLICATIONS COUNT
-        // ============================================================
         [HttpGet("{id}/applications/count")]
         public async Task<IActionResult> GetApplicationsCount(int id)
         {
@@ -307,9 +303,6 @@ namespace Controllers
             return Ok(new { count });
         }
 
-        // ============================================================
-        // HAS USER APPLIED
-        // ============================================================
         [HttpGet("{id}/has-applied")]
         public async Task<IActionResult> HasUserApplied(
             int id,
@@ -317,6 +310,85 @@ namespace Controllers
         {
             var hasApplied = await _postService.HasUserApplied(id, userId);
             return Ok(new { hasApplied });
+        }
+
+        // ============================================================
+        // ADMIN: PENDING POSTS
+        // ============================================================
+        [HttpGet("pending")]
+        public async Task<IActionResult> GetPendingPosts()
+        {
+            var posts = await _postService.GetPendingPosts();
+            return Ok(new { posts });
+        }
+
+        // ============================================================
+        // ADMIN: APPROVE POST
+        // ============================================================
+        [HttpPost("{id}/approve")]
+        public async Task<IActionResult> ApprovePost(int id)
+        {
+            var (success, message) = await _postService.ApprovePost(id);
+
+            if (!success)
+                return BadRequest(new { message });
+
+            var authorEmail = await _postService.GetPostAuthorEmail(id);
+
+            if (!string.IsNullOrEmpty(authorEmail))
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        authorEmail,
+                        "Your post has been approved ✅",
+                        "Hi,\n\nYour post has been reviewed and approved by our team.\nIt is now live on DevLink!\n\nBest regards,\nDevLink Team"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Email error: {ex.Message}");
+                }
+            }
+
+            return Ok(new { message });
+        }
+
+        // ============================================================
+        // ADMIN: REJECT POST
+        // ============================================================
+        [HttpPost("{id}/reject")]
+        public async Task<IActionResult> RejectPost(
+            int id,
+            [FromBody] RejectPostDto model)
+        {
+            if (string.IsNullOrWhiteSpace(model.Reason))
+                return BadRequest(new { message = "Reason is required" });
+
+            var (success, message) = await _postService.RejectPost(id, model.Reason);
+
+            if (!success)
+                return BadRequest(new { message });
+
+            var authorEmail = await _postService.GetPostAuthorEmail(id);
+
+            if (!string.IsNullOrEmpty(authorEmail))
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        authorEmail,
+                        "Your post has been rejected ❌",
+                        $"Hi,\n\nUnfortunately, your post was rejected by our team.\n\nReason: {model.Reason}\n\nIf you think this is a mistake, please contact support.\n\nBest regards,\nDevLink Team"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Email error: {ex.Message}");
+                }
+            }
+
+            return Ok(new { message });
         }
 
         // ============================================================
@@ -379,5 +451,10 @@ namespace Controllers
         public string Proposal { get; set; } = string.Empty;
         public decimal? Price { get; set; }
         public string? Duration { get; set; }
+    }
+
+    public class RejectPostDto
+    {
+        public string Reason { get; set; } = string.Empty;
     }
 }

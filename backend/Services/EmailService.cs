@@ -60,5 +60,10 @@ namespace Services
                 return false;
             }
         }
+        public async Task<bool> SendEmailAsync(string toEmail, string subject, string body, string senderName = "DevLink")
+{
+    return await Task.Run(() => SendEmail(toEmail, subject, body, senderName));
+}
     }
+    
 }

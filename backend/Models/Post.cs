@@ -25,6 +25,11 @@ namespace DataBase
 
         public bool IsClosed { get; set; } = false;
 
+        public string Status { get; set; } = "Pending";
+
+        [MaxLength(500)]
+        public string? RejectionReason { get; set; }
+
         public ICollection<PostImage> Images { get; set; } = new List<PostImage>();
         public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
         public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
