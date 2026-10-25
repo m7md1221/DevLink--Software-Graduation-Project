@@ -11,6 +11,21 @@ void main() async {
   runApp(const DevLinkApp());
 }
 
+// كلاس بيمنع السكرول بار من إنه يظهر نهائياً
+class NoScrollbarBehavior extends ScrollBehavior {
+  const NoScrollbarBehavior();
+
+  @override
+  Widget buildScrollbar(BuildContext context, Widget child, ScrollableDetails details) {
+    return child; // هنا بنمنع الشريط
+  }
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) {
+    return child; // نمنع تأثير الـ Glow كمان
+  }
+}
+
 class DevLinkApp extends StatefulWidget {
   const DevLinkApp({super.key});
 
@@ -37,13 +52,16 @@ class _DevLinkAppState extends State<DevLinkApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'DevLink',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeManager.themeMode,
-      home: const WelcomePage(),
+    return ScrollConfiguration(
+      behavior: const NoScrollbarBehavior(),
+      child: MaterialApp(
+        title: 'DevLink',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeManager.themeMode,
+        home: const WelcomePage(),
+      ),
     );
   }
 }

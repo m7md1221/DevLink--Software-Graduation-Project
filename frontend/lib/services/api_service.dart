@@ -31,7 +31,6 @@ class ApiService {
   // ============================================================
   // AUTH
   // ============================================================
-
   static Future<ApiResult> login({
     required String email,
     required String password,
@@ -1062,6 +1061,33 @@ class ApiService {
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Failed to unverify',
+      );
+    } catch (e) {
+      return ApiResult(
+        success: false,
+        message: 'Connection error: $e',
+      );
+    }
+  }
+
+  // ✅ GET /api/Admin/statistics
+  static Future<ApiResult> getAdminStatistics() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/Admin/statistics'), // ✅ شلنا ApiConfig. وحطينا baseUrl
+      );
+
+      if (response.statusCode == 200) {
+        return ApiResult(
+          success: true,
+          message: 'Success',
+          data: jsonDecode(response.body),
+        );
+      }
+
+      return ApiResult(
+        success: false,
+        message: 'Failed to load statistics',
       );
     } catch (e) {
       return ApiResult(

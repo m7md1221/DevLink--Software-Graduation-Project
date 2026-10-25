@@ -34,7 +34,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   List<UserSearchResult> _suggestedPeople = [];
   bool _isLoading = true;
 
-  // ✅ عرض مرن للـ Feed
   static double _getFeedWidth(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     if (width > 1400) return 700;
@@ -130,6 +129,75 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
     return Scaffold(
       backgroundColor: bgColor,
+      appBar: _currentIndex == 0
+          ? AppBar(
+              elevation: 0,
+              toolbarHeight: 60,
+              backgroundColor: Colors.transparent,
+              automaticallyImplyLeading: false,
+              flexibleSpace: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x228B5CF6),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.hub_rounded, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'DevLink',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                ThemeToggle(themeManager: themeManager, compact: true),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Material(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: _logout,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                        ),
+                        child: const Icon(Icons.logout_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : null,
       body: IndexedStack(
         index: _currentIndex,
         children: pages,
@@ -172,9 +240,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // ============================================================
-  // FEED TAB (3 Columns on Desktop)
-  // ============================================================
   Widget _buildFeedTab() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
@@ -182,115 +247,44 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
-    return SafeArea(
-      bottom: false,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isDesktop = constraints.maxWidth > 1100;
-          final feedWidth = _getFeedWidth(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth > 1100;
+        final feedWidth = _getFeedWidth(context);
 
-          return Column(
-            children: [
-              // ===== TOP BAR =====
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.hub_rounded, color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'DevLink',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const Spacer(),
-                    ThemeToggle(themeManager: themeManager, compact: true),
-                    const SizedBox(width: 8),
-                    Material(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: _logout,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: borderColor, width: 1.2),
-                          ),
-                          child: const Icon(Icons.logout_rounded, color: Color(0xFFEF4444), size: 18),
-                        ),
-                      ),
-                    ),
-                  ],
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isDesktop)
+              SizedBox(
+                width: 260,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 8, 100),
+                  child: _buildLeftSidebar(isDark, cardColor, textPrimary, textSecondary, borderColor),
                 ),
               ),
-
-              // ===== CONTENT =====
-              Expanded(
-                child: isDesktop
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // LEFT SIDEBAR
-                          SizedBox(
-                            width: 260,
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(20, 8, 8, 100),
-                              child: _buildLeftSidebar(isDark, cardColor, textPrimary, textSecondary, borderColor),
-                            ),
-                          ),
-
-                          // FEED (Center)
-                          Expanded(
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(maxWidth: feedWidth),
-                                child: _buildFeedContent(isDark, cardColor, textPrimary, textSecondary, borderColor),
-                              ),
-                            ),
-                          ),
-
-                          // RIGHT SIDEBAR
-                          SizedBox(
-                            width: 300,
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(8, 8, 20, 100),
-                              child: _buildRightSidebar(isDark, cardColor, textPrimary, textSecondary, borderColor),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Center(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: feedWidth),
-                          child: _buildFeedContent(isDark, cardColor, textPrimary, textSecondary, borderColor),
-                        ),
-                      ),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: feedWidth),
+                  child: _buildFeedContent(isDark, cardColor, textPrimary, textSecondary, borderColor),
+                ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+            if (isDesktop)
+              SizedBox(
+                width: 300,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(8, 16, 20, 100),
+                  child: _buildRightSidebar(isDark, cardColor, textPrimary, textSecondary, borderColor),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
-  // ============================================================
-  // FEED CONTENT
-  // ============================================================
   Widget _buildFeedContent(
     bool isDark,
     Color cardColor,
@@ -298,104 +292,102 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     Color textSecondary,
     Color borderColor,
   ) {
-    return RefreshIndicator(
-      color: const Color(0xFF8B5CF6),
-      onRefresh: _loadFeed,
-      child: CustomScrollView(
-        slivers: [
-          // ===== Create Post Box =====
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Material(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(18),
-                child: InkWell(
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: RefreshIndicator(
+        color: const Color(0xFF8B5CF6),
+        onRefresh: _loadFeed,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Material(
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(18),
-                  onTap: _openCreatePost,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: borderColor, width: 1.2),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF8B5CF6).withOpacity(0.12),
-                          ),
-                          child: ClipOval(
-                            child: Image.network(
-                              PostService.getUserAvatarUrl(widget.userId),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.person_rounded,
-                                color: Color(0xFF8B5CF6),
-                                size: 20,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: _openCreatePost,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: borderColor, width: 1.2),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF8B5CF6).withOpacity(0.12),
+                            ),
+                            child: ClipOval(
+                              child: Image.network(
+                                PostService.getUserAvatarUrl(widget.userId),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.person_rounded,
+                                  color: Color(0xFF8B5CF6),
+                                  size: 20,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            "What's on your mind?",
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textSecondary,
-                              fontWeight: FontWeight.w500,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "What's on your mind?",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
-                        const Icon(Icons.photo_library_rounded, color: Color(0xFF10B981), size: 22),
-                      ],
+                          const Icon(Icons.photo_library_rounded, color: Color(0xFF10B981), size: 22),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-
-          // ===== Feed =====
-          if (_isLoading)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 60),
-                child: Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6))),
-              ),
-            )
-          else if (_posts.isEmpty)
-            SliverToBoxAdapter(
-              child: _emptyFeed(textPrimary, textSecondary),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => PostCard(
-                    post: _posts[i],
-                    currentUserId: widget.userId,
-                    currentUserType: widget.authorType,
-                    onChanged: _loadFeed,
-                    onOpenProfile: () => _openProfile(_posts[i].userId),
+            if (_isLoading)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 60),
+                  child: Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6))),
+                ),
+              )
+            else if (_posts.isEmpty)
+              SliverToBoxAdapter(
+                child: _emptyFeed(textPrimary, textSecondary),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) => PostCard(
+                      post: _posts[i],
+                      currentUserId: widget.userId,
+                      currentUserType: widget.authorType,
+                      onChanged: _loadFeed,
+                      onOpenProfile: () => _openProfile(_posts[i].userId),
+                    ),
+                    childCount: _posts.length,
                   ),
-                  childCount: _posts.length,
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // ============================================================
-  // LEFT SIDEBAR
-  // ============================================================
   Widget _buildLeftSidebar(
     bool isDark,
     Color cardColor,
@@ -408,7 +400,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Profile Card
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -468,8 +459,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Quick Links
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
@@ -487,8 +476,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Stats
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -597,9 +584,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // ============================================================
-  // RIGHT SIDEBAR
-  // ============================================================
   Widget _buildRightSidebar(
     bool isDark,
     Color cardColor,
@@ -610,7 +594,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Suggested People
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -647,8 +630,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Trending
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -682,8 +663,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Tips Card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -836,9 +815,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  // ============================================================
-  // EMPTY FEED
-  // ============================================================
   Widget _emptyFeed(Color textPrimary, Color textSecondary) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
