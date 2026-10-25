@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using DataBase;
 using Services;
 
 namespace Controllers
@@ -8,17 +10,17 @@ namespace Controllers
     public class AdminController : ControllerBase
     {
         private readonly AdminService _adminService;
+        private readonly AppDbContext _context; // ✅ ضروري للإحصائيات
 
-        public AdminController(AdminService adminService)
+        public AdminController(AdminService adminService, AppDbContext context)
         {
             _adminService = adminService;
+            _context = context;
         }
 
         // ============================================================
         // USERS MANAGEMENT
         // ============================================================
-
-        // GET: /api/Admin/users
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -26,120 +28,95 @@ namespace Controllers
             return Ok(users);
         }
 
-        // GET: /api/Admin/users/{id}
         [HttpGet("users/{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
             var user = await _adminService.GetUserById(id);
-
-            if (user == null)
-            {
-                return NotFound(new { message = "User not found" });
-            }
-
+            if (user == null) return NotFound(new { message = "User not found" });
             return Ok(user);
         }
 
-        // POST: /api/Admin/users
         [HttpPost("users")]
-        public async Task<IActionResult> CreateUser(
-            [FromBody] CreateUserDto model)
+        public async Task<IActionResult> CreateUser([FromBody] CreateUserDto model)
         {
-            if (string.IsNullOrWhiteSpace(model.Email) ||
-                string.IsNullOrWhiteSpace(model.Password) ||
-                string.IsNullOrWhiteSpace(model.UserType))
-            {
-                return BadRequest(new
-                {
-                    message = "All fields are required"
-                });
-            }
+            if (string.IsNullOrWhiteSpace(model.Email) || string.IsNullOrWhiteSpace(model.Password) || string.IsNullOrWhiteSpace(model.UserType))
+                return BadRequest(new { message = "All fields are required" });
 
             if (model.Password.Length < 6)
-            {
-                return BadRequest(new
-                {
-                    message = "Password must be at least 6 characters"
-                });
-            }
+                return BadRequest(new { message = "Password must be at least 6 characters" });
 
-            var (success, message) = await _adminService.CreateUser(
-                model.Email, model.Password, model.UserType);
-
-            if (!success)
-            {
-                return BadRequest(new { message });
-            }
-
+            var (success, message) = await _adminService.CreateUser(model.Email, model.Password, model.UserType);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
-        // PUT: /api/Admin/users/{id}
         [HttpPut("users/{id}")]
-        public async Task<IActionResult> UpdateUser(
-            int id, [FromBody] UpdateUserDto model)
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto model)
         {
-            var (success, message) = await _adminService.UpdateUser(
-                id,
-                model.Email,
-                model.Password,
-                model.UserType);
-
-            if (!success)
-            {
-                return BadRequest(new { message });
-            }
-
+            var (success, message) = await _adminService.UpdateUser(id, model.Email, model.Password, model.UserType);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
-        // DELETE: /api/Admin/users/{id}
         [HttpDelete("users/{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var (success, message) = await _adminService.DeleteUser(id);
-
-            if (!success)
-            {
-                return BadRequest(new { message });
-            }
-
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
         // ============================================================
         // PROGRAMMER VERIFICATION
         // ============================================================
-
-        // GET: /api/Admin/programmers
         [HttpGet("programmers")]
         public async Task<IActionResult> GetAllProgrammers()
         {
-            var programmers =
-                await _adminService.GetAllProgrammersForVerification();
+            var programmers = await _adminService.GetAllProgrammersForVerification();
             return Ok(programmers);
         }
 
-        // POST: /api/Admin/programmers/{userId}/verify
         [HttpPost("programmers/{userId}/verify")]
         public async Task<IActionResult> VerifyProgrammer(int userId)
         {
-            var (success, message) = await _adminService
-                .SetProgrammerVerification(userId, true);
-
+            var (success, message) = await _adminService.SetProgrammerVerification(userId, true);
             if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
-        // POST: /api/Admin/programmers/{userId}/unverify
         [HttpPost("programmers/{userId}/unverify")]
         public async Task<IActionResult> UnverifyProgrammer(int userId)
         {
-            var (success, message) = await _adminService
-                .SetProgrammerVerification(userId, false);
-
+            var (success, message) = await _adminService.SetProgrammerVerification(userId, false);
             if (!success) return BadRequest(new { message });
             return Ok(new { message });
+        }
+
+        // ============================================================
+        // ✅ NEW: STATISTICS ENDPOINT
+        // ============================================================
+        [HttpGet("statistics")]
+        public async Task<IActionResult> GetStatistics()
+        {
+            var totalCustomers = await _context.Users.CountAsync(u => u.UserType == "Customer");
+            var totalProgrammers = await _context.Users.CountAsync(u => u.UserType == "Programmer");
+            var totalPosts = await _context.Posts.CountAsync(p => !p.IsDeleted);
+            var pendingPosts = await _context.Posts.CountAsync(p => p.Status == "Pending" && !p.IsDeleted);
+            var verifiedProgrammers = await _context.ProgrammerProfiles.CountAsync(p => p.IsVerified);
+            var totalSupportMessages = await _context.SupportMessages.CountAsync();
+            var unreadSupportMessages = await _context.SupportMessages.CountAsync(m => m.Status == "New");
+
+            return Ok(new
+            {
+                customers = totalCustomers,
+                programmers = totalProgrammers,
+                totalUsers = totalCustomers + totalProgrammers,
+                posts = totalPosts,
+                pendingPosts = pendingPosts,
+                verifiedProgrammers = verifiedProgrammers,
+                supportMessages = totalSupportMessages,
+                unreadSupportMessages = unreadSupportMessages
+            });
         }
     }
 
