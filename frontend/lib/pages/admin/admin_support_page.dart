@@ -47,6 +47,68 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
     });
   }
 
+  // ✅ دالة حذف الرسائل اللي تم الرد عليها
+  Future<void> _deleteRepliedMessages() async {
+    final replied = _messages.where((m) => m.isReplied).toList();
+
+    if (replied.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No replied messages to delete'),
+          backgroundColor: Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Replied Messages?', style: TextStyle(fontWeight: FontWeight.w900)),
+        content: Text(
+          'Are you sure you want to delete all ${replied.length} replied messages? This cannot be undone.',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    for (final msg in replied) {
+      await SupportService.deleteMessage(msg.id);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${replied.length} messages deleted'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _load();
+    }
+  }
+
   Future<void> _openMessage(SupportMessageModel msg) async {
     if (msg.isNew) {
       await SupportService.markAsRead(msg.id);
@@ -82,19 +144,11 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFF1F5F9);
+    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark
-        ? const Color(0xFFF1F5F9)
-        : const Color(0xFF1E3A8A);
-    final textSecondary = isDark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
-    final borderColor = isDark
-        ? const Color(0xFF334155)
-        : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E3A8A);
+    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -234,6 +288,37 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
               ],
             ),
           ),
+
+          // ✅ زر الحذف الثابت للرسائل المردود عليها
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Material(
+              color: const Color(0xFFEF4444).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _deleteRepliedMessages,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.delete_sweep_rounded, color: Color(0xFFEF4444), size: 20),
+                      SizedBox(width: 6),
+                      Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Color(0xFFEF4444),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           if (_messages.where((m) => m.isNew).isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(
@@ -241,7 +326,7 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
                 vertical: 6,
               ),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444),
+                color: const Color(0xFF3B82F6),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -398,6 +483,7 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
                     ],
                   ),
                 ),
+                
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -482,7 +568,7 @@ class _AdminSupportPageState extends State<AdminSupportPage> {
 }
 
 // ============================================================
-// DETAILS PAGE
+// DETAILS PAGE (بدون تغيير)
 // ============================================================
 class _SupportMessageDetailsPage extends StatefulWidget {
   final SupportMessageModel message;
@@ -609,7 +695,6 @@ class _SupportMessageDetailsPageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ===== Header =====
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -709,7 +794,6 @@ class _SupportMessageDetailsPageState
                 ),
                 const SizedBox(height: 16),
 
-                // ===== Subject + Message =====
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -775,7 +859,6 @@ class _SupportMessageDetailsPageState
                 ),
                 const SizedBox(height: 16),
 
-                // ===== Admin Reply (if exists) =====
                 if (msg.isReplied && msg.adminReply != null) ...[
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -842,7 +925,6 @@ class _SupportMessageDetailsPageState
                   const SizedBox(height: 16),
                 ],
 
-                // ===== Reply Form =====
                 if (!msg.isReplied || _didReply)
                   Container(
                     padding: const EdgeInsets.all(16),

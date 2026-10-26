@@ -190,7 +190,23 @@ class _AdminPostsPageState extends State<AdminPostsPage>
       appBar: AppBar(
         backgroundColor: cardColor,
         elevation: 0,
-        automaticallyImplyLeading: false, // شلنا زر الرجوع
+        centerTitle: false,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Material(
+            color: isDark ? const Color(0xFF334155).withOpacity(0.5) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => Navigator.pop(context),
+              child: Icon(
+                Icons.arrow_back_rounded,
+                color: textPrimary,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
         title: Row(
           children: [
             Container(
@@ -208,7 +224,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
             ),
           ],
         ),
-        // ✅ شلنا شارة "1 Pending" من الـ actions
         actions: const [], 
       ),
       body: Center(
@@ -222,10 +237,8 @@ class _AdminPostsPageState extends State<AdminPostsPage>
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFFF59E0B)))
                   : Column(
                       children: [
-                        // ✅ كارت الإرشادات الجديد
                         _buildGuidelinesCard(isDark, cardColor, textPrimary, textSecondary),
 
-                        // ✅ قسم الإحصائيات
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                           child: Row(
@@ -274,7 +287,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
                           ),
                         ),
 
-                        // ✅ قائمة البوستات
                         Expanded(
                           child: _pendingPosts.isEmpty
                               ? _buildEmptyState(textPrimary, textSecondary)
@@ -304,7 +316,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
     );
   }
 
-  // ✅ كارت الإرشادات
   Widget _buildGuidelinesCard(bool isDark, Color cardColor, Color textPrimary, Color textSecondary) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
@@ -411,7 +422,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Container(
@@ -452,11 +462,9 @@ class _AdminPostsPageState extends State<AdminPostsPage>
             ),
             const SizedBox(height: 16),
 
-            // Content
             if (post.content != null && post.content!.trim().isNotEmpty)
               Text(post.content!, style: TextStyle(fontSize: 14.5, color: textPrimary, height: 1.5)),
 
-            // Images
             if (post.images.isNotEmpty) ...[
               const SizedBox(height: 14),
               SizedBox(
@@ -488,7 +496,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
             Divider(color: borderColor, height: 1),
             const SizedBox(height: 16),
 
-            // Actions
             Row(
               children: [
                 Expanded(
@@ -528,7 +535,6 @@ class _AdminPostsPageState extends State<AdminPostsPage>
   }
 }
 
-// ✅ ويدجت الـ Hover
 class _HoverCard extends StatefulWidget {
   final Widget child;
   const _HoverCard({required this.child});
