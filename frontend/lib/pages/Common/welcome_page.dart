@@ -18,21 +18,10 @@ class _WelcomePageState extends State<WelcomePage>
 
   late Animation<double> _logoScale;
   late Animation<double> _logoFade;
-
-  late Animation<double> _fadeHeader;
-  late Animation<Offset> _slideHeader;
-
-  late Animation<double> _fadeAdmin;
-  late Animation<Offset> _slideAdmin;
-
-  late Animation<double> _fadeCustomer;
-  late Animation<Offset> _slideCustomer;
-
-  late Animation<double> _fadeProgrammer;
-  late Animation<Offset> _slideProgrammer;
-
-  // ✅ نفس maxWidth المستخدم في AdminDashboardPage
-  static const double maxWidth = 1200;
+  late Animation<Offset> _headerSlide;
+  late Animation<double> _headerFade;
+  late Animation<Offset> _cardsSlide;
+  late Animation<double> _cardsFade;
 
   @override
   void initState() {
@@ -41,79 +30,49 @@ class _WelcomePageState extends State<WelcomePage>
 
     _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 8000),
+      duration: const Duration(milliseconds: 1500),
     );
 
-    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: const Interval(0.0, 0.40, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.4, curve: Curves.elasticOut),
       ),
     );
 
     _logoFade = CurvedAnimation(
       parent: _entranceController,
-      curve: const Interval(0.0, 0.30, curve: Curves.easeOut),
+      curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
     );
 
-    _fadeHeader = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.20, 0.60, curve: Curves.easeOut),
-    );
-
-    _slideHeader = Tween<Offset>(
-      begin: const Offset(-1.5, 0),
+    _headerSlide = Tween<Offset>(
+      begin: const Offset(0, 0.2),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: const Interval(0.20, 0.65, curve: Curves.easeOutCubic),
+        curve: const Interval(0.2, 0.6, curve: Curves.easeOutCubic),
       ),
     );
 
-    _fadeAdmin = CurvedAnimation(
+    _headerFade = CurvedAnimation(
       parent: _entranceController,
-      curve: const Interval(0.40, 0.75, curve: Curves.easeOut),
+      curve: const Interval(0.2, 0.6, curve: Curves.easeOut),
     );
 
-    _slideAdmin = Tween<Offset>(
-      begin: const Offset(-1.5, 0),
+    _cardsSlide = Tween<Offset>(
+      begin: const Offset(0.1, 0),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: const Interval(0.40, 0.80, curve: Curves.easeOutCubic),
+        curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic),
       ),
     );
 
-    _fadeCustomer = CurvedAnimation(
+    _cardsFade = CurvedAnimation(
       parent: _entranceController,
-      curve: const Interval(0.55, 0.90, curve: Curves.easeOut),
-    );
-
-    _slideCustomer = Tween<Offset>(
-      begin: const Offset(1.5, 0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.55, 0.95, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _fadeProgrammer = CurvedAnimation(
-      parent: _entranceController,
-      curve: const Interval(0.70, 1.0, curve: Curves.easeOut),
-    );
-
-    _slideProgrammer = Tween<Offset>(
-      begin: const Offset(0, 1.5),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.70, 1.0, curve: Curves.easeOutCubic),
-      ),
+      curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
     );
 
     _entranceController.forward();
@@ -122,14 +81,9 @@ class _WelcomePageState extends State<WelcomePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-
-    if (state == AppLifecycleState.resumed) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _entranceController.reset();
-          _entranceController.forward();
-        }
-      });
+    if (state == AppLifecycleState.resumed && mounted) {
+      _entranceController.reset();
+      _entranceController.forward();
     }
   }
 
@@ -140,15 +94,12 @@ class _WelcomePageState extends State<WelcomePage>
     super.dispose();
   }
 
-  Future<void> openLoginWithLoading(
-      BuildContext context, String userType) async {
+  Future<void> openLoginWithLoading(BuildContext context, String userType) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.55),
-      builder: (BuildContext dialogContext) {
-        return _LoadingOverlay(userType: userType);
-      },
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (dialogContext) => _LoadingOverlay(userType: userType),
     );
 
     await Future.delayed(const Duration(milliseconds: 1600));
@@ -158,11 +109,10 @@ class _WelcomePageState extends State<WelcomePage>
       Navigator.push(
         context,
         PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 500),
+          transitionDuration: const Duration(milliseconds: 600),
           pageBuilder: (context, animation, secondaryAnimation) =>
               LoginPage(userType: userType),
-          transitionsBuilder:
-              (context, animation, secondaryAnimation, child) {
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,
               child: SlideTransition(
@@ -188,16 +138,15 @@ class _WelcomePageState extends State<WelcomePage>
     Navigator.push(
       context,
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (context, animation, secondaryAnimation) =>
             const SignUpPage(),
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) {
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
             child: SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0.05, 0),
+                begin: const Offset(0, 0.05),
                 end: Offset.zero,
               ).animate(
                 CurvedAnimation(
@@ -220,570 +169,479 @@ class _WelcomePageState extends State<WelcomePage>
     return Scaffold(
       body: Stack(
         children: [
-          // ===== Background Gradient =====
+          // ✅ الخلفية
           Container(
-            width: double.infinity,
-            height: double.infinity,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: isDark
-                    ? const [
-                        Color(0xFF0F172A),
-                        Color(0xFF1E293B),
-                        Color(0xFF1E3A8A),
-                      ]
-                    : const [
-                        Color(0xFF1E3A8A),
-                        Color(0xFF3B82F6),
-                        Color(0xFF60A5FA),
-                      ],
+                    ? const [Color(0xFF0F172A), Color(0xFF1E1B4B)]
+                    : const [Color(0xFF0EA5E9), Color(0xFF3B82F6), Color(0xFF8B5CF6)],
               ),
             ),
           ),
 
-          // ===== Floating Icons =====
+          // ✅ دوائر جمالية في الخلفية
           Positioned(
-            top: 60,
-            left: 20,
-            child: Opacity(
-              opacity: 0.22,
-              child:
-                  Icon(Icons.code_rounded, size: 28, color: Colors.white),
-            ),
+            top: -100,
+            right: -100,
+            child: _buildBlurCircle(400, Colors.white.withOpacity(0.1)),
           ),
           Positioned(
-            top: 120,
-            right: 30,
-            child: Opacity(
-              opacity: 0.22,
-              child:
-                  Icon(Icons.flutter_dash, size: 32, color: Colors.white),
-            ),
-          ),
-          Positioned(
-            top: 220,
-            left: 40,
-            child: Opacity(
-              opacity: 0.22,
-              child: Icon(Icons.terminal_rounded,
-                  size: 24, color: Colors.white),
-            ),
-          ),
-          Positioned(
-            top: 320,
-            right: 20,
-            child: Opacity(
-              opacity: 0.22,
-              child: Icon(Icons.data_object_rounded,
-                  size: 26, color: Colors.white),
-            ),
-          ),
-          Positioned(
-            bottom: 200,
-            left: 30,
-            child: Opacity(
-              opacity: 0.22,
-              child:
-                  Icon(Icons.cloud_rounded, size: 30, color: Colors.white),
-            ),
-          ),
-          Positioned(
-            bottom: 100,
-            right: 40,
-            child: Opacity(
-              opacity: 0.22,
-              child: Icon(Icons.storage_rounded,
-                  size: 26, color: Colors.white),
-            ),
+            bottom: -100,
+            left: -100,
+            child: _buildBlurCircle(300, Colors.white.withOpacity(0.1)),
           ),
 
-          // ===== Glow Circles =====
-          Positioned(
-            top: -60,
-            left: -40,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(isDark ? 0.08 : 0.20),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 150,
-            right: -80,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFBFDBFE)
-                    .withOpacity(isDark ? 0.08 : 0.20),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -80,
-            left: -60,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(isDark ? 0.08 : 0.20),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 100,
-            right: -50,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF93C5FD)
-                    .withOpacity(isDark ? 0.08 : 0.20),
-              ),
-            ),
-          ),
-
-          // ===== Content (Responsive + maxWidth + Scrollable) =====
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // ✅ نفس breakpoints الداشبورد
-                final isDesktop = constraints.maxWidth > 1100;
-                final isTablet = constraints.maxWidth > 700 &&
-                    constraints.maxWidth <= 1100;
-
-                // ✅ كشف الشاشات القصيرة لمنع الـ Overflow
-                final isCompact = constraints.maxHeight < 720;
-
-                final hPad = isDesktop ? 40.0 : 26.0;
-
-                // ✅ أحجام متغيرة حسب الحالة
-                final logoSize = isDesktop
-                    ? (isCompact ? 130.0 : 180.0)
-                    : (isCompact ? 100.0 : 145.0);
-
-                final welcomeFontSize = isDesktop
-                    ? (isCompact ? 30.0 : 38.0)
-                    : (isCompact ? 24.0 : 30.0);
-
-                final spacerTop = isCompact ? 20.0 : (isDesktop ? 40.0 : 32.0);
-                final spacerMid = isCompact ? 24.0 : (isDesktop ? 50.0 : 40.0);
-                final spacerBottom = isCompact ? 20.0 : (isDesktop ? 36.0 : 28.0);
+                final isDesktop = constraints.maxWidth > 900;
 
                 return Center(
                   child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: maxWidth),
-                    child: SingleChildScrollView(
-                      // ✅ يمنع الـ Overflow نهائياً
-                      padding: EdgeInsets.symmetric(horizontal: hPad),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight -
-                              MediaQuery.of(context).padding.top -
-                              MediaQuery.of(context).padding.bottom,
-                        ),
-                        child: IntrinsicHeight(
-                          child: Column(
-                            children: [
-                              // ===== Top Bar — Theme Toggle =====
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  top: isDesktop ? 20 : 8,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: ThemeToggle(
-                                    themeManager: themeManager,
-                                    compact: true,
-                                  ),
-                                ),
-                              ),
-
-                              SizedBox(height: spacerTop),
-
-                              // ===== Logo =====
-                              ScaleTransition(
-                                scale: _logoScale,
-                                child: FadeTransition(
-                                  opacity: _logoFade,
-                                  child: Container(
-                                    width: logoSize,
-                                    height: logoSize,
-                                    padding: EdgeInsets.all(
-                                      logoSize * 0.15,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(
-                                        logoSize * 0.25,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFF3B82F6)
-                                              .withOpacity(0.5),
-                                          blurRadius: 45,
-                                          spreadRadius: 5,
-                                          offset: const Offset(0, 18),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Image.asset(
-                                      'assets/images/devlink_logo.png',
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: spacerTop),
-
-                              // ===== Header =====
-                              FadeTransition(
-                                opacity: _fadeHeader,
-                                child: SlideTransition(
-                                  position: _slideHeader,
-                                  child: Column(
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            'Welcome to ',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: welcomeFontSize,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                          Text(
-                                            'DevLink',
-                                            style: TextStyle(
-                                              color: const Color(
-                                                  0xFFBFDBFE),
-                                              fontSize: welcomeFontSize,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withOpacity(0.15),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          border: Border.all(
-                                            color: Colors.white
-                                                .withOpacity(0.25),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Connect • Build • Deliver',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize:
-                                                isDesktop ? 14 : 13,
-                                            fontWeight: FontWeight.w500,
-                                            letterSpacing: 1.2,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              SizedBox(height: spacerMid),
-
-                              // ===== "Choose your account type" =====
-                              FadeTransition(
-                                opacity: _fadeAdmin,
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 4,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFBFDBFE),
-                                        borderRadius:
-                                            BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      'Choose your account type',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize:
-                                            isDesktop ? 19 : 17,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(height: isDesktop ? 22 : 16),
-
-                              // ===== Admin Button =====
-                              FadeTransition(
-                                opacity: _fadeAdmin,
-                                child: SlideTransition(
-                                  position: _slideAdmin,
-                                  child: _AccountButton(
-                                    title: 'Admin',
-                                    subtitle:
-                                        'Control panel & system configuration',
-                                    icon: Icons
-                                        .admin_panel_settings_rounded,
-                                    accentColor:
-                                        const Color(0xFF3B82F6),
-                                    isDesktop: isDesktop,
-                                    onTap: () => openLoginWithLoading(
-                                        context, 'Admin'),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: isDesktop ? 18 : 14),
-
-                              // ===== Customer Button =====
-                              FadeTransition(
-                                opacity: _fadeCustomer,
-                                child: SlideTransition(
-                                  position: _slideCustomer,
-                                  child: _AccountButton(
-                                    title: 'Customer',
-                                    subtitle:
-                                        'Explore services & place new orders',
-                                    icon: Icons.person_rounded,
-                                    accentColor:
-                                        const Color(0xFF10B981),
-                                    isDesktop: isDesktop,
-                                    onTap: () => openLoginWithLoading(
-                                        context, 'Customer'),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: isDesktop ? 18 : 14),
-
-                              // ===== Programmer Button =====
-                              FadeTransition(
-                                opacity: _fadeProgrammer,
-                                child: SlideTransition(
-                                  position: _slideProgrammer,
-                                  child: _AccountButton(
-                                    title: 'Programmer',
-                                    subtitle:
-                                        'Manage tasks, code & deliver products',
-                                    icon: Icons.code_rounded,
-                                    accentColor:
-                                        const Color(0xFF8B5CF6),
-                                    isDesktop: isDesktop,
-                                    onTap: () => openLoginWithLoading(
-                                        context, 'Programmer'),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(height: isDesktop ? 28 : 22),
-
-                              // ===== Sign Up =====
-                              FadeTransition(
-                                opacity: _fadeProgrammer,
-                                child: _SignUpButton(
-                                  onTap: () => openSignUp(context),
-                                  isDesktop: isDesktop,
-                                ),
-                              ),
-
-                              // ✅ مساحة سفلية بدل Spacer
-                              SizedBox(height: spacerBottom),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: isDesktop
+                        ? _buildDesktopLayout(context)
+                        : _buildMobileLayout(context),
                   ),
                 );
               },
+            ),
+          ),
+
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            right: 20,
+            child: ThemeToggle(
+              themeManager: themeManager,
+              compact: true,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ============================================================
-// Account Type Button
-// ============================================================
-class _AccountButton extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color accentColor;
-  final bool isDesktop;
-  final VoidCallback onTap;
-
-  const _AccountButton({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.accentColor,
-    required this.isDesktop,
-    required this.onTap,
-  });
-
-  @override
-  State<_AccountButton> createState() => _AccountButtonState();
-}
-
-class _AccountButtonState extends State<_AccountButton> {
-  bool _isHovered = false;
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isActive = _isHovered || _isPressed;
-
-    final cardColor = isActive
-        ? (isDark ? const Color(0xFF1E293B) : Colors.white)
-        : (isDark
-            ? const Color(0xFF1E293B).withOpacity(0.95)
-            : Colors.white.withOpacity(0.95));
-
-    final titleColor =
-        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final subtitleColor =
-        isDark ? const Color(0xFF94A3B8) : Colors.grey.shade600;
-
-    final hPad = widget.isDesktop ? 24.0 : 18.0;
-    final vPad = widget.isDesktop ? 18.0 : 14.0;
-    final iconBoxPad = widget.isDesktop ? 16.0 : 12.0;
-    final iconSize = widget.isDesktop ? 30.0 : 24.0;
-    final titleSize = widget.isDesktop ? 18.0 : 16.0;
-    final subtitleSize = widget.isDesktop ? 13.0 : 12.0;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapUp: (_) {
-          setState(() => _isPressed = false);
-          widget.onTap();
-        },
-        onTapCancel: () => setState(() => _isPressed = false),
-        child: AnimatedScale(
-          scale: _isPressed ? 0.96 : (_isHovered ? 1.025 : 1.0),
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            padding: EdgeInsets.symmetric(
-              horizontal: hPad,
-              vertical: vPad,
-            ),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: _isHovered
-                    ? widget.accentColor.withOpacity(0.8)
-                    : (isDark
-                        ? const Color(0xFF334155)
-                        : Colors.white),
-                width: 2.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _isHovered
-                      ? widget.accentColor.withOpacity(0.35)
-                      : Colors.black.withOpacity(isDark ? 0.3 : 0.12),
-                  blurRadius: _isHovered ? 24 : 14,
-                  offset: Offset(0, _isHovered ? 10 : 5),
-                ),
-              ],
-            ),
-            child: Row(
+  // ============================================================
+  // 📌 Desktop Layout (Split Screen)
+  // ============================================================
+  Widget _buildDesktopLayout(BuildContext context) {
+    return Row(
+      children: [
+        // اليسار: اللوجو والعنوان
+        Expanded(
+          flex: 5,
+          child: Padding(
+            padding: const EdgeInsets.all(60.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: EdgeInsets.all(iconBoxPad),
-                  decoration: BoxDecoration(
-                    color: _isHovered
-                        ? widget.accentColor
-                        : widget.accentColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    widget.icon,
-                    size: iconSize,
-                    color:
-                        _isHovered ? Colors.white : widget.accentColor,
+                FadeTransition(
+                  opacity: _logoFade,
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.3),
+                            blurRadius: 40,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Image.asset('assets/images/devlink_logo.png'),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: titleSize,
-                          fontWeight: FontWeight.bold,
+                const SizedBox(height: 40),
+                FadeTransition(
+                  opacity: _headerFade,
+                  child: SlideTransition(
+                    position: _headerSlide,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 56,
+                              fontWeight: FontWeight.w900,
+                              height: 1.2,
+                              letterSpacing: -1,
+                            ),
+                            children: [
+                              const TextSpan(
+                                text: 'Welcome to\n',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              TextSpan(
+                                text: 'DevLink',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        widget.subtitle,
-                        style: TextStyle(
-                          color: subtitleColor,
-                          fontSize: subtitleSize,
-                          height: 1.2,
+                        const SizedBox(height: 20),
+                        Text(
+                          'Connect. Build. Deliver.\nThe ultimate platform for programmers and clients.',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white.withOpacity(0.8),
+                            height: 1.6,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  transform: Matrix4.translationValues(
-                    _isHovered ? 6 : 0,
-                    0,
-                    0,
-                  ),
-                  child: Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: _isHovered
-                        ? widget.accentColor
-                        : (isDark
-                            ? const Color(0xFF64748B)
-                            : Colors.grey.shade400),
+                        const SizedBox(height: 12),
+                        Text(
+                          'منصتك الأولى للربط بين المبرمجين وأصحاب المشاريع.',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // ✅ شعارات الثقة (Trust Badges) بعد التعديل
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            _buildTrustBadge(Icons.verified_rounded, 'Verified Programmers'),
+                            _buildTrustBadge(Icons.support_agent_rounded, 'Strong Support'),
+                            _buildTrustBadge(Icons.high_quality_rounded, 'High Quality Projects'), // ✅ الإضافة الجديدة
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+        ),
+
+        // اليمين: كروت الدخول
+        Expanded(
+          flex: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(40.0),
+            child: FadeTransition(
+              opacity: _cardsFade,
+              child: SlideTransition(
+                position: _cardsSlide,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildModernCard(
+                      title: 'Admin',
+                      desc: 'Full system control',
+                      icon: Icons.admin_panel_settings_rounded,
+                      color: const Color(0xFF3B82F6),
+                      onTap: () => openLoginWithLoading(context, 'Admin'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernCard(
+                      title: 'Customer',
+                      desc: 'Hire top developers',
+                      icon: Icons.person_rounded,
+                      color: const Color(0xFF10B981),
+                      onTap: () => openLoginWithLoading(context, 'Customer'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildModernCard(
+                      title: 'Programmer',
+                      desc: 'Find your next project',
+                      icon: Icons.code_rounded,
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () => openLoginWithLoading(context, 'Programmer'),
+                    ),
+                    const SizedBox(height: 40),
+                    _buildSignUpLink(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // 📌 Mobile Layout
+  // ============================================================
+  Widget _buildMobileLayout(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
+        children: [
+          FadeTransition(
+            opacity: _logoFade,
+            child: ScaleTransition(
+              scale: _logoScale,
+              child: Container(
+                width: 100,
+                height: 100,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Image.asset('assets/images/devlink_logo.png'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          FadeTransition(
+            opacity: _headerFade,
+            child: SlideTransition(
+              position: _headerSlide,
+              child: Column(
+                children: [
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                        letterSpacing: -0.5,
+                      ),
+                      children: [
+                        const TextSpan(
+                          text: 'Welcome to ',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        TextSpan(
+                          text: 'DevLink',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Connect. Build. Deliver.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'منصتك الأولى للربط بين المبرمجين وأصحاب المشاريع',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 48),
+          FadeTransition(
+            opacity: _cardsFade,
+            child: SlideTransition(
+              position: _cardsSlide,
+              child: Column(
+                children: [
+                  _buildModernCard(
+                    title: 'Admin',
+                    desc: 'Full system control',
+                    icon: Icons.admin_panel_settings_rounded,
+                    color: const Color(0xFF3B82F6),
+                    onTap: () => openLoginWithLoading(context, 'Admin'),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildModernCard(
+                    title: 'Customer',
+                    desc: 'Hire top developers',
+                    icon: Icons.person_rounded,
+                    color: const Color(0xFF10B981),
+                    onTap: () => openLoginWithLoading(context, 'Customer'),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildModernCard(
+                    title: 'Programmer',
+                    desc: 'Find your next project',
+                    icon: Icons.code_rounded,
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () => openLoginWithLoading(context, 'Programmer'),
+                  ),
+                  const SizedBox(height: 32),
+                  _buildSignUpLink(context),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+ 
+  Widget _buildTrustBadge(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2), // خلفية داكنة شفافة
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white.withOpacity(0.8), size: 18),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlurCircle(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(color: color, blurRadius: 100, spreadRadius: 50),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernCard({
+    required String title,
+    required String desc,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return _HoverCard(
+      color: color,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    desc,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.5), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignUpLink(BuildContext context) {
+    return GestureDetector(
+      onTap: () => openSignUp(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF3B82F6), size: 20),
+            const SizedBox(width: 10),
+            Text(
+              "Don't have an account? ",
+              style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+            ),
+            const Text(
+              'Sign Up',
+              style: TextStyle(
+                color: Color(0xFF1E3A8A),
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -791,22 +649,24 @@ class _AccountButtonState extends State<_AccountButton> {
 }
 
 // ============================================================
-// Sign Up Button
+// 🌟 Hover Card Widget
 // ============================================================
-class _SignUpButton extends StatefulWidget {
+class _HoverCard extends StatefulWidget {
+  final Widget child;
+  final Color color;
   final VoidCallback onTap;
-  final bool isDesktop;
 
-  const _SignUpButton({
+  const _HoverCard({
+    required this.child,
+    required this.color,
     required this.onTap,
-    required this.isDesktop,
   });
 
   @override
-  State<_SignUpButton> createState() => _SignUpButtonState();
+  State<_HoverCard> createState() => _HoverCardState();
 }
 
-class _SignUpButtonState extends State<_SignUpButton> {
+class _HoverCardState extends State<_HoverCard> {
   bool _isHovered = false;
   bool _isPressed = false;
 
@@ -824,67 +684,24 @@ class _SignUpButtonState extends State<_SignUpButton> {
         },
         onTapCancel: () => setState(() => _isPressed = false),
         child: AnimatedScale(
-          scale: _isPressed ? 0.98 : 1.0,
-          duration: const Duration(milliseconds: 150),
+          scale: _isPressed ? 0.97 : (_isHovered ? 1.03 : 1.0),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.isDesktop ? 22 : 16,
-              vertical: widget.isDesktop ? 12 : 9,
-            ),
             decoration: BoxDecoration(
-              color: _isHovered
-                  ? Colors.white.withOpacity(0.95)
-                  : Colors.white.withOpacity(0.75),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: _isHovered
-                    ? Colors.white
-                    : Colors.white.withOpacity(0.85),
-                width: 1.2,
-              ),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(
-                    _isHovered ? 0.18 : 0.10,
+                if (_isHovered)
+                  BoxShadow(
+                    color: widget.color.withOpacity(0.4),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
                   ),
-                  blurRadius: _isHovered ? 14 : 8,
-                  offset: Offset(0, _isHovered ? 6 : 3),
-                ),
               ],
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.person_add_alt_1_rounded,
-                  size: widget.isDesktop ? 16 : 14,
-                  color: const Color(0xFF3B82F6),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Don't have an account?",
-                  style: TextStyle(
-                    color: const Color(0xFF475569),
-                    fontSize: widget.isDesktop ? 13 : 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Sign Up',
-                  style: TextStyle(
-                    color: const Color(0xFF1E3A8A),
-                    fontSize: widget.isDesktop ? 13.5 : 12.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            ),
+            child: widget.child,
           ),
         ),
       ),
@@ -893,7 +710,7 @@ class _SignUpButtonState extends State<_SignUpButton> {
 }
 
 // ============================================================
-// Loading Overlay
+// ⏳ Loading Overlay
 // ============================================================
 class _LoadingOverlay extends StatelessWidget {
   final String userType;
@@ -935,29 +752,14 @@ class _LoadingOverlay extends StatelessWidget {
       elevation: 0,
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1E3A8A),
-                Color(0xFF1E40AF),
-              ],
-            ),
+            color: const Color(0xFF1E293B).withOpacity(0.95),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.18),
-              width: 1.5,
-            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.45),
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-              BoxShadow(
-                color: accent.withOpacity(0.35),
+                color: accent.withOpacity(0.3),
                 blurRadius: 40,
                 spreadRadius: -5,
               ),
@@ -969,48 +771,30 @@ class _LoadingOverlay extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: accent.withOpacity(0.18),
+                  color: accent.withOpacity(0.2),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: accent.withOpacity(0.5),
-                    width: 2,
-                  ),
                 ),
-                child: Icon(
-                  _iconFor(userType),
-                  size: 34,
-                  color: accent,
+                child: Icon(_iconFor(userType), size: 36, color: accent),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Entering $userType Portal',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'Preparing $userType Portal',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 16),
               SizedBox(
-                width: 180,
+                width: 200,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   child: LinearProgressIndicator(
                     minHeight: 6,
-                    backgroundColor: Colors.white.withOpacity(0.12),
+                    backgroundColor: Colors.white.withOpacity(0.1),
                     valueColor: AlwaysStoppedAnimation<Color>(accent),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading your workspace...',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.55),
-                  fontSize: 12,
-                  letterSpacing: 0.4,
                 ),
               ),
             ],

@@ -1,3 +1,5 @@
+
+import 'dart:ui';
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
 import '../../services/session_manager.dart';
@@ -9,7 +11,7 @@ import 'admin_posts_page.dart';
 import 'admin_verifications_page.dart';
 import 'admin_add_admin_page.dart';
 import 'admin_support_page.dart';
-import 'admin_statistics_page.dart'; // ✅ جديد
+import 'admin_statistics_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   final int userId;
@@ -20,17 +22,18 @@ class AdminDashboardPage extends StatefulWidget {
   });
 
   @override
-  State<AdminDashboardPage> createState() => _AdminDashboardPageState();
+  State<AdminDashboardPage> createState() =>
+      _AdminDashboardPageState();
 }
 
 class _AdminDashboardPageState extends State<AdminDashboardPage>
     with SingleTickerProviderStateMixin {
-  final Color primary = const Color(0xFF3B82F6);
-  final Color primaryDark = const Color(0xFF1D4ED8);
-  final Color primaryDeep = const Color(0xFF1E3A8A);
-  final Color accentViolet = const Color(0xFF8B5CF6);
-
-  static const double maxWidth = 1200;
+  static const Color primary = Color(0xFF3B82F6);
+  static const Color violet = Color(0xFF8B5CF6);
+  static const Color green = Color(0xFF10B981);
+  static const Color amber = Color(0xFFF59E0B);
+  static const Color pink = Color(0xFFEC4899);
+  static const Color cyan = Color(0xFF06B6D4);
 
   late AnimationController _controller;
   late Animation<double> _fade;
@@ -42,7 +45,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 750),
     );
 
     _fade = CurvedAnimation(
@@ -51,7 +54,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
 
     _slide = Tween<Offset>(
-      begin: const Offset(0, 0.08),
+      begin: const Offset(0, 0.035),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(
@@ -71,188 +74,153 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
 
   Future<void> _logout() async {
     await SessionManager.clear();
+
     if (!mounted) return;
+
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
+      MaterialPageRoute(
+        builder: (_) => const WelcomePage(),
+      ),
       (route) => false,
     );
   }
 
-  void _openUsers() {
+  void _navigate(Widget page) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminUsersPage()),
-    );
-  }
-
-  void _openPosts() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminPostsPage()),
-    );
-  }
-
-  void _openVerifications() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminVerificationsPage()),
-    );
-  }
-
-  void _openAddAdmin() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminAddAdminPage()),
-    );
-  }
-
-  // ✅ الدعم
-  void _openSupport() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminSupportPage()),
-    );
-  }
-
-  // ✅ الإحصائيات
-  void _openStatistics() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AdminStatisticsPage()),
+      MaterialPageRoute(builder: (_) => page),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final bgGradient = isDark
-        ? const [
-            Color(0xFF0F172A),
-            Color(0xFF1E293B),
-            Color(0xFF1E3A8A),
-            Color(0xFF2E1065),
-          ]
-        : const [
-            Color(0xFFEEF2FF),
-            Color(0xFFE0E7FF),
-            Color(0xFFF5F3FF),
-            Color(0xFFFAF5FF),
-          ];
-
-    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark
-        ? const Color(0xFFF1F5F9)
-        : const Color(0xFF1E3A8A);
-    final textSecondary = isDark
-        ? const Color(0xFF94A3B8)
-        : Colors.grey.shade700;
-    final borderColor = isDark
-        ? const Color(0xFF334155)
-        : primary.withOpacity(0.15);
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0B1120)
+          : const Color(0xFFF4F7FC),
       body: Stack(
         children: [
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: bgGradient,
-              ),
-            ),
-          ),
-
           Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _GridPainter(
-                  color: primary.withOpacity(isDark ? 0.03 : 0.05),
-                ),
-              ),
-            ),
+            child: _buildBackground(isDark),
           ),
-
-          Positioned(
-            top: -100,
-            right: -100,
-            child: _glowCircle(
-              400,
-              primary.withOpacity(isDark ? 0.18 : 0.28),
-            ),
-          ),
-          Positioned(
-            top: 180,
-            left: -130,
-            child: _glowCircle(
-              350,
-              accentViolet.withOpacity(isDark ? 0.12 : 0.20),
-            ),
-          ),
-          Positioned(
-            bottom: -140,
-            right: -80,
-            child: _glowCircle(
-              450,
-              primaryDeep.withOpacity(isDark ? 0.10 : 0.18),
-            ),
-          ),
-
           SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth > 1100;
-                final isTablet = constraints.maxWidth > 700 &&
-                    constraints.maxWidth <= 1100;
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final horizontalPadding =
+                        width < 600 ? 16.0 : 28.0;
 
-                return Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: maxWidth),
-                    child: FadeTransition(
-                      opacity: _fade,
-                      child: SlideTransition(
-                        position: _slide,
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isDesktop ? 40 : 20,
-                            vertical: isDesktop ? 24 : 12,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildTopBar(
-                                isDark,
-                                cardColor,
-                                textPrimary,
-                                textSecondary,
-                                borderColor,
-                                isDesktop: isDesktop,
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: 1440,
+                        ),
+                        child: CustomScrollView(
+                          physics:
+                              const BouncingScrollPhysics(),
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  18,
+                                  horizontalPadding,
+                                  0,
+                                ),
+                                child: _buildTopBar(isDark),
                               ),
-                              SizedBox(height: isDesktop ? 32 : 20),
-                              _buildHeroCard(isDesktop),
-                              SizedBox(height: isDesktop ? 36 : 24),
-                              _buildSectionTitle('Management', textPrimary),
-                              SizedBox(height: isDesktop ? 20 : 14),
-                              _buildManagementGrid(
-                                isDark,
-                                cardColor,
-                                textPrimary,
-                                textSecondary,
-                                isDesktop: isDesktop,
-                                isTablet: isTablet,
+                            ),
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  28,
+                                  horizontalPadding,
+                                  0,
+                                ),
+                                child: _buildHero(
+                                  isDark,
+                                  width,
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  26,
+                                  horizontalPadding,
+                                  0,
+                                ),
+                                child: _buildSectionHeading(
+                                  isDark,
+                                ),
+                              ),
+                            ),
+                            SliverPadding(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                16,
+                                horizontalPadding,
+                                32,
+                              ),
+                              sliver: SliverLayoutBuilder(
+                                builder: (context, sliver) {
+                                  final availableWidth =
+                                      sliver.crossAxisExtent;
+
+                                  final columns =
+                                      availableWidth >= 1100
+                                          ? 3
+                                          : availableWidth >= 650
+                                              ? 2
+                                              : 1;
+
+                                  return SliverGrid(
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      crossAxisSpacing: 16,
+                                      mainAxisSpacing: 16,
+                                      mainAxisExtent:
+                                          columns == 1
+                                              ? 116
+                                              : 156,
+                                    ),
+                                    delegate:
+                                        SliverChildListDelegate(
+                                      _buildCards(isDark),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  0,
+                                  horizontalPadding,
+                                  28,
+                                ),
+                                child: _buildFooter(isDark),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],
@@ -260,176 +228,288 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  Widget _buildTopBar(
-    bool isDark,
-    Color cardColor,
-    Color textPrimary,
-    Color textSecondary,
-    Color borderColor, {
-    required bool isDesktop,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildBackground(bool isDark) {
+    return Stack(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Admin Panel',
-                style: TextStyle(
-                  fontSize: isDesktop ? 32 : 28,
-                  fontWeight: FontWeight.w900,
-                  color: textPrimary,
-                  letterSpacing: -0.8,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Manage your platform',
-                style: TextStyle(
-                  fontSize: isDesktop ? 14 : 13,
-                  color: textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _GridPainter(
+              color: isDark
+                  ? Colors.white.withOpacity(0.025)
+                  : const Color(0xFF64748B)
+                      .withOpacity(0.045),
+            ),
           ),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ThemeToggle(
-              themeManager: themeManager,
-              compact: true,
-            ),
-            const SizedBox(width: 10),
-            Material(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(16),
-              elevation: isDark ? 0 : 2,
-              shadowColor: primary.withOpacity(0.2),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: _logout,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: borderColor,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.logout_rounded,
-                    color: Color(0xFFEF4444),
-                    size: 22,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        Positioned(
+          top: -180,
+          right: -100,
+          child: _orb(
+            420,
+            primary.withOpacity(isDark ? 0.15 : 0.09),
+          ),
+        ),
+        Positioned(
+          bottom: -180,
+          left: -100,
+          child: _orb(
+            400,
+            violet.withOpacity(isDark ? 0.13 : 0.08),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildHeroCard(bool isDesktop) {
+  Widget _orb(double size, Color color) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(
+        sigmaX: 90,
+        sigmaY: 90,
+      ),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar(bool isDark) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isDesktop ? 32 : 24),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 14,
+      ),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        color: isDark
+            ? const Color(0xFF111C30).withOpacity(0.94)
+            : Colors.white.withOpacity(0.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.07)
+              : const Color(0xFFE5EAF3),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 400;
+
+          return Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [primary, violet],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.hub_rounded,
+                  color: Colors.white,
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DevLink',
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.7,
+                        color: isDark
+                            ? Colors.white
+                            : const Color(0xFF17233B),
+                      ),
+                    ),
+                    if (!compact)
+                      Text(
+                        'ADMINISTRATION PORTAL',
+                        style: TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 1.3,
+                          fontWeight: FontWeight.w800,
+                          color: isDark
+                              ? Colors.white54
+                              : Colors.blueGrey,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              ThemeToggle(
+                themeManager: themeManager,
+                compact: true,
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Logout',
+                child: Material(
+                  color: const Color(0xFFEF4444)
+                      .withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(13),
+                  child: InkWell(
+                    onTap: _logout,
+                    borderRadius: BorderRadius.circular(13),
+                    child: const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(
+                        Icons.logout_rounded,
+                        color: Color(0xFFEF4444),
+                        size: 21,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHero(bool isDark, double width) {
+    final compact = width < 700;
+
+    return Container(
+      padding: EdgeInsets.all(compact ? 24 : 36),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primary, primaryDark, primaryDeep],
+          colors: [
+            Color(0xFF2563EB),
+            Color(0xFF4F46E5),
+            Color(0xFF7138C9),
+          ],
         ),
-        borderRadius: BorderRadius.circular(isDesktop ? 32 : 28),
+        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.45),
-            blurRadius: 30,
-            spreadRadius: -5,
-            offset: const Offset(0, 15),
+            color: primary.withOpacity(0.23),
+            blurRadius: 35,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Stack(
         children: [
           Positioned(
-            top: -40,
-            right: -30,
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.10),
-              ),
+            right: -24,
+            top: -35,
+            child: Icon(
+              Icons.hub_rounded,
+              size: compact ? 130 : 200,
+              color: Colors.white.withOpacity(0.07),
             ),
           ),
           Positioned(
-            bottom: -50,
-            left: -20,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.08),
-              ),
+            right: compact ? 0 : 30,
+            bottom: -25,
+            child: Icon(
+              Icons.code_rounded,
+              size: compact ? 80 : 120,
+              color: Colors.white.withOpacity(0.06),
             ),
           ),
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: isDesktop ? 90 : 78,
-                height: isDesktop ? 90 : 78,
-                padding: const EdgeInsets.all(3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.20),
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.4),
-                    width: 2,
+                    color: Colors.white.withOpacity(0.18),
                   ),
                 ),
-                child: Icon(
-                  Icons.admin_panel_settings_rounded,
-                  size: isDesktop ? 46 : 40,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: isDesktop ? 22 : 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Welcome, Admin',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: isDesktop ? 28 : 22,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
+                    Icon(
+                      Icons.shield_rounded,
+                      color: Colors.white,
+                      size: 15,
                     ),
-                    SizedBox(height: isDesktop ? 8 : 4),
+                    SizedBox(width: 7),
                     Text(
-                      'You have full access to manage the platform',
+                      'ADMIN CONTROL CENTER',
                       style: TextStyle(
-                        fontSize: isDesktop ? 14 : 12.5,
-                        color: Colors.white.withOpacity(0.85),
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
                       ),
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Welcome back, Admin',
+                style: TextStyle(
+                  fontSize: compact ? 27 : 38,
+                  height: 1.15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 510,
+                ),
+                child: Text(
+                  'Your platform, your control. Manage users, '
+                  'review projects and keep DevLink running smoothly.',
+                  style: TextStyle(
+                    fontSize: compact ? 13 : 15,
+                    height: 1.7,
+                    color: Colors.white.withOpacity(0.83),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _heroPill(
+                    Icons.bolt_rounded,
+                    'Platform management',
+                  ),
+                  _heroPill(
+                    Icons.verified_user_rounded,
+                    'Admin access',
+                  ),
+                ],
               ),
             ],
           ),
@@ -438,242 +518,451 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
     );
   }
 
-  Widget _buildSectionTitle(String text, Color textPrimary) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-          color: textPrimary,
-          letterSpacing: -0.3,
-        ),
+  Widget _heroPill(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 9,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 16),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildManagementGrid(
-    bool isDark,
-    Color cardColor,
-    Color textPrimary,
-    Color textSecondary, {
-    required bool isDesktop,
-    required bool isTablet,
-  }) {
-    final cards = [
-      _MenuCardData(
-        icon: Icons.people_alt_rounded,
+  Widget _buildSectionHeading(bool isDark) {
+    return Row(
+      children: [
+        Container(
+          width: 5,
+          height: 34,
+          decoration: BoxDecoration(
+            color: primary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Workspace',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  color: isDark
+                      ? Colors.white
+                      : const Color(0xFF17233B),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                'Everything you need, in one place.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? Colors.white54
+                      : Colors.blueGrey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 11,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: primary.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.dashboard_customize_rounded,
+                color: primary,
+                size: 16,
+              ),
+              SizedBox(width: 6),
+              Text(
+                '6 modules',
+                style: TextStyle(
+                  color: primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildCards(bool isDark) {
+    return [
+      _moduleCard(
         title: 'User Management',
-        subtitle: 'View, add, edit, and delete users',
-        color: const Color(0xFF3B82F6),
-        onTap: _openUsers,
+        subtitle: 'Manage platform accounts',
+        description: 'Users & roles',
+        icon: Icons.people_alt_rounded,
+        color: primary,
+        isDark: isDark,
+        onTap: () => _navigate(const AdminUsersPage()),
+        number: '01',
       ),
-      _MenuCardData(
-        icon: Icons.article_rounded,
+      _moduleCard(
         title: 'Posts Management',
-        subtitle: 'Review and approve customer posts',
-        color: const Color(0xFFF59E0B),
-        onTap: _openPosts,
+        subtitle: 'Review project requests',
+        description: 'Posts & moderation',
+        icon: Icons.article_rounded,
+        color: amber,
+        isDark: isDark,
+        onTap: () => _navigate(const AdminPostsPage()),
+        number: '02',
       ),
-      _MenuCardData(
+      _moduleCard(
+        title: 'Verifications',
+        subtitle: 'Review programmer profiles',
+        description: 'Verification center',
         icon: Icons.verified_user_rounded,
-        title: 'User Verification',
-        subtitle: 'Review CVs and verify programmers',
-        color: const Color(0xFF10B981),
-        onTap: _openVerifications,
+        color: green,
+        isDark: isDark,
+        onTap: () =>
+            _navigate(const AdminVerificationsPage()),
+        number: '03',
       ),
-      _MenuCardData(
-        icon: Icons.admin_panel_settings_rounded,
-        title: 'Add New Admin',
-        subtitle: 'Create a new admin account',
-        color: const Color(0xFF8B5CF6),
-        onTap: _openAddAdmin,
-      ),
-      // ✅ زر الدعم
-      _MenuCardData(
+      _moduleCard(
+        title: 'Support Center',
+        subtitle: 'Manage support requests',
+        description: 'Tickets & assistance',
         icon: Icons.support_agent_rounded,
-        title: 'Support Messages',
-        subtitle: 'Reply to user messages',
-        color: const Color(0xFF0EA5E9),
-        onTap: _openSupport,
+        color: cyan,
+        isDark: isDark,
+        onTap: () => _navigate(const AdminSupportPage()),
+        number: '04',
       ),
-      // ✅ زر الإحصائيات
-      _MenuCardData(
-        icon: Icons.insights_rounded,
+      _moduleCard(
         title: 'Statistics',
-        subtitle: 'View platform statistics & insights',
-        color: const Color(0xFFEC4899),
-        onTap: _openStatistics,
+        subtitle: 'Explore platform insights',
+        description: 'Reports & analytics',
+        icon: Icons.insights_rounded,
+        color: pink,
+        isDark: isDark,
+        onTap: () =>
+            _navigate(const AdminStatisticsPage()),
+        number: '05',
+      ),
+      _moduleCard(
+        title: 'Add Administrator',
+        subtitle: 'Create an admin account',
+        description: 'Access management',
+        icon: Icons.admin_panel_settings_rounded,
+        color: violet,
+        isDark: isDark,
+        onTap: () =>
+            _navigate(const AdminAddAdminPage()),
+        number: '06',
       ),
     ];
+  }
 
-    if (isDesktop || isTablet) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 3.2,
-        ),
-        itemCount: cards.length,
-        itemBuilder: (context, index) {
-          return _buildMenuCard(
-            data: cards[index],
-            isDark: isDark,
-            cardColor: cardColor,
-            textPrimary: textPrimary,
-            textSecondary: textSecondary,
-            isDesktop: isDesktop,
-          );
-        },
-      );
-    }
-
-    return Column(
-      children: cards.asMap().entries.map((entry) {
-        final isLast = entry.key == cards.length - 1;
-        return Padding(
-          padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-          child: _buildMenuCard(
-            data: entry.value,
-            isDark: isDark,
-            cardColor: cardColor,
-            textPrimary: textPrimary,
-            textSecondary: textSecondary,
-            isDesktop: false,
-          ),
-        );
-      }).toList(),
+  Widget _moduleCard({
+    required String title,
+    required String subtitle,
+    required String description,
+    required IconData icon,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onTap,
+    required String number,
+  }) {
+    return _ModuleCard(
+      title: title,
+      subtitle: subtitle,
+      description: description,
+      icon: icon,
+      color: color,
+      isDark: isDark,
+      number: number,
+      onTap: onTap,
     );
   }
 
-  Widget _buildMenuCard({
-    required _MenuCardData data,
-    required bool isDark,
-    required Color cardColor,
-    required Color textPrimary,
-    required Color textSecondary,
-    required bool isDesktop,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: data.onTap,
-        child: Container(
-          padding: EdgeInsets.all(isDesktop ? 22 : 18),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: data.color.withOpacity(isDark ? 0.3 : 0.15),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: data.color.withOpacity(isDark ? 0.15 : 0.10),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(isDesktop ? 16 : 14),
-                decoration: BoxDecoration(
-                  color: data.color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  data.icon,
-                  color: data.color,
-                  size: isDesktop ? 30 : 26,
-                ),
-              ),
-              SizedBox(width: isDesktop ? 18 : 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      data.title,
-                      style: TextStyle(
-                        fontSize: isDesktop ? 17 : 15.5,
-                        fontWeight: FontWeight.w900,
-                        color: textPrimary,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      data.subtitle,
-                      style: TextStyle(
-                        fontSize: isDesktop ? 13 : 12,
-                        color: textSecondary,
-                        fontWeight: FontWeight.w500,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: data.color.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.arrow_forward_rounded,
-                  color: data.color,
-                  size: 18,
-                ),
-              ),
-            ],
-          ),
+  Widget _buildFooter(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF111C30)
+            : Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : const Color(0xFFE5EAF3),
         ),
       ),
-    );
-  }
-
-  Widget _glowCircle(double size, Color color) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color, color.withOpacity(0.0)],
-        ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.hub_rounded,
+            color: primary,
+            size: 21,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'DevLink Administration',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                color: isDark
+                    ? Colors.white70
+                    : const Color(0xFF334155),
+              ),
+            ),
+          ),
+          Text(
+            'CONTROL PANEL',
+            style: TextStyle(
+              fontSize: 9,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w800,
+              color: isDark
+                  ? Colors.white38
+                  : Colors.blueGrey.shade300,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _MenuCardData {
-  final IconData icon;
+class _ModuleCard extends StatefulWidget {
   final String title;
   final String subtitle;
+  final String description;
+  final IconData icon;
   final Color color;
+  final bool isDark;
+  final String number;
   final VoidCallback onTap;
 
-  _MenuCardData({
-    required this.icon,
+  const _ModuleCard({
     required this.title,
     required this.subtitle,
+    required this.description,
+    required this.icon,
     required this.color,
+    required this.isDark,
+    required this.number,
     required this.onTap,
   });
+
+  @override
+  State<_ModuleCard> createState() => _ModuleCardState();
+}
+
+class _ModuleCardState extends State<_ModuleCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final color = widget.color;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        transform: Matrix4.translationValues(
+          0,
+          _hovered ? -4 : 0,
+          0,
+        ),
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF111C30)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(23),
+          border: Border.all(
+            color: _hovered
+                ? color.withOpacity(0.55)
+                : isDark
+                    ? Colors.white.withOpacity(0.07)
+                    : const Color(0xFFE8EDF5),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _hovered
+                  ? color.withOpacity(0.12)
+                  : Colors.black.withOpacity(
+                      isDark ? 0.06 : 0.025,
+                    ),
+              blurRadius: _hovered ? 25 : 14,
+              offset: Offset(0, _hovered ? 10 : 5),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(23),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(23),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final horizontal =
+                      constraints.maxWidth < 450;
+
+                  return Row(
+                    children: [
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(
+                            isDark ? 0.16 : 0.10,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(17),
+                        ),
+                        child: Icon(
+                          widget.icon,
+                          size: 27,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              widget.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: horizontal ? 14 : 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF17233B),
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              widget.subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                height: 1.4,
+                                color: isDark
+                                    ? Colors.white54
+                                    : Colors.blueGrey.shade500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    widget.description,
+                                    maxLines: 1,
+                                    overflow:
+                                        TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: color,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.04)
+                              : const Color(0xFFF5F7FB),
+                          borderRadius:
+                              BorderRadius.circular(11),
+                        ),
+                        child: Icon(
+                          _hovered
+                              ? Icons.arrow_forward_rounded
+                              : Icons.chevron_right_rounded,
+                          color: _hovered
+                              ? color
+                              : isDark
+                                  ? Colors.white38
+                                  : Colors.blueGrey.shade300,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _GridPainter extends CustomPainter {
   final Color color;
-  _GridPainter({required this.color});
+
+  const _GridPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -681,16 +970,27 @@ class _GridPainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1;
 
-    const double spacing = 40;
+    const spacing = 44.0;
 
     for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
     }
+
     for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
 }

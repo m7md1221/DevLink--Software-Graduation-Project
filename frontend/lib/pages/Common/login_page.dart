@@ -269,9 +269,6 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  // ============================================================
-  // ✅ التوجيه حسب نوع المستخدم
-  // ============================================================
   void _navigateByUserType(
     String userType,
     int userId,
@@ -279,7 +276,6 @@ class _LoginPageState extends State<LoginPage>
     String email,
   ) {
     if (userType == 'Customer') {
-      // 🟢 التوجيه المباشر للـ Feed
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -535,504 +531,510 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
 
+                        // ✅ التعديل هنا: شلنا شريط التمرير من الويب
                         Expanded(
-                          child: SingleChildScrollView(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: contentHPad,
-                            ),
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 12),
-                                FadeTransition(
-                                  opacity: _cardFade,
-                                  child: SlideTransition(
-                                    position: _cardSlide,
-                                    child: Column(
-                                      children: [
-                                        Center(
-                                          child: Container(
-                                            width: isDesktop ? 140 : 120,
-                                            height: isDesktop ? 140 : 120,
-                                            padding: EdgeInsets.all(
-                                              isDesktop ? 24 : 20,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                isDesktop ? 40 : 34,
-                                              ),
-                                              border: Border.all(
-                                                color: isDark
-                                                    ? accentColor
-                                                        .withOpacity(0.4)
-                                                    : accentSoft,
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: accentColor
-                                                      .withOpacity(0.35),
-                                                  blurRadius: 45,
-                                                  spreadRadius: -5,
-                                                  offset:
-                                                      const Offset(0, 20),
-                                                ),
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(
-                                                    isDark ? 0.5 : 0.05,
-                                                  ),
-                                                  blurRadius: 14,
-                                                  offset:
-                                                      const Offset(0, 4),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Image.asset(
-                                              'assets/images/devlink_logo.png',
-                                              fit: BoxFit.contain,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          height: isDesktop ? 38 : 30,
-                                        ),
-
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: [
-                                                    accentColor,
-                                                    accentDark,
-                                                  ],
-                                                ),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Icon(
-                                                roleIcon,
-                                                size: 14,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              '${widget.userType} Login',
-                                              style: TextStyle(
-                                                fontSize:
-                                                    isDesktop ? 32 : 28,
-                                                fontWeight: FontWeight.w900,
-                                                color: textPrimary,
-                                                letterSpacing: -0.6,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 14),
-                                        Text(
-                                          roleSubtitleAr,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize:
-                                                isDesktop ? 16 : 15,
-                                            color: isDark
-                                                ? accentColor
-                                                : accentDark
-                                                    .withOpacity(0.85),
-                                            height: 1.5,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                          ),
-                                          child: Text(
-                                            roleSubtitleEn,
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize:
-                                                  isDesktop ? 13.5 : 12.5,
-                                              color: textMuted,
-                                              height: 1.5,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          height: isDesktop ? 42 : 34,
-                                        ),
-
-                                        Container(
-                                          padding: EdgeInsets.all(
-                                            isDesktop ? 28 : 22,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: cardColor,
-                                            borderRadius:
-                                                BorderRadius.circular(28),
-                                            border: Border.all(
-                                              color: borderColor,
-                                              width: 1.2,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: isDark
-                                                    ? Colors.black
-                                                        .withOpacity(0.3)
-                                                    : const Color(
-                                                            0xFF0F172A)
-                                                        .withOpacity(0.07),
-                                                blurRadius: 35,
-                                                spreadRadius: -5,
-                                                offset:
-                                                    const Offset(0, 14),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              _buildLabel(
-                                                'Email Address',
-                                                isDark,
-                                              ),
-                                              const SizedBox(height: 10),
-                                              _buildTextField(
-                                                controller:
-                                                    emailController,
-                                                focusNode: emailFocus,
-                                                hint: emailHint,
-                                                icon: Icons
-                                                    .mail_outline_rounded,
-                                                keyboardType:
-                                                    TextInputType
-                                                        .emailAddress,
-                                                textInputAction:
-                                                    TextInputAction.next,
-                                                isDark: isDark,
-                                                onSubmitted: (_) =>
-                                                    passwordFocus
-                                                        .requestFocus(),
-                                              ),
-                                              const SizedBox(height: 20),
-                                              _buildLabel(
-                                                'Password',
-                                                isDark,
-                                              ),
-                                              const SizedBox(height: 10),
-                                              _buildTextField(
-                                                controller:
-                                                    passwordController,
-                                                focusNode: passwordFocus,
-                                                hint:
-                                                    'Enter your password',
-                                                icon: Icons
-                                                    .lock_outline_rounded,
-                                                obscure: hidePassword,
-                                                textInputAction:
-                                                    TextInputAction.done,
-                                                isDark: isDark,
-                                                onSubmitted: (_) {
-                                                  if (!isLoading) login();
-                                                },
-                                                suffix: IconButton(
-                                                  splashRadius: 20,
-                                                  onPressed: () {
-                                                    setState(
-                                                      () =>
-                                                          hidePassword =
-                                                              !hidePassword,
-                                                    );
-                                                  },
-                                                  icon: Icon(
-                                                    hidePassword
-                                                        ? Icons
-                                                            .visibility_outlined
-                                                        : Icons
-                                                            .visibility_off_outlined,
-                                                    color: textMuted,
-                                                    size: 20,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Align(
-                                                alignment:
-                                                    Alignment.centerRight,
-                                                child: TextButton(
-                                                  onPressed:
-                                                      _goToForgotPassword,
-                                                  style:
-                                                      TextButton.styleFrom(
-                                                    padding:
-                                                        EdgeInsets.zero,
-                                                    minimumSize:
-                                                        const Size(0, 0),
-                                                    tapTargetSize:
-                                                        MaterialTapTargetSize
-                                                            .shrinkWrap,
-                                                  ),
-                                                  child: Text(
-                                                    'Forgot Password?',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: accentColor,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 18),
-
-                                              SizedBox(
-                                                width: double.infinity,
-                                                height:
-                                                    isDesktop ? 62 : 60,
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    borderRadius:
-                                                        BorderRadius
-                                                            .circular(18),
-                                                    gradient:
-                                                        LinearGradient(
-                                                      colors: [
-                                                        accentColor,
-                                                        accentDark,
-                                                      ],
-                                                    ),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: accentColor
-                                                            .withOpacity(
-                                                                0.45),
-                                                        blurRadius: 24,
-                                                        offset:
-                                                            const Offset(
-                                                                0,
-                                                                12),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: ElevatedButton(
-                                                    onPressed: isLoading
-                                                        ? null
-                                                        : login,
-                                                    style: ElevatedButton
-                                                        .styleFrom(
-                                                      backgroundColor:
-                                                          Colors
-                                                              .transparent,
-                                                      foregroundColor:
-                                                          Colors.white,
-                                                      shadowColor:
-                                                          Colors
-                                                              .transparent,
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                                    18),
-                                                      ),
-                                                    ),
-                                                    child: isLoading
-                                                        ? const SizedBox(
-                                                            width: 24,
-                                                            height: 24,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                              strokeWidth:
-                                                                  2.5,
-                                                              color: Colors
-                                                                  .white,
-                                                            ),
-                                                          )
-                                                        : Row(
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children: [
-                                                              Text(
-                                                                'LOGIN',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize:
-                                                                      isDesktop
-                                                                          ? 16
-                                                                          : 15,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w900,
-                                                                  letterSpacing:
-                                                                      1.8,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  width: 10),
-                                                              const Icon(
-                                                                Icons
-                                                                    .arrow_forward_rounded,
-                                                                size: 20,
-                                                              ),
-                                                            ],
-                                                          ),
-                                                  ),
-                                                ),
-                                              ),
-
-                                              if (widget.userType !=
-                                                      'Admin' &&
-                                                  !kIsWeb) ...[
-                                                const SizedBox(
-                                                    height: 18),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Divider(
-                                                        color:
-                                                            borderColor,
-                                                      ),
-                                                    ),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets
-                                                              .symmetric(
-                                                        horizontal: 12,
-                                                      ),
-                                                      child: Text(
-                                                        'OR',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight
-                                                                  .w800,
-                                                          color: textMuted,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Expanded(
-                                                      child: Divider(
-                                                        color:
-                                                            borderColor,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(
-                                                    height: 14),
-                                                GoogleSignInButton(
-                                                  accentColor: accentColor,
-                                                  onIdToken:
-                                                      _handleGoogleLogin,
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-
-                                        if (widget.userType ==
-                                                'Customer' ||
-                                            widget.userType ==
-                                                'Programmer') ...[
-                                          const SizedBox(height: 22),
+                          child: ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(context)
+                                .copyWith(scrollbars: false),
+                            child: SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: contentHPad,
+                              ),
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 12),
+                                  FadeTransition(
+                                    opacity: _cardFade,
+                                    child: SlideTransition(
+                                      position: _cardSlide,
+                                      child: Column(
+                                        children: [
                                           Center(
                                             child: Container(
-                                              padding:
-                                                  const EdgeInsets
-                                                      .symmetric(
-                                                horizontal: 18,
-                                                vertical: 10,
+                                              width: isDesktop ? 140 : 120,
+                                              height: isDesktop ? 140 : 120,
+                                              padding: EdgeInsets.all(
+                                                isDesktop ? 24 : 20,
                                               ),
                                               decoration: BoxDecoration(
-                                                color: cardColor,
+                                                color: Colors.white,
                                                 borderRadius:
                                                     BorderRadius.circular(
-                                                        30),
-                                                border: Border.all(
-                                                  color: borderColor,
-                                                  width: 1.2,
+                                                  isDesktop ? 40 : 34,
                                                 ),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize:
-                                                    MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    "Don't have an account? ",
-                                                    style: TextStyle(
-                                                      color:
-                                                          textSecondary,
-                                                      fontSize: 12.5,
-                                                      fontWeight:
-                                                          FontWeight
-                                                              .w500,
-                                                    ),
+                                                border: Border.all(
+                                                  color: isDark
+                                                      ? accentColor
+                                                          .withOpacity(0.4)
+                                                      : accentSoft,
+                                                  width: 1.5,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: accentColor
+                                                        .withOpacity(0.35),
+                                                    blurRadius: 45,
+                                                    spreadRadius: -5,
+                                                    offset:
+                                                        const Offset(0, 20),
                                                   ),
-                                                  GestureDetector(
-                                                    onTap: () {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (_) =>
-                                                              const SignUpPage(),
-                                                        ),
-                                                      );
-                                                    },
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize
-                                                              .min,
-                                                      children: [
-                                                        Text(
-                                                          'Sign Up',
-                                                          style: TextStyle(
-                                                            color:
-                                                                accentColor,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .w900,
-                                                            fontSize:
-                                                                12.5,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            width: 4),
-                                                        Icon(
-                                                          Icons
-                                                              .arrow_forward_rounded,
-                                                          size: 14,
-                                                          color:
-                                                              accentColor,
-                                                        ),
-                                                      ],
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(
+                                                      isDark ? 0.5 : 0.05,
                                                     ),
+                                                    blurRadius: 14,
+                                                    offset:
+                                                        const Offset(0, 4),
                                                   ),
                                                 ],
                                               ),
+                                              child: Image.asset(
+                                                'assets/images/devlink_logo.png',
+                                                fit: BoxFit.contain,
+                                              ),
                                             ),
                                           ),
+                                          SizedBox(
+                                            height: isDesktop ? 38 : 30,
+                                          ),
+
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      accentColor,
+                                                      accentDark,
+                                                    ],
+                                                  ),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Icon(
+                                                  roleIcon,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                '${widget.userType} Login',
+                                                style: TextStyle(
+                                                  fontSize:
+                                                      isDesktop ? 32 : 28,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: textPrimary,
+                                                  letterSpacing: -0.6,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 14),
+                                          Text(
+                                            roleSubtitleAr,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize:
+                                                  isDesktop ? 16 : 15,
+                                              color: isDark
+                                                  ? accentColor
+                                                  : accentDark
+                                                      .withOpacity(0.85),
+                                              height: 1.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                            ),
+                                            child: Text(
+                                              roleSubtitleEn,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize:
+                                                    isDesktop ? 13.5 : 12.5,
+                                                color: textMuted,
+                                                height: 1.5,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            height: isDesktop ? 42 : 34,
+                                          ),
+
+                                          Container(
+                                            padding: EdgeInsets.all(
+                                              isDesktop ? 28 : 22,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: cardColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                              border: Border.all(
+                                                color: borderColor,
+                                                width: 1.2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: isDark
+                                                      ? Colors.black
+                                                          .withOpacity(0.3)
+                                                      : const Color(
+                                                              0xFF0F172A)
+                                                          .withOpacity(0.07),
+                                                  blurRadius: 35,
+                                                  spreadRadius: -5,
+                                                  offset:
+                                                      const Offset(0, 14),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildLabel(
+                                                  'Email Address',
+                                                  isDark,
+                                                ),
+                                                const SizedBox(height: 10),
+                                                _buildTextField(
+                                                  controller:
+                                                      emailController,
+                                                  focusNode: emailFocus,
+                                                  hint: emailHint,
+                                                  icon: Icons
+                                                      .mail_outline_rounded,
+                                                  keyboardType:
+                                                      TextInputType
+                                                          .emailAddress,
+                                                  textInputAction:
+                                                      TextInputAction.next,
+                                                  isDark: isDark,
+                                                  onSubmitted: (_) =>
+                                                      passwordFocus
+                                                          .requestFocus(),
+                                                ),
+                                                const SizedBox(height: 20),
+                                                _buildLabel(
+                                                  'Password',
+                                                  isDark,
+                                                ),
+                                                const SizedBox(height: 10),
+                                                _buildTextField(
+                                                  controller:
+                                                      passwordController,
+                                                  focusNode: passwordFocus,
+                                                  hint:
+                                                      'Enter your password',
+                                                  icon: Icons
+                                                      .lock_outline_rounded,
+                                                  obscure: hidePassword,
+                                                  textInputAction:
+                                                      TextInputAction.done,
+                                                  isDark: isDark,
+                                                  onSubmitted: (_) {
+                                                    if (!isLoading) login();
+                                                  },
+                                                  suffix: IconButton(
+                                                    splashRadius: 20,
+                                                    onPressed: () {
+                                                      setState(
+                                                        () =>
+                                                            hidePassword =
+                                                                !hidePassword,
+                                                      );
+                                                    },
+                                                    icon: Icon(
+                                                      hidePassword
+                                                          ? Icons
+                                                              .visibility_outlined
+                                                          : Icons
+                                                              .visibility_off_outlined,
+                                                      color: textMuted,
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerRight,
+                                                  child: TextButton(
+                                                    onPressed:
+                                                        _goToForgotPassword,
+                                                    style:
+                                                        TextButton.styleFrom(
+                                                      padding:
+                                                          EdgeInsets.zero,
+                                                      minimumSize:
+                                                          const Size(0, 0),
+                                                      tapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                    ),
+                                                    child: Text(
+                                                      'Forgot Password?',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: accentColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 18),
+
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  height:
+                                                      isDesktop ? 62 : 60,
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius
+                                                              .circular(18),
+                                                      gradient:
+                                                          LinearGradient(
+                                                        colors: [
+                                                          accentColor,
+                                                          accentDark,
+                                                        ],
+                                                      ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: accentColor
+                                                              .withOpacity(
+                                                                  0.45),
+                                                          blurRadius: 24,
+                                                          offset:
+                                                              const Offset(
+                                                                  0,
+                                                                  12),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: ElevatedButton(
+                                                      onPressed: isLoading
+                                                          ? null
+                                                          : login,
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors
+                                                                .transparent,
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                        shadowColor:
+                                                            Colors
+                                                                .transparent,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                      18),
+                                                        ),
+                                                      ),
+                                                      child: isLoading
+                                                          ? const SizedBox(
+                                                              width: 24,
+                                                              height: 24,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                strokeWidth:
+                                                                    2.5,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                            )
+                                                          : Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .center,
+                                                              children: [
+                                                                Text(
+                                                                  'LOGIN',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontSize:
+                                                                        isDesktop
+                                                                            ? 16
+                                                                            : 15,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w900,
+                                                                    letterSpacing:
+                                                                        1.8,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                    width: 10),
+                                                                const Icon(
+                                                                  Icons
+                                                                      .arrow_forward_rounded,
+                                                                  size: 20,
+                                                                ),
+                                                              ],
+                                                            ),
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                if (widget.userType !=
+                                                        'Admin' &&
+                                                    !kIsWeb) ...[
+                                                  const SizedBox(
+                                                      height: 18),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Divider(
+                                                          color:
+                                                              borderColor,
+                                                        ),
+                                                      ),
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 12,
+                                                        ),
+                                                        child: Text(
+                                                          'OR',
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w800,
+                                                            color: textMuted,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Expanded(
+                                                        child: Divider(
+                                                          color:
+                                                              borderColor,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(
+                                                      height: 14),
+                                                  GoogleSignInButton(
+                                                    accentColor: accentColor,
+                                                    onIdToken:
+                                                        _handleGoogleLogin,
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+
+                                          if (widget.userType ==
+                                                  'Customer' ||
+                                              widget.userType ==
+                                                  'Programmer') ...[
+                                            const SizedBox(height: 22),
+                                            Center(
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets
+                                                        .symmetric(
+                                                  horizontal: 18,
+                                                  vertical: 10,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: cardColor,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          30),
+                                                  border: Border.all(
+                                                    color: borderColor,
+                                                    width: 1.2,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      "Don't have an account? ",
+                                                      style: TextStyle(
+                                                        color:
+                                                            textSecondary,
+                                                        fontSize: 12.5,
+                                                        fontWeight:
+                                                            FontWeight
+                                                                .w500,
+                                                      ),
+                                                    ),
+                                                    GestureDetector(
+                                                      onTap: () {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (_) =>
+                                                                const SignUpPage(),
+                                                          ),
+                                                        );
+                                                      },
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize
+                                                                .min,
+                                                        children: [
+                                                          Text(
+                                                            'Sign Up',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  accentColor,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w900,
+                                                              fontSize:
+                                                                  12.5,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 4),
+                                                          Icon(
+                                                            Icons
+                                                                .arrow_forward_rounded,
+                                                            size: 14,
+                                                            color:
+                                                                accentColor,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          SizedBox(
+                                            height: isDesktop ? 40 : 30,
+                                          ),
                                         ],
-                                        SizedBox(
-                                          height: isDesktop ? 40 : 30,
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
