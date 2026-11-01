@@ -15,14 +15,13 @@ namespace Controllers
             _context = context;
         }
 
-        // جلب إشعارات المستخدم
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetNotifications(int userId)
         {
             var notifications = await _context.Notifications
                 .Where(n => n.UserId == userId)
                 .OrderByDescending(n => n.CreatedAt)
-                .Take(20)
+                .Take(5)
                 .ToListAsync();
 
             var result = notifications.Select(n => new
@@ -39,7 +38,6 @@ namespace Controllers
             return Ok(result);
         }
 
-        // تعليم إشعار كمقروء
         [HttpPost("{id}/read")]
         public async Task<IActionResult> MarkAsRead(int id)
         {

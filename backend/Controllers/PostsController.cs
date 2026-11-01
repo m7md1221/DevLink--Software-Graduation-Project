@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Services;
+using DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace Controllers
 {
@@ -9,11 +11,49 @@ namespace Controllers
     {
         private readonly PostService _postService;
         private readonly EmailService _emailService;
+        private readonly AppDbContext _context;
 
-        public PostsController(PostService postService, EmailService emailService)
+        public PostsController(PostService postService, EmailService emailService, AppDbContext context)
         {
             _postService = postService;
             _emailService = emailService;
+            _context = context;
+        }
+
+        // ============================================================
+        // Helper: Get City from Coordinates using Nominatim
+        // ============================================================
+        private async Task<string> GetCityFromCoordinates(double lat, double lon, HttpClient client)
+        {
+            try
+            {
+                var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&accept-language=en";
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("DevLinkApp/1.0");
+
+                var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+                    if (doc.RootElement.TryGetProperty("address", out var address))
+                    {
+                        if (address.TryGetProperty("city", out var city) && !string.IsNullOrEmpty(city.GetString()))
+                            return city.GetString()!;
+                        if (address.TryGetProperty("town", out var town) && !string.IsNullOrEmpty(town.GetString()))
+                            return town.GetString()!;
+                        if (address.TryGetProperty("village", out var village) && !string.IsNullOrEmpty(village.GetString()))
+                            return village.GetString()!;
+                        if (address.TryGetProperty("state", out var state) && !string.IsNullOrEmpty(state.GetString()))
+                            return state.GetString()!;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Nominatim Error: {ex.Message}");
+            }
+            return "Your Location";
         }
 
         // ============================================================
@@ -44,9 +84,6 @@ namespace Controllers
             return Ok(new { posts });
         }
 
-        // ============================================================
-        // CREATE POST
-        // ============================================================
         [HttpPost]
         public async Task<IActionResult> CreatePost(
             [FromForm] CreatePostDto model)
@@ -85,7 +122,6 @@ namespace Controllers
             if (!success)
                 return BadRequest(new { message });
 
-            // ✅ الرسالة الجديدة
             return Ok(new
             {
                 message = "Post submitted successfully. Your post is now pending admin approval.",
@@ -93,9 +129,6 @@ namespace Controllers
             });
         }
 
-        // ============================================================
-        // DELETE POST
-        // ============================================================
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePost(
             int id,
@@ -114,9 +147,6 @@ namespace Controllers
             return Ok(new { message });
         }
 
-        // ============================================================
-        // LIKE / UNLIKE
-        // ============================================================
         [HttpPost("{id}/like")]
         public async Task<IActionResult> ToggleLike(
             int id,
@@ -134,9 +164,6 @@ namespace Controllers
             return Ok(new { message, isLiked, likeCount });
         }
 
-        // ============================================================
-        // COMMENTS
-        // ============================================================
         [HttpGet("{id}/comments")]
         public async Task<IActionResult> GetComments(int id)
         {
@@ -182,9 +209,6 @@ namespace Controllers
             return Ok(new { message });
         }
 
-        // ============================================================
-        // IMAGES
-        // ============================================================
         [HttpGet("image/{imageId}")]
         public async Task<IActionResult> GetPostImage(int imageId)
         {
@@ -209,9 +233,6 @@ namespace Controllers
             return File(result.data, result.contentType ?? "image/jpeg");
         }
 
-        // ============================================================
-        // SEARCH
-        // ============================================================
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             [FromQuery] string q,
@@ -224,9 +245,6 @@ namespace Controllers
             return Ok(new { users });
         }
 
-        // ============================================================
-        // PUBLIC PROFILE
-        // ============================================================
         [HttpGet("profile/{userId}")]
         public async Task<IActionResult> GetUserProfile(int userId)
         {
@@ -238,9 +256,6 @@ namespace Controllers
             return Ok(profile);
         }
 
-        // ============================================================
-        // APPLY TO POST
-        // ============================================================
         [HttpPost("{id}/apply")]
         public async Task<IActionResult> ApplyToPost(
             int id,
@@ -312,9 +327,6 @@ namespace Controllers
             return Ok(new { hasApplied });
         }
 
-        // ============================================================
-        // ADMIN: PENDING POSTS
-        // ============================================================
         [HttpGet("pending")]
         public async Task<IActionResult> GetPendingPosts()
         {
@@ -322,9 +334,6 @@ namespace Controllers
             return Ok(new { posts });
         }
 
-        // ============================================================
-        // ADMIN: APPROVE POST
-        // ============================================================
         [HttpPost("{id}/approve")]
         public async Task<IActionResult> ApprovePost(int id)
         {
@@ -354,9 +363,6 @@ namespace Controllers
             return Ok(new { message });
         }
 
-        // ============================================================
-        // ADMIN: REJECT POST
-        // ============================================================
         [HttpPost("{id}/reject")]
         public async Task<IActionResult> RejectPost(
             int id,
@@ -392,8 +398,131 @@ namespace Controllers
         }
 
         // ============================================================
-        // HELPER
+        // WEATHER ENDPOINTS
         // ============================================================
+        [HttpGet("weather/{userId}")]
+        public async Task<IActionResult> GetWeather(int userId)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            string city = "Ramallah";
+
+            if (user.UserType == "Customer")
+            {
+                var profile = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (profile != null && !string.IsNullOrWhiteSpace(profile.City))
+                    city = profile.City;
+            }
+            else if (user.UserType == "Programmer")
+            {
+                var profile = await _context.ProgrammerProfiles.FirstOrDefaultAsync(c => c.UserId == userId);
+                if (profile != null && !string.IsNullOrWhiteSpace(profile.City))
+                    city = profile.City;
+            }
+
+            try
+            {
+                using var client = new HttpClient();
+                
+                async Task<(double lat, double lon, string country)?> GetCoordinates(string cityName)
+                {
+                    var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(cityName)}&count=1&language=en&format=json";
+                    var response = await client.GetAsync(url);
+                    if (!response.IsSuccessStatusCode) return null;
+                    
+                    var json = await response.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    
+                    if (!doc.RootElement.TryGetProperty("results", out var results) || results.GetArrayLength() == 0)
+                        return null;
+
+                    var first = results[0];
+                    var lat = first.GetProperty("latitude").GetDouble();
+                    var lon = first.GetProperty("longitude").GetDouble();
+                    var country = first.TryGetProperty("country", out var c) ? c.GetString() : "";
+                    return (lat, lon, country ?? "");
+                }
+
+                var coords = await GetCoordinates(city);
+                if (coords == null) coords = await GetCoordinates($"{city}, Palestine");
+                if (coords == null) { city = "Ramallah"; coords = await GetCoordinates("Ramallah"); }
+                if (coords == null) return StatusCode(500, new { message = "Could not find city coordinates" });
+
+                var (lat, lon, country) = coords.Value;
+
+                var weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto";
+                var weatherResponse = await client.GetAsync(weatherUrl);
+                if (!weatherResponse.IsSuccessStatusCode) return StatusCode(500, new { message = "Failed to fetch weather" });
+
+                var weatherJson = await weatherResponse.Content.ReadAsStringAsync();
+                using var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
+                
+                var current = weatherDoc.RootElement.GetProperty("current");
+                var temp = current.GetProperty("temperature_2m").GetDouble();
+                var weatherCode = current.GetProperty("weather_code").GetInt32();
+                var windSpeed = current.GetProperty("wind_speed_10m").GetDouble();
+                var timezone = weatherDoc.RootElement.GetProperty("timezone").GetString();
+
+                return Ok(new
+                {
+                    city = city,
+                    country = country,
+                    temperature = temp,
+                    weatherCode = weatherCode,
+                    windSpeed = windSpeed,
+                    timezone = timezone,
+                    latitude = lat,
+                    longitude = lon
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error: {ex.Message}" });
+            }
+        }
+
+        [HttpGet("weather-location")]
+        public async Task<IActionResult> GetWeatherByLocation([FromQuery] double lat, [FromQuery] double lon)
+        {
+            try
+            {
+                using var client = new HttpClient();
+                
+                var weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto";
+                var weatherResponse = await client.GetAsync(weatherUrl);
+                if (!weatherResponse.IsSuccessStatusCode) return StatusCode(500, new { message = "Failed to fetch weather" });
+
+                var weatherJson = await weatherResponse.Content.ReadAsStringAsync();
+                using var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
+                
+                var current = weatherDoc.RootElement.GetProperty("current");
+                var temp = current.GetProperty("temperature_2m").GetDouble();
+                var weatherCode = current.GetProperty("weather_code").GetInt32();
+                var windSpeed = current.GetProperty("wind_speed_10m").GetDouble();
+                var timezone = weatherDoc.RootElement.GetProperty("timezone").GetString();
+
+                // ✅ استخدام Nominatim لجلب اسم المدينة
+                string cityName = await GetCityFromCoordinates(lat, lon, client);
+
+                return Ok(new
+                {
+                    city = cityName,
+                    country = "",
+                    temperature = temp,
+                    weatherCode = weatherCode,
+                    windSpeed = windSpeed,
+                    timezone = timezone,
+                    latitude = lat,
+                    longitude = lon
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Error: {ex.Message}" });
+            }
+        }
+
         private static string? NormalizeImageType(
             string contentType,
             string fileName)
@@ -424,9 +553,6 @@ namespace Controllers
         }
     }
 
-    // ============================================================
-    // DTOs
-    // ============================================================
     public class CreatePostDto
     {
         public int UserId { get; set; }

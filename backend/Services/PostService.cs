@@ -30,6 +30,18 @@ namespace Services
 
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
+
+            var userNotifications = await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .ToListAsync();
+
+            if (userNotifications.Count > 5)
+            {
+                var toDelete = userNotifications.Skip(5).ToList();
+                _context.Notifications.RemoveRange(toDelete);
+                await _context.SaveChangesAsync();
+            }
         }
 
         public async Task<List<object>> GetFeed(int currentUserId, int page = 1, int pageSize = 20)
@@ -580,6 +592,8 @@ namespace Services
             post.Status = "Approved";
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            await CreateNotification(post.UserId, "Post Approved", "Your post has been reviewed and approved by the admin.", "approved", postId);
 
             return (true, "Post approved successfully");
         }
