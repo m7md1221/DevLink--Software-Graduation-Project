@@ -15,6 +15,9 @@ namespace DataBase
         public DbSet<PostComment> PostComments { get; set; }
         public DbSet<SupportMessage> SupportMessages { get; set; }
         public DbSet<PostApplication> PostApplications { get; set; }
+        
+        // ✅ ضفنا جدول الإشعارات هنا
+        public DbSet<Notification> Notifications { get; set; }
 
         public AppDbContext(
             DbContextOptions<AppDbContext> options)
@@ -252,6 +255,37 @@ namespace DataBase
                 .WithMany(u => u.Applications)
                 .HasForeignKey(a => a.ProgrammerId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            // ✅ إعدادات جدول الإشعارات
+            modelBuilder.Entity<Notification>()
+                .ToTable("Notifications");
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.UserId);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.IsRead);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Message)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Type)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User) 
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
