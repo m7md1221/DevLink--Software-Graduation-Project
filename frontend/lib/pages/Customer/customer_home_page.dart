@@ -4,6 +4,7 @@ import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 import '../../services/session_manager.dart';
 import '../../widgets/theme_toggle.dart';
+import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
 import '../Common/welcome_page.dart';
 import 'create_post_page.dart';
@@ -174,6 +175,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 ],
               ),
               actions: [
+                NotificationBell(
+                  userId: widget.userId, 
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 4),
                 ThemeToggle(themeManager: themeManager, compact: true),
                 const SizedBox(width: 8),
                 Padding(
