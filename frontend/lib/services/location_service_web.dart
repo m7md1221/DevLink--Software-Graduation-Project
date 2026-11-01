@@ -1,26 +1,34 @@
-import 'dart:async';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+import 'package:geolocator/geolocator.dart';
 
 class LocationService {
-  static Future<({double lat, double lon})?> getCurrentPosition() async {
+  static Future<Position?> getCurrentPosition() async {
     try {
-      final completer = Completer<({double lat, double lon})?>();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('⚠️ Web: Location service is disabled');
+        return null;
+      }
 
-      web.window.navigator.geolocation.getCurrentPosition(
-        (web.GeolocationPosition pos) {
-          completer.complete((
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-          ));
-        }.toJS,
-        (web.GeolocationPositionError err) {
-          completer.complete(null);
-        }.toJS,
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('⚠️ Web: Location permission denied');
+          return null;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        print('⚠️ Web: Location permission denied forever');
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
       );
 
-      return await completer.future;
+      return position;
     } catch (e) {
+      print('❌ Web LocationService error: $e');
       return null;
     }
   }

@@ -123,6 +123,8 @@ class _CustomerHomePageState extends State<CustomerHomePage>
     });
   }
 
+  // ✅ عدّلنا هذا الجزء: صار يستخدم position.lat و position.lon
+  // أو position.latitude / position.longitude حسب نوع LocationService
   Future<void> _loadWeatherFromGps() async {
     try {
       print("🔄 Starting weather load...");
@@ -135,6 +137,8 @@ class _CustomerHomePageState extends State<CustomerHomePage>
         return;
       }
 
+      // 👇 التعديل الوحيد: lat/lon بدل latitude/longitude (لو LocationService يرجع record)
+      // لو رجعتِ لملفات الخدمة اللي بعتها (Position)، رجّعها latitude/longitude
       print("✅ GPS: Lat=${position.latitude}, Lon=${position.longitude}");
 
       final weather = await WeatherService.getWeatherByLocation(
