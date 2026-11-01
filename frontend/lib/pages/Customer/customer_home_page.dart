@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:devlink/main.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 import '../../services/session_manager.dart';
+import '../../services/weather_service.dart';
+import '../../services/location_service.dart'
+    if (dart.library.html) '../../services/location_service_web.dart';
 import '../../widgets/theme_toggle.dart';
 import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
@@ -29,11 +34,38 @@ class CustomerHomePage extends StatefulWidget {
   State<CustomerHomePage> createState() => _CustomerHomePageState();
 }
 
-class _CustomerHomePageState extends State<CustomerHomePage> {
+class _CustomerHomePageState extends State<CustomerHomePage>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   List<PostModel> _posts = [];
   List<UserSearchResult> _suggestedPeople = [];
   bool _isLoading = true;
+
+  WeatherData? _weather;
+  Timer? _clockTimer;
+  DateTime _currentTime = DateTime.now();
+
+  final List<Map<String, dynamic>> _proTips = [
+    {
+      'icon': Icons.photo_camera_rounded,
+      'title': 'Complete Your Profile',
+      'desc': 'Add a profile photo to get 3x more engagement.',
+      'color': const Color(0xFF8B5CF6),
+    },
+    {
+      'icon': Icons.bolt_rounded,
+      'title': 'Be Fast',
+      'desc': 'Reply quickly to build trust with clients.',
+      'color': const Color(0xFFF59E0B),
+    },
+    {
+      'icon': Icons.verified_rounded,
+      'title': 'Get Verified',
+      'desc': 'Upload certificates for the verified badge.',
+      'color': const Color(0xFF10B981),
+    },
+  ];
+  int _currentTipIndex = 0;
 
   static double _getFeedWidth(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -46,8 +78,28 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadFeed();
     _loadSuggestedPeople();
+    _loadWeatherFromGps();
+
+    _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() => _currentTime = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadWeatherFromGps();
+    }
   }
 
   Future<void> _loadFeed() async {
@@ -69,6 +121,50 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           .take(5)
           .toList();
     });
+  }
+
+  Future<void> _loadWeatherFromGps() async {
+    try {
+      print("🔄 Starting weather load...");
+
+      final position = await LocationService.getCurrentPosition();
+
+      if (position == null) {
+        print("⚠️ GPS position is null. Falling back to profile.");
+        await _loadWeatherFromProfile();
+        return;
+      }
+
+      print("✅ GPS: Lat=${position.latitude}, Lon=${position.longitude}");
+
+      final weather = await WeatherService.getWeatherByLocation(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (weather != null) {
+        print("✅ Weather: ${weather.city}, ${weather.temperature}°C");
+        if (mounted) setState(() => _weather = weather);
+        return;
+      } else {
+        print("⚠️ Weather is null. Falling back to profile.");
+        await _loadWeatherFromProfile();
+      }
+    } catch (e) {
+      print("❌ GPS Error: $e");
+      await _loadWeatherFromProfile();
+    }
+  }
+
+  Future<void> _loadWeatherFromProfile() async {
+    try {
+      final weather = await WeatherService.getWeather(widget.userId);
+      if (mounted && weather != null) {
+        setState(() => _weather = weather);
+      }
+    } catch (e) {
+      print("❌ Error loading weather from profile: $e");
+    }
   }
 
   Future<void> _logout() async {
@@ -176,7 +272,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               ),
               actions: [
                 NotificationBell(
-                  userId: widget.userId, 
+                  userId: widget.userId,
                   isDark: isDark,
                 ),
                 const SizedBox(width: 4),
@@ -298,11 +394,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     Color textSecondary,
     Color borderColor,
   ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 1100;
+
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: RefreshIndicator(
         color: const Color(0xFF8B5CF6),
-        onRefresh: _loadFeed,
+        onRefresh: () async {
+          await _loadFeed();
+          await _loadWeatherFromGps();
+        },
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           slivers: [
@@ -361,6 +463,59 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 ),
               ),
             ),
+
+            if (!isDesktop)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: borderColor, width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, size: 18, color: Color(0xFF3B82F6)),
+                            const SizedBox(width: 6),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _weather?.city ?? "Loading...",
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: textPrimary),
+                                ),
+                                Text(
+                                  _weather?.weatherText ?? "Waiting for GPS...",
+                                  style: TextStyle(fontSize: 11, color: textSecondary),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              _weather?.weatherIcon ?? "⏳",
+                              style: const TextStyle(fontSize: 28),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _weather != null ? '${_weather!.temperature.round()}°C' : '--°C',
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF3B82F6)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             if (_isLoading)
               const SliverToBoxAdapter(
                 child: Padding(
@@ -647,24 +802,57 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.trending_up_rounded, size: 16, color: Color(0xFFF59E0B)),
-                  const SizedBox(width: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF3B82F6)),
+                      const SizedBox(width: 4),
+                      Text(
+                        _weather?.city ?? "Loading...",
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: textPrimary),
+                      ),
+                    ],
+                  ),
                   Text(
-                    'Trending',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: textPrimary,
-                    ),
+                    _weather?.weatherIcon ?? "⏳",
+                    style: const TextStyle(fontSize: 24),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _trendingTag('#Flutter', '2.5K posts', const Color(0xFF10B981), textPrimary, textSecondary),
-              _trendingTag('#DotNet', '1.8K posts', const Color(0xFF8B5CF6), textPrimary, textSecondary),
-              _trendingTag('#JavaScript', '3.2K posts', const Color(0xFFF59E0B), textPrimary, textSecondary),
-              _trendingTag('#Mobile', '980 posts', const Color(0xFF3B82F6), textPrimary, textSecondary),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_currentTime.hour.toString().padLeft(2, '0')}:${_currentTime.minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: textPrimary, letterSpacing: -1),
+                      ),
+                      Text(
+                        _weather?.weatherText ?? "Waiting for GPS...",
+                        style: TextStyle(fontSize: 12, color: textSecondary),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _weather != null ? '${_weather!.temperature.round()}°C' : '--°C',
+                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF3B82F6)),
+                      ),
+                      Text(
+                        _weather != null ? '${_weather!.windSpeed.round()} km/h' : '-- km/h',
+                        style: TextStyle(fontSize: 11, color: textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -672,35 +860,70 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-            ),
+            color: cardColor,
             borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor, width: 1.2),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.lightbulb_rounded, size: 18, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text(
-                    'Pro Tip',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(_proTips[_currentTipIndex]['icon'], size: 16, color: _proTips[_currentTipIndex]['color']),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Pro Tip',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _currentTipIndex = (_currentTipIndex + 1) % _proTips.length;
+                      });
+                    },
+                    child: Icon(Icons.refresh_rounded, size: 16, color: textSecondary),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Add a profile photo and complete your profile to get 3x more engagement on your posts!',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withOpacity(0.9),
-                  height: 1.5,
+              const SizedBox(height: 12),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                child: Container(
+                  key: ValueKey(_currentTipIndex),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _proTips[_currentTipIndex]['title'],
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: _proTips[_currentTipIndex]['color'],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _proTips[_currentTipIndex]['desc'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -775,48 +998,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _trendingTag(String tag, String count, Color color, Color textPrimary, Color textSecondary) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 24,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tag,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                    color: textPrimary,
-                  ),
-                ),
-                Text(
-                  count,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -26,6 +26,13 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ✅ صلاحيات الموقع (GPS) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>DevLink needs your location to show local weather and time.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>DevLink needs your location to show local weather and time.</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

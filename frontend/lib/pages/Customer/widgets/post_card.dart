@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
+import '../../../widgets/custom_toast.dart'; 
 import 'comments_sheet.dart';
 import '../apply_to_post_page.dart';
 import '../post_applications_page.dart';
@@ -195,23 +196,11 @@ class _PostCardState extends State<PostCard>
     if (!mounted) return;
 
     if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Post deleted'),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      
+      CustomToast.show(context, 'Post deleted successfully');
       widget.onChanged();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Failed'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      CustomToast.show(context, result['message'] ?? 'Failed to delete post', isError: true);
     }
   }
 
@@ -265,7 +254,6 @@ class _PostCardState extends State<PostCard>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== HEADER =====
             Padding(
               padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, isMobile ? 14 : 16, isMobile ? 14 : 16, isMobile ? 10 : 12),
               child: Row(
@@ -367,7 +355,6 @@ class _PostCardState extends State<PostCard>
               ),
             ),
 
-            // ===== CONTENT =====
             if (widget.post.content != null && widget.post.content!.trim().isNotEmpty)
               Padding(
                 padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, 0, isMobile ? 14 : 16, isMobile ? 12 : 14),
@@ -382,10 +369,8 @@ class _PostCardState extends State<PostCard>
                 ),
               ),
 
-            // ===== IMAGES =====
             if (widget.post.images.isNotEmpty) _buildImages(isDark, isMobile),
 
-            // ===== STATS & ACTIONS =====
             Padding(
               padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, isMobile ? 10 : 12, isMobile ? 14 : 16, isMobile ? 4 : 6),
               child: Row(
@@ -433,7 +418,6 @@ class _PostCardState extends State<PostCard>
               child: Divider(height: isMobile ? 12 : 16, thickness: 1, color: borderColor.withOpacity(0.5)),
             ),
 
-            // ===== BOTTOM ACTIONS =====
             Padding(
               padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: 4),
               child: Row(
@@ -496,15 +480,11 @@ class _PostCardState extends State<PostCard>
     );
   }
 
-  // ============================================================
-  // IMAGES (Responsive: 16:9 على الديسكتوب، 4:3 على الموبايل)
-  // ============================================================
   Widget _buildImages(bool isDark, bool isMobile) {
     final imgs = widget.post.images;
 
     if (imgs.length == 1) {
       return AspectRatio(
-        // على الموبايل نعطي ارتفاع أكبر نسبياً عشان الصورة تبان
         aspectRatio: isMobile ? 4 / 3 : 16 / 9,
         child: _image(imgs[0].id, isDark),
       );
@@ -576,9 +556,6 @@ class _PostCardState extends State<PostCard>
     );
   }
 
-  // ============================================================
-  // ACTION BUTTON
-  // ============================================================
   Widget _actionButton({
     required IconData icon,
     required String label,
@@ -622,9 +599,6 @@ class _PostCardState extends State<PostCard>
   }
 }
 
-// ============================================================
-// AVATAR
-// ============================================================
 class _Avatar extends StatelessWidget {
   final int userId;
   final bool hasImage;
