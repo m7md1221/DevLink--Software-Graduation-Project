@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DataBase
 {
-    public class AppDbContext : DbContext
+    public partial class AppDbContext : DbContext
     {
         public DbSet<User> Users { get; set; }
         public DbSet<CustomerProfile> CustomerProfiles { get; set; }
@@ -330,6 +330,9 @@ namespace DataBase
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_Notifications_Users");
+
+            // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
+            ConfigureAuthSecurity(modelBuilder);
         }
     }
 }

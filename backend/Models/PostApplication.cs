@@ -37,5 +37,8 @@ namespace DataBase
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime? UpdatedAt { get; set; }
+
+        // M2 (Q16): when the programmer agreed to share their email with the post owner; null = no consent.
+        public DateTime? ContactShareConsentAt { get; set; }
     }
 }

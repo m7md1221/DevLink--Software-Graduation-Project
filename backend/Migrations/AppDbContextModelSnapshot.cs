@@ -22,6 +22,61 @@ namespace DotnetAPI.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("DataBase.AuthSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AbsoluteExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClientType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("DownloadBindingHash")
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("LastRefreshedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokeReason")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("IX_AuthSessions_User_Status");
+
+                    b.ToTable("AuthSessions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AuthSessions_ClientType", "[ClientType]='mobile' OR [ClientType]='web'");
+
+                            t.HasCheckConstraint("CK_AuthSessions_Status", "[Status]='Expired' OR [Status]='Revoked' OR [Status]='Active'");
+                        });
+                });
+
             modelBuilder.Entity("DataBase.CustomerProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -72,6 +127,53 @@ namespace DotnetAPI.Migrations
                         .IsUnique();
 
                     b.ToTable("CustomerProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("DataBase.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .IsDescending();
+
+                    b.HasIndex("IsRead");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("DataBase.Models.PostComment", b =>
@@ -170,51 +272,76 @@ namespace DotnetAPI.Migrations
                     b.ToTable("PostLikes", (string)null);
                 });
 
-            modelBuilder.Entity("DataBase.Notification", b =>
+            modelBuilder.Entity("DataBase.OneTimeCode", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("bigint");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<byte[]>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime?>("ConsumedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Message")
+                    b.Property<byte[]>("EmailKey")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
 
-                    b.Property<int?>("ReferenceId")
-                        .HasColumnType("int");
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
 
-                    b.Property<string>("Title")
+                    b.Property<int>("FailedAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("InvalidatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProofConsumedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProofExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("ProofTokenHash")
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Purpose")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt")
-                        .IsDescending();
+                    b.HasIndex("ProofTokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_OneTimeCodes_ProofTokenHash")
+                        .HasFilter("[ProofTokenHash] IS NOT NULL");
 
-                    b.HasIndex("IsRead");
+                    b.HasIndex("EmailKey", "Purpose", "CreatedAt")
+                        .HasDatabaseName("IX_OneTimeCodes_Email_Purpose_Created");
 
-                    b.HasIndex("UserId");
+                    b.ToTable("OneTimeCodes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OneTimeCodes_FailedAttempts", "[FailedAttempts]>=0");
 
-                    b.ToTable("Notifications", (string)null);
+                            t.HasCheckConstraint("CK_OneTimeCodes_Purpose", "[Purpose]='Reset' OR [Purpose]='Signup'");
+                        });
                 });
 
             modelBuilder.Entity("DataBase.Post", b =>
@@ -271,6 +398,9 @@ namespace DotnetAPI.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ContactShareConsentAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -409,6 +539,152 @@ namespace DotnetAPI.Migrations
                     b.ToTable("ProgrammerProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("DataBase.RefreshToken", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ConsumedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ParentTokenId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ReplacedByTokenId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentTokenId");
+
+                    b.HasIndex("ReplacedByTokenId");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RefreshTokens_OneActivePerSession")
+                        .HasFilter("[Status] = 'Active'");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RefreshTokens_TokenHash");
+
+                    b.HasIndex("SessionId", "Status")
+                        .HasDatabaseName("IX_RefreshTokens_Session_Status");
+
+                    b.ToTable("RefreshTokens", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RefreshTokens_Status", "[Status]='Revoked' OR [Status]='Rotated' OR [Status]='Active'");
+                        });
+                });
+
+            modelBuilder.Entity("DataBase.SecurityEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClientType")
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("EmailKey")
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("char(12)")
+                        .IsFixedLength();
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("IpPrefix")
+                        .HasMaxLength(49)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(49)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("TraceId")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_SecurityEvents_OccurredAt");
+
+                    b.HasIndex("UserId", "OccurredAt")
+                        .HasDatabaseName("IX_SecurityEvents_User_OccurredAt");
+
+                    b.ToTable("SecurityEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SecurityEvents_Outcome", "[Outcome]='Blocked' OR [Outcome]='Failure' OR [Outcome]='Success'");
+                        });
+                });
+
             modelBuilder.Entity("DataBase.SupportMessage", b =>
                 {
                     b.Property<int>("Id")
@@ -488,9 +764,47 @@ namespace DotnetAPI.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<int>("FailedLoginCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("GoogleSubject")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LockoutEndAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)")
+                        .HasDefaultValueSql("lower(replace(convert(nvarchar(36), newid()), '-', ''))");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)")
+                        .HasDefaultValue("Active");
+
+                    b.Property<DateTime?>("SuspendedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SuspendedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("UserType")
                         .IsRequired()
@@ -502,7 +816,31 @@ namespace DotnetAPI.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.HasIndex("GoogleSubject")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Users_GoogleSubject")
+                        .HasFilter("[GoogleSubject] IS NOT NULL");
+
+                    b.HasIndex("SecurityStamp")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Users_SecurityStamp");
+
+                    b.ToTable("Users", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Users_Status", "[Status]='Suspended' OR [Status]='Active'");
+                        });
+                });
+
+            modelBuilder.Entity("DataBase.AuthSession", b =>
+                {
+                    b.HasOne("DataBase.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_AuthSessions_Users");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DataBase.CustomerProfile", b =>
@@ -513,6 +851,18 @@ namespace DotnetAPI.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_CustomerProfiles_Users");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DataBase.Models.Notification", b =>
+                {
+                    b.HasOne("DataBase.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_Notifications_Users");
 
                     b.Navigation("User");
                 });
@@ -571,18 +921,6 @@ namespace DotnetAPI.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DataBase.Notification", b =>
-                {
-                    b.HasOne("DataBase.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_Notifications_Users");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("DataBase.Post", b =>
                 {
                     b.HasOne("DataBase.User", "User")
@@ -628,6 +966,30 @@ namespace DotnetAPI.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DataBase.RefreshToken", b =>
+                {
+                    b.HasOne("DataBase.RefreshToken", null)
+                        .WithMany()
+                        .HasForeignKey("ParentTokenId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_RefreshTokens_Parent");
+
+                    b.HasOne("DataBase.RefreshToken", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacedByTokenId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_RefreshTokens_ReplacedBy");
+
+                    b.HasOne("DataBase.AuthSession", "Session")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_RefreshTokens_AuthSessions");
+
+                    b.Navigation("Session");
+                });
+
             modelBuilder.Entity("DataBase.SupportMessage", b =>
                 {
                     b.HasOne("DataBase.User", "User")
@@ -637,6 +999,11 @@ namespace DotnetAPI.Migrations
                         .HasConstraintName("FK_SupportMessages_Users");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DataBase.AuthSession", b =>
+                {
+                    b.Navigation("RefreshTokens");
                 });
 
             modelBuilder.Entity("DataBase.Post", b =>

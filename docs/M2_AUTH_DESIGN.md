@@ -230,7 +230,7 @@ These conditions are **binding**: an M2 task isn't done until the conditions tha
 | Column | Type | Notes |
 |---|---|---|
 | `Id` | `uniqueidentifier` PK | The `sid` claim. Random (`Guid.NewGuid()`), not secret |
-| `UserId` | `int` FK → `Users` (cascade delete) | |
+| `UserId` | `int` FK → `Users`, **NO ACTION** (`FK_AuthSessions_Users`; owner rule at M2.3: security records are never cascade-deleted) | |
 | `ClientType` | `varchar(16)` CHECK `web`/`mobile` | |
 | `Status` | `varchar(16)` CHECK `Active`/`Revoked`/`Expired` | |
 | `CreatedAt` | `datetime2` | |
@@ -247,7 +247,7 @@ Index: `(UserId, Status)`.
 | Column | Type | Notes |
 |---|---|---|
 | `Id` | `bigint` identity PK | |
-| `SessionId` | `uniqueidentifier` FK → `AuthSessions` (cascade delete) | The family |
+| `SessionId` | `uniqueidentifier` FK → `AuthSessions`, **NO ACTION** (`FK_RefreshTokens_AuthSessions`) | The family. The cleanup service deletes a session's tokens first, then the session |
 | `TokenHash` | `binary(32)` **unique** | SHA-256 of the raw token. The raw token is never stored |
 | `Status` | `varchar(16)` CHECK `Active`/`Rotated`/`Revoked` | |
 | `CreatedAt` | `datetime2` | |
@@ -335,7 +335,7 @@ COMMIT → new access token (current SecurityStamp, sid = ses.Id) + Set-Cookie (
 | Admin "sign out everywhere" (`revoke-sessions`) | rotated | all (`AdminRevoked`) | signed out | signed out |
 | Role change / admin password or email change | rotated | all (`RoleChanged`/`AdminChanged`) | signs in again → new role | signed out |
 | Refresh-token reuse | – | that session (`ReuseDetected`) | that device signed out | unaffected |
-| Account deleted | – | rows cascade-deleted | 401 | 401 |
+| Account deleted | – | **not cascaded** (NO ACTION FKs): the delete path must first revoke and delete the user's `RefreshTokens` and `AuthSessions` explicitly (M2.5/M2.7), otherwise the database refuses the delete. `SecurityEvents` rows stay (no FK). Soft delete (KI-10) remains the long-term answer | 401 | 401 |
 | Google identity linked | rotated | all except current (`GoogleLinked`) | stays | signed out |
 
 Suspension and unsuspension take effect through `Users.Status` and the synchronous cache invalidation (§3.7). The admin can combine suspension with `revoke-sessions` if a device must also be signed out.
@@ -1110,7 +1110,7 @@ Everything your partner needs to know or approve for M2, in the order it will ma
 
 | # | Item | What your partner does | When | Blocks |
 |---|---|---|---|---|
-| P-1 | **Migration `AddAuthSecurity` on their database** | Back up their database first (the same COPY_ONLY backup + restore-check procedure used for `DevLink` on 2026-11-03; script and steps provided). Then apply the migration — or, if their DB was never aligned, the alignment + baseline scripts first (KI-16). **Until it is applied, the API from this branch fails on their DB** (new `Users` columns) | Before they run the branch after M2.3 | Their local testing |
+| P-1 | **Their database: backup → M1 baseline scripts → `AddAuthSecurity`, in this order** | 1. **Backup first**: COPY_ONLY backup + restore check + CHECKDB, the same procedure used for `DevLink` on 2026-11-03.<br>2. **M1 baseline scripts** (only if their DB has no `__EFMigrationsHistory` yet, KI-16): `database/align_schema_for_ef_baseline.sql`, then `database/baseline_ef_history.sql`. Both are idempotent.<br>3. **This migration**: `dotnet ef database update`, or the idempotent script from `dotnet ef migrations script --idempotent` run with **`sqlcmd -I`** (QUOTED_IDENTIFIER ON is required for the filtered indexes — KI-37; SSMS has it on by default).<br>This exact sequence was rehearsed on a restored copy of our backup seeded with legacy-style rows (M2.3). Existing rows are unchanged; every user gets its own random `SecurityStamp` and `Status = Active`. **Until step 3 is done, the API from this branch fails on their DB** (new `Users` columns) | Before they run the branch after M2.3 | Their local testing |
 | P-2 | **CORS origin / fixed port** | From M2.2 the API accepts browser calls only from exact origins. Default: `http://localhost:5200`. Either run `flutter run -d chrome --web-port 5200 --web-hostname localhost`, or add their origin locally with `dotnet user-secrets set "Cors:AllowedOrigins:1" "http://localhost:<port>" --project backend`. Use `localhost`, not `127.0.0.1` or a LAN IP (C4, KI-33) | Before they run the branch after M2.2 | Their local testing |
 | P-3 | **Their own secrets** | Generate their own `Jwt:SigningKeys`, `Security:CodeHmacKey` and `Security:MediaUrlKey` with the commands in §3.2 (never shared) | Same as P-2 | Their local API startup |
 | P-4 | **Removal of the "newest 5" notification deletion** (N1) | Agree before M2.10 changes `PostService.CreateNotification` and `NotificationsController` — their code. The bell keeps showing 5 (default `limit`); older notifications are kept instead of deleted; paging via `limit`/`before`. The old test `Current_behaviour_only_the_newest_five_notifications_are_kept` is replaced. Cleanup policy R4 decided later with them | Before M2.10 | M2.10 |
