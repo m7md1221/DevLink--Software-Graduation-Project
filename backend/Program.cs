@@ -12,7 +12,25 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // "Authorize" button in the (Development-only) Swagger UI for the access token from /api/Auth/login.
+    var bearer = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Reference = new Microsoft.OpenApi.Models.OpenApiReference
+        {
+            Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+            Id = "Bearer"
+        }
+    };
+    options.AddSecurityDefinition("Bearer", bearer);
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement { [bearer] = Array.Empty<string>() });
+});
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
@@ -41,6 +59,7 @@ builder.Services.AddScoped<PostService>();
 // ============================================================
 builder.Services.AddDevLinkSecurityFoundation(builder.Configuration);
 builder.Services.AddDevLinkJwtAuthentication(builder.Configuration);
+builder.Services.AddDevLinkLogin();
 
 var app = builder.Build();
 
@@ -71,6 +90,7 @@ app.UseCors(CorsSetup.PolicyName);
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+app.UseDevLinkSuspendedAccountGate();
 app.UseAuthorization();
 
 app.MapControllers();

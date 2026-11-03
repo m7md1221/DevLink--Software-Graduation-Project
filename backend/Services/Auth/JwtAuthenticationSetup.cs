@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
@@ -27,6 +28,11 @@ namespace Services.Auth
 
             services.AddSingleton<JwtKeyRing>();
             services.AddSingleton<TokenService>();
+
+            // Per-request session check (M2.4a, C2).
+            services.AddMemoryCache();
+            services.AddSingleton<SessionStateCache>();
+            services.AddSingleton<ISessionValidator, SessionValidator>();
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
             services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -65,16 +71,40 @@ namespace Services.Auth
 
             bearer.Events = new JwtBearerEvents
             {
-                OnTokenValidated = context =>
+                OnTokenValidated = async context =>
                 {
                     // Reject tokens that live longer than an access token may (or carry no iat).
                     var maxLifetime = TimeSpan.FromMinutes(JwtOptions.MaxAccessTokenMinutes) + JwtOptions.ClockSkew;
                     if (context.SecurityToken is not JsonWebToken token || token.ValidTo - token.IssuedAt > maxLifetime)
                     {
                         context.Fail("Access token lifetime exceeds the allowed maximum.");
+                        return;
                     }
 
-                    return Task.CompletedTask;
+                    // Per-request session check (C2): user, security stamp, active session, status.
+                    if (!int.TryParse(token.Subject, out var userId) ||
+                        !token.TryGetPayloadValue<string>(AuthClaims.SecurityStamp, out var stamp) ||
+                        !token.TryGetPayloadValue<string>(AuthClaims.SessionId, out var sid) ||
+                        !Guid.TryParse(sid, out var sessionId))
+                    {
+                        context.Fail(new SessionRevokedException());
+                        return;
+                    }
+
+                    var validator = context.HttpContext.RequestServices.GetRequiredService<ISessionValidator>();
+                    var result = await validator.ValidateAsync(userId, stamp, sessionId, context.HttpContext.RequestAborted);
+                    switch (result.Check)
+                    {
+                        case SessionCheck.Valid:
+                            context.HttpContext.Items[AuthHttpItems.UserStatus] = result.UserStatus;
+                            break;
+                        case SessionCheck.Unavailable:
+                            context.Fail(new SessionCheckUnavailableException());
+                            break;
+                        default:
+                            context.Fail(new SessionRevokedException());
+                            break;
+                    }
                 },
                 OnAuthenticationFailed = context =>
                 {
@@ -87,15 +117,26 @@ namespace Services.Auth
                 {
                     context.HandleResponse();
 
+                    if (context.AuthenticateFailure is SessionCheckUnavailableException)
+                    {
+                        await AuthProblem.WriteAsync(
+                            context.HttpContext,
+                            StatusCodes.Status503ServiceUnavailable,
+                            AuthErrorCodes.ServiceUnavailable,
+                            "DevLink is temporarily unavailable. Please try again.");
+                        return;
+                    }
+
                     var tokenSent = context.Request.Headers.Authorization.Count > 0;
-                    var expired = context.AuthenticateFailure is SecurityTokenExpiredException;
+                    var (code, message) = context.AuthenticateFailure switch
+                    {
+                        SecurityTokenExpiredException => (AuthErrorCodes.TokenExpired, "Your session has expired."),
+                        SessionRevokedException => (AuthErrorCodes.SessionRevoked, "You have been signed out. Please sign in again."),
+                        _ => (AuthErrorCodes.Unauthenticated, "Authentication is required.")
+                    };
 
                     context.Response.Headers.WWWAuthenticate = tokenSent ? "Bearer error=\"invalid_token\"" : "Bearer";
-                    await AuthProblem.WriteAsync(
-                        context.HttpContext,
-                        StatusCodes.Status401Unauthorized,
-                        expired ? AuthErrorCodes.TokenExpired : AuthErrorCodes.Unauthenticated,
-                        expired ? "Your session has expired." : "Authentication is required.");
+                    await AuthProblem.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized, code, message);
                 },
                 OnForbidden = context => AuthProblem.WriteAsync(
                     context.HttpContext,
@@ -113,7 +154,12 @@ namespace Services.Auth
     {
         public const string Unauthenticated = "UNAUTHENTICATED";
         public const string TokenExpired = "TOKEN_EXPIRED";
+        public const string SessionRevoked = "SESSION_REVOKED";
         public const string Forbidden = "FORBIDDEN";
+        public const string AccountSuspended = "ACCOUNT_SUSPENDED";
+        public const string InvalidCredentials = "INVALID_CREDENTIALS";
+        public const string AccountLocked = "ACCOUNT_LOCKED";
+        public const string ServiceUnavailable = "SERVICE_UNAVAILABLE";
     }
 
     // ProblemDetails-shaped 401/403 bodies. Keeps "message" because the Flutter app reads data['message'] (§3.5).
@@ -127,7 +173,7 @@ namespace Services.Auth
             return context.Response.WriteAsJsonAsync(new
             {
                 type = "about:blank",
-                title = status == StatusCodes.Status401Unauthorized ? "Unauthorized" : "Forbidden",
+                title = ReasonPhrases.GetReasonPhrase(status),
                 status,
                 errorCode,
                 message,

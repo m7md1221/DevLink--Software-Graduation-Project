@@ -1,12 +1,17 @@
+using System.Diagnostics;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
 using Services;
+using Services.Auth;
+using Services.Security;
 
 namespace Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [AllowSuspended] // sign-in flows and the suspension notice stay reachable for suspended accounts (§7.4)
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -14,56 +19,58 @@ namespace Controllers
         private readonly VerificationService _verificationService;
         private readonly GoogleAuthService _googleAuthService;
         private readonly PasswordService _passwordService;
+        private readonly LoginService _loginService;
 
         public AuthController(
             AppDbContext context,
             IEmailSender emailService,
             VerificationService verificationService,
             GoogleAuthService googleAuthService,
-            PasswordService passwordService)
+            PasswordService passwordService,
+            LoginService loginService)
         {
             _context = context;
             _emailService = emailService;
             _verificationService = verificationService;
             _googleAuthService = googleAuthService;
             _passwordService = passwordService;
+            _loginService = loginService;
         }
 
+        // Response keeps every pre-M2.4a field (message, userId, userType, email, hasProfile,
+        // hasProgrammerProfile); accessToken, accessTokenExpiresAt, role and status are additions.
         [HttpPost("login")]
         public async Task<IActionResult> Login(
-            [FromBody] LoginDto model)
+            [FromBody] LoginDto model,
+            CancellationToken cancellationToken)
         {
-            var email = model.Email.Trim().ToLower();
+            var clientType = string.Equals(Request.Headers[CorsSetup.ClientHeader], AuthClientType.Mobile, StringComparison.Ordinal)
+                ? AuthClientType.Mobile
+                : AuthClientType.Web;
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.Email == email &&
-                    u.UserType == model.UserType);
+            var result = await _loginService.LoginAsync(
+                model.Email, model.Password, model.UserType, clientType, HttpContext, cancellationToken);
 
-            var check = user == null
-                ? PasswordCheckResult.Failed
-                : _passwordService.Verify(user, user.PasswordHash, model.Password);
-
-            if (user == null || check == PasswordCheckResult.Failed)
+            if (result.Outcome == LoginOutcome.LockedOut)
             {
-                return Unauthorized(new
-                {
-                    message = "Invalid email or password"
-                });
+                Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(result.RetryAfter!.Value.TotalSeconds)).ToString();
+                return AuthError(StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked,
+                    "Too many failed sign-in attempts. Try again in 15 minutes or reset your password.");
             }
 
-            // ✅ ترقية كلمات المرور القديمة (نص عادي) إلى hash عند أول دخول ناجح
-            if (check == PasswordCheckResult.SuccessRehashNeeded)
+            if (result.Outcome != LoginOutcome.Success)
             {
-                user.PasswordHash = _passwordService.Hash(user, model.Password);
-                await _context.SaveChangesAsync();
+                return AuthError(StatusCodes.Status401Unauthorized, AuthErrorCodes.InvalidCredentials,
+                    "Email or password is incorrect.");
             }
+
+            var user = result.User!;
 
             var hasCustomerProfile = await _context.CustomerProfiles
-                .AnyAsync(p => p.UserId == user.Id);
+                .AnyAsync(p => p.UserId == user.Id, cancellationToken);
 
             var hasProgrammerProfile = await _context.ProgrammerProfiles
-                .AnyAsync(p => p.UserId == user.Id);
+                .AnyAsync(p => p.UserId == user.Id, cancellationToken);
 
             return Ok(new
             {
@@ -72,8 +79,59 @@ namespace Controllers
                 userType = user.UserType,
                 email = user.Email,
                 hasProfile = hasCustomerProfile,
-                hasProgrammerProfile = hasProgrammerProfile
+                hasProgrammerProfile = hasProgrammerProfile,
+                accessToken = result.Token!.Token,
+                accessTokenExpiresAt = result.Token.ExpiresAtUtc,
+                role = user.UserType,
+                status = user.Status
             });
+        }
+
+        // The trusted source for the signed-in user's role and status (M2_AUTH_DESIGN §6.1).
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> Me(CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var user = await _context.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+            if (user == null)
+            {
+                return Unauthorized();
+            }
+
+            return Ok(new
+            {
+                userId = user.Id,
+                role = user.UserType,
+                email = user.Email,
+                status = user.Status,
+                suspendedReason = user.Status == UserStatus.Suspended ? user.SuspendedReason : null,
+                hasProfile = await _context.CustomerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken),
+                hasProgrammerProfile = await _context.ProgrammerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken)
+            });
+        }
+
+        private ObjectResult AuthError(int status, string errorCode, string message)
+        {
+            var result = new ObjectResult(new
+            {
+                type = "about:blank",
+                title = Microsoft.AspNetCore.WebUtilities.ReasonPhrases.GetReasonPhrase(status),
+                status,
+                errorCode,
+                message,
+                traceId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
+            })
+            {
+                StatusCode = status
+            };
+            result.ContentTypes.Add("application/problem+json");
+            return result;
         }
 
         // ============================================================

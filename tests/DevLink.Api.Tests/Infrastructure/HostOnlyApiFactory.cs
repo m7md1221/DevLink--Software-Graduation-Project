@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Services.Auth;
 
 namespace DevLink.Api.Tests.Infrastructure
 {
@@ -29,14 +30,25 @@ namespace DevLink.Api.Tests.Infrastructure
         private readonly string _environment;
         private readonly Dictionary<string, string?> _settings;
         private readonly Action<IServiceCollection>? _configureServices;
+        private readonly bool _useRealSessionValidator;
+
+        // There is no database here, so tokens minted by the tests are treated as belonging to an
+        // active session of an active user. Session-state behaviour is tested against a real database.
+        private sealed class AcceptingSessionValidator : ISessionValidator
+        {
+            public Task<SessionValidationResult> ValidateAsync(int userId, string securityStamp, Guid sessionId, CancellationToken cancellationToken) =>
+                Task.FromResult(new SessionValidationResult(SessionCheck.Valid, "Active"));
+        }
 
         public HostOnlyApiFactory(
             string environment = "Testing",
             IDictionary<string, string?>? overrides = null,
-            Action<IServiceCollection>? configureServices = null)
+            Action<IServiceCollection>? configureServices = null,
+            bool useRealSessionValidator = false)
         {
             _environment = environment;
             _configureServices = configureServices;
+            _useRealSessionValidator = useRealSessionValidator;
 
             _settings = TestSecuritySettings.Defaults(SigningKey);
             foreach (var (key, value) in overrides ?? new Dictionary<string, string?>())
@@ -75,6 +87,12 @@ namespace DevLink.Api.Tests.Infrastructure
 
                 services.AddSingleton<ILoggerProvider>(Logs);
                 services.AddControllers().AddApplicationPart(typeof(AuthProbeController).Assembly);
+
+                if (!_useRealSessionValidator)
+                {
+                    services.RemoveAll<ISessionValidator>();
+                    services.AddSingleton<ISessionValidator, AcceptingSessionValidator>();
+                }
 
                 _configureServices?.Invoke(services);
             });

@@ -1,5 +1,6 @@
 using DataBase;
 using Microsoft.AspNetCore.Mvc;
+using Services.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace Controllers
@@ -16,6 +17,7 @@ namespace Controllers
         }
 
         [HttpPost]
+        [AllowSuspended]
         public async Task<IActionResult> SendMessage(
             [FromBody] SupportMessageDto model)
         {
@@ -138,6 +140,7 @@ namespace Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowSuspended]
         public async Task<IActionResult> GetMessage(int id)
         {
             var m = await _context.SupportMessages
@@ -248,6 +251,7 @@ namespace Controllers
         }
 
         [HttpGet("my/{userId}")]
+        [AllowSuspended]
         public async Task<IActionResult> GetMyMessages(int userId)
         {
             var messages = await _context.SupportMessages
@@ -270,6 +274,7 @@ namespace Controllers
         }
 
         [HttpGet("my/{userId}/unread-count")]
+        [AllowSuspended]
         public async Task<IActionResult> GetUnreadRepliesCount(int userId)
         {
             var count = await _context.SupportMessages
@@ -282,6 +287,7 @@ namespace Controllers
         }
 
         [HttpPost("{id}/mark-reply-read")]
+        [AllowSuspended]
         public async Task<IActionResult> MarkReplyRead(int id)
         {
             var msg = await _context.SupportMessages
