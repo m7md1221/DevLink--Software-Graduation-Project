@@ -76,6 +76,22 @@
 | **Q16** Applicant email | Shown to the project owner only after acceptance **and** with the programmer's explicit consent | Consent column + route; email hidden otherwise | §8 #50, new route |
 | **N1** Notifications | Remove the automatic deletion of all but the newest five; keep history with pagination; document cleanup separately | Delete removed; `limit`/`before` paging; bell unchanged (default 5) | §8 #35, §12 |
 
+### 0.3 Binding conditions for M2 (owner, 2026-11-03)
+
+These conditions are **binding**: an M2 task isn't done until the conditions that apply to it are met and their tests pass.
+
+| ID | Condition (summary) | Where specified | Proven by | Task |
+|---|---|---|---|---|
+| **C1** | The development fallback (all 4 cases) is active only if Environment = Development **and** explicitly enabled **and** the request comes from loopback. The app fails to start if it is enabled outside Development. Each use logs a warning (no personal data or tokens). Each case has a test proving it is off by default. M2.13 adds a test proving the paths are removed | §7.3 | T-SW-01…10, T-SW-R | M2.2 (switch), M2.5/M2.8 (cases 2–4), M2.13 (removal) |
+| **C2** | Document exactly what is checked per authenticated request and where (database or in-process cache), the maximum staleness in seconds, that it's single-instance only, and what's required before scaling out | §3.7 | T-SC-01…07 | M2.4 |
+| **C3** | Besides Web Locks, the Flutter client keeps one in-flight refresh per tab. T-MT-07 must prove that two simultaneous tabs cause no false reuse detection | §3.5, §10.2 | T-MT-01, T-MT-03, **T-MT-07 (automated)** | M2.12, M2.14 |
+| **C4** | Web Locks needs a secure context: HTTPS or `localhost`. A LAN IP over HTTP blocks sign-in — a demo/deployment constraint | §3.5, §4.2, [KI-33](known-issues.md) | T-MT-04 | M2.12, deployment |
+| **C5** | Signed image URLs use **10-minute** bucketed expiry windows, so URLs are stable within a window and browser caching works. Signatures are never logged | §5.2 | T-IM-01…07 | M2.8 |
+| **C6** | Besides 5 attempts per code, an aggregate limit per email and per IP across all codes in a rolling hour | §6.2 | T-CD-11…14 | M2.5 |
+| **C7** | Minimum 8 characters for new/changed passwords **plus** a bundled common-password blocklist. Legacy accounts can still sign in | §6.1 | T-PW-05…08, T-LG-04 | M2.5 |
+| **C8** | JwtBearer uses the same 9.0.x patch as the other `Microsoft.AspNetCore.*` packages, with the exact version recorded; no other package changes in M2.2 | §11 (M2.2), [decision-log](decision-log.md) | `git diff` of `DotnetAPI.csproj` = 1 line | M2.2 |
+| **C9** | A partner-coordination section: migration on their DB after a backup, CORS origin/port, removal of the "newest 5" deletion, Flutter review list including `admin_user_form_page.dart` and F18 | §13 | Partner sign-off recorded in the decision log | M2.3/M2.6, M2.2, M2.10, M2.12 |
+
 ---
 
 ## 1. Current authentication architecture (unchanged)
@@ -204,7 +220,7 @@
 | Verification / reset code | 10 min, 5 attempts | §6.2 |
 | Proof token (sign-up / reset) | 15 min, single use | §6.2 |
 | Download link | 60 s, single use | §5.1 |
-| Signed image URL | Members: 1–2 h (hour-bucketed); pending post images: 10 min | §5.2 |
+| Signed image URL | 10-minute buckets: valid 10–20 min, identical within a bucket (C5) | §5.2 |
 | Token and session rows | Kept until the session has ended (revoked or absolute expiry) **plus 30 days**, then deleted per session | §3.4 |
 | `OneTimeCodes` rows | Deleted 24 h after expiry | §6.2 |
 | `SecurityEvents` rows | 90 days; the truncated `IpPrefix` is nulled after 14 days (R3) | §6.4 |
@@ -293,7 +309,12 @@ COMMIT → new access token (current SecurityStamp, sid = ses.Id) + Set-Cookie (
    - Tab B then acquires the lock and sends the *new* token: a normal rotation. Each tab ends with its own access token; exactly one refresh token is active.
    - The HTTP call inside the lock has a 10 s timeout, so a stuck request can't hold the lock forever. If the tab closes, the browser releases the lock automatically.
    - If the lock isn't granted within 15 s, the tab shows "Your session could not be refreshed. Please sign in again." and goes to `WelcomePage` — it never refreshes without the lock.
-3. **Supported browsers:** Chrome and Edge 69+, Firefox 96+, Safari 15.4+, in a secure context (`https://`, or `http://localhost` in development). Chrome/Edge are the supported development browsers (§4.2).
+3. **Supported browsers:** Chrome and Edge 69+, Firefox 96+, Safari 15.4+, in a **secure context** (condition C4).
+   - The Web Locks API (and the `Secure` refresh cookie) exists only on `https://` pages, or on `http://localhost` / `http://127.0.0.1`.
+   - Opening the app by a LAN address over plain HTTP (e.g. `http://192.168.1.20:5200` from a phone or another laptop during a demo) is **not** a secure context. `navigator.locks` is undefined there, so sign-in is blocked by the message in point 4.
+   - For demos on another device, serve the app over HTTPS (a trusted certificate, or an HTTPS tunnel) or present from the machine itself on `localhost` — [KI-33](known-issues.md).
+   - Chrome/Edge are the supported development browsers (§4.2).
+   - **The in-tab single-flight (point 1) is always active**, with or without Web Locks (C3). Web Locks coordinates *between* tabs; the shared `Future` coordinates *within* a tab.
 4. **When Web Locks is unavailable** (`navigator.locks` undefined: an old browser, or a page not in a secure context): **required browser, graceful failure** (decision R2):
    - The bootstrap detects it before any session call. Login, sign-up and Google buttons are disabled, and the welcome screen shows: "DevLink needs a current version of Chrome, Edge, Firefox or Safari. Please update your browser to sign in."
    - No refresh token is ever issued to such a browser, so no false reuse can happen.
@@ -325,7 +346,28 @@ Suspension and unsuspension take effect through `Users.Status` and the synchrono
 
 **Device management (Q9):** no device list or per-device UI in M2. Users have current-session logout and logout-everywhere; admins have `revoke-sessions`. No IP address or user agent is stored on sessions (IPs appear only in `SecurityEvents`, §6.4).
 
-### 3.7 Session-state cache and multiple instances (clarification C)
+### 3.7 Session-state cache and multiple instances (clarification C, condition C2)
+
+**Exactly what is checked on every authenticated (Bearer) request, in this order:**
+
+| # | Check | Source | Failure |
+|---|---|---|---|
+| 1 | JWT signature, `alg`, `typ`, `iss`, `aud`, `exp`/`iat`, maximum lifetime | In-process, stateless (configured keys) | 401 `UNAUTHENTICATED` / `TOKEN_EXPIRED` |
+| 2 | The user `sub` exists | **In-process cache** (`sess:{userId}`), loaded from the DB on a miss | 401 `SESSION_REVOKED` |
+| 3 | `sstamp` claim == `Users.SecurityStamp` | Same cache entry | 401 `SESSION_REVOKED` |
+| 4 | Session `sid` is in the user's `Active` sessions (`AuthSessions.Status = 'Active'`) | Same cache entry | 401 `SESSION_REVOKED` |
+| 5 | `Users.Status` allows the endpoint (`Active`; `Suspended` only on `[AllowSuspended]` routes) | Same cache entry | 403 `ACCOUNT_SUSPENDED` |
+| 6 | Role policy and ownership for the endpoint | Role from the token (role changes rotate the stamp, so check 3 catches a stale role); ownership from the DB inside the endpoint | 403 `FORBIDDEN` |
+
+**Not served from the cache — always read directly from the database:**
+- `session/refresh` and `session/logout` (refresh-token and session rows, under row locks, §3.4);
+- download-link consumption (session and user status, §5.1);
+- login, code verification and every write path.
+
+**Maximum staleness:**
+- **0 s** for any change made through this API process — logout, logout-all, password change or reset, suspension, unsuspension, role change, revoke-sessions, reuse revocation. The cache entry is invalidated synchronously after the transaction commits, so the next request reloads it. A request that had already passed the check before the commit may still complete.
+- **≤ 30 s** for changes made **outside** the API process: direct SQL, the `seed-admin` CLI (a separate process), the emergency "revoke all sessions" script, a migration. The entry expires after its 30 s TTL. Procedures that need immediate effect (the emergency script) restart the API, or wait 30 s, as their last step.
+- **Upper bound in every case: 30 s.**
 
 **What the per-request check reads:** `{Status, SecurityStamp, ActiveSessionIds}` for the token's user. One indexed query: the user row plus the `Id`s of the user's `Active` sessions.
 
@@ -483,8 +525,12 @@ Not two hosts under a public-suffix domain such as `*.azurewebsites.net`. HSTS a
 - The API returns ready-made URLs (`avatarUrl`, `images[].url`) in the responses that show the image: feed, comments, profile, search, applications, programmer list, `Auth/me` and the admin pages.
   - Format: `…/avatar?exp=<unix>&sig=<base64url>`, where `sig = HMAC-SHA256(Security:MediaUrlKey, "avatar|{userId}|{exp}")` (or `"postimage|{imageId}|{exp}"`). Verified with a fixed-time comparison.
   - **Who gets them:** only authenticated callers allowed to see the containing record. Owners always get their own.
-  - **Lifetime:** `exp` is rounded up to the next full hour plus one hour (1–2 h). URLs stay identical within an hour, so the browser and Flutter image caches keep working. Pending post images: exactly 10 minutes.
-  - **Scope:** one image, read-only, multi-use within the window (`Image.network` may refetch). Not bound to a session — an acceptable trade-off for avatars and approved post images, **not** for private documents (§5.1).
+  - **Lifetime — 10-minute buckets (C5):** `exp = floor(now / 10 min) × 10 min + 20 min`.
+    - Every URL issued for the same image within the same 10-minute window is **byte-identical**, so the browser cache and Flutter's `ImageCache` (keyed by URL) are hit. A URL stays valid for 10 to 20 minutes.
+    - The same buckets apply to pending post images (admin and owner only).
+    - Trade-off: a page left open longer than 20 minutes whose images were evicted from memory shows the existing fallback avatar or placeholder until the data is reloaded (navigating back, or pull to refresh). Accepted.
+  - **Never logged:** the `sig` and `exp` query values are covered by the URL-logging prohibition (§3.2). Image requests aren't written to `SecurityEvents`; proxy access logs must drop query strings for `/api/*/image*` and `/api/Posts/user/*/avatar`, as for downloads (§5.1).
+  - **Scope:** one image, read-only, multi-use within its validity (`Image.network` may refetch). Not bound to a session — an acceptable trade-off for avatars and approved post images (at most 20 minutes), **not** for private documents (§5.1).
 - **Always:** served only if the account is `Active`; content type limited to `image/jpeg|png|webp`; `nosniff`; avatars `Cache-Control: private, max-age=3600`.
 - **Future public profiles:** if the product adds an explicit "public profile" setting, an anonymous route may serve only those avatars. That needs a new decision.
 
@@ -510,10 +556,16 @@ Not two hosts under a public-suffix domain such as `*.azurewebsites.net`. HSTS a
 | `POST /api/Auth/google-link` *(new, Auth)* | §6.3 |
 | `POST /api/Admin/users/{id}/suspend` (body `{reason}`), `/unsuspend`, `/revoke-sessions` *(new, Admin)* | §3.6, §7.4. Not allowed against admin accounts |
 
-**Passwords (P1):**
+**Passwords (P1 + condition C7):**
 - `PasswordService.MinLength` default becomes **8** (`Auth:MinPasswordLength`, maximum 128).
-- `ValidatePolicy` runs on sign-up, reset, change-password and admin create/update — **never at login**.
-- `PasswordService.Verify` and the legacy plaintext → PBKDF2 upgrade are unchanged; a test proves a legacy 6-character password still logs in and is rehashed.
+- **Common-password blocklist:**
+  - A bundled text file (embedded resource `backend/Resources/common-passwords.txt`) — **data, not a package**.
+  - Proposed source: SecLists `Passwords/Common-Credentials/10k-most-common.txt` (MIT licence). Its licence text is kept beside it; the exact file, entry count and SHA-256 are recorded in the decision log in M2.5.
+  - Loaded once into a case-insensitive `HashSet<string>`.
+  - A new password is rejected if it is in the list (case-insensitive, trimmed), or if it equals the account email or its local part.
+  - Message: "This password is too common or too easy to guess. Please choose a different one."
+- `ValidatePolicy` (length + blocklist) runs on sign-up, reset, change-password and admin create/update — **never at login**.
+- `PasswordService.Verify` and the legacy plaintext → PBKDF2 upgrade are unchanged. A legacy account whose password is short or on the blocklist still signs in (T-LG-04, T-PW-07). It is asked to change the password only when it next changes it voluntarily — no forced change in M2.
 
 ### 6.2 Verification and reset codes (Q7)
 
@@ -542,6 +594,7 @@ Index `(EmailKey, Purpose, CreatedAt)`.
 | Attempts | Atomic: `UPDATE … SET FailedAttempts = FailedAttempts + 1 WHERE Id = @id AND ConsumedAt IS NULL AND InvalidatedAt IS NULL AND FailedAttempts < 5 AND ExpiresAt > @now`. The 5th failure destroys the code. HMACs compared with `CryptographicOperations.FixedTimeEquals` |
 | Success | `UPDATE … SET ConsumedAt = @now, ProofTokenHash = @h, ProofExpiresAt = @now + 15 min WHERE Id = @id AND ConsumedAt IS NULL` must affect exactly 1 row. Returns `signupToken` or `resetToken` (32 random bytes). `signup` and `reset-password` require it and consume it the same way (closes G10) |
 | Unknown emails | A reset request for an unknown email (or a sign-up request for a registered one) stores a row with the hash of a random code that is never sent. Wrong-code and attempt behaviour is therefore identical for every email |
+| Aggregate verification limit (C6) | Applies to **all codes together**, across both purposes:<br>• **Per normalized email:** at most **10 failed verification attempts per rolling hour**. Counted as `SUM(FailedAttempts)` over the email's `OneTimeCodes` rows created in the last 70 minutes. A code is only verifiable for 10 minutes after creation, so every failure in the last hour belongs to such a row. The count is conservative (it may include failures up to 70 minutes old), never lenient.<br>• **Per IP:** at most **20 failed verification attempts per rolling hour** (sliding-window limiter, 6 × 10-minute segments, in memory, single instance §3.7), in addition to the 30 verify requests per 15 minutes.<br>• Exceeding either → 429 `RATE_LIMITED`, "Too many attempts. Please wait N minutes and try again." The same behaviour applies to unknown emails (their decoy rows count the same way).<br>• Accepted trade-off: someone who knows an email can block verification for that email for up to an hour. They can't take over the account, and login with an existing password is unaffected |
 | Rate limits | Per normalized email, counted from `OneTimeCodes` rows: 1 request per 60 s, 5 per hour. Per IP (ASP.NET Core `RateLimiter`, no new package, in memory): `send-*` 10/hour; `verify-*` 30/15 min; `login` 10/min; `signup` + `reset-password` 10/hour; `google-login` 20/min. Exceeding → 429 `RATE_LIMITED` + `Retry-After` |
 | Login lockout | 5 failed logins per email in 15 min → locked 15 min (`Users.FailedLoginCount`/`LockoutEndAt`; an in-memory counter for unknown emails, so the behaviour is identical) |
 | Timing | Emails go through an in-process background queue, so response time doesn't reveal whether an email was sent |
@@ -654,12 +707,23 @@ The current messages "This email is already registered" / "This email is not reg
   4. Image routes without a signature (today's client-built URLs) after M2.8.
 
   Each fallback path is behind one `LegacyFallback` check. Each is covered by a T-SW test proving it is **unreachable** when the switch is on or the environment isn't Development. All of them are deleted in M2.13.
-- **Safeguards:**
-  1. Startup throws if `false` and `IHostEnvironment.EnvironmentName != "Development"` (Production, Staging, Testing or any custom name).
-  2. If `false`, every bound address must be loopback (`localhost`, `127.0.0.1`, `[::1]`); otherwise the application stops itself with a critical log.
-  3. If `false`, a Warning is logged at startup and every 10 minutes, and every response carries `X-DevLink-Auth: NOT-ENFORCED`.
-  4. Tests T-SW-01…05 prove each safeguard.
-  5. The switch, the fallback paths and the header are **deleted in M2.13**, before M2 is marked complete. A test then asserts that the key has no effect.
+- **Safeguards (binding condition C1).** A fallback path runs only when **all three** hold, evaluated per request:
+  - (a) `IHostEnvironment.EnvironmentName == "Development"`;
+  - (b) **explicitly enabled** — `Auth:EnforceAuthorization` is present and exactly `false`. A missing, empty or unparsable value means enforced, so the fallback is **off by default**;
+  - (c) the request's `HttpContext.Connection.RemoteIpAddress` is loopback (`127.0.0.1`, `::1`). Forwarded headers are never consulted in this check.
+
+  Otherwise the request is fully enforced.
+  1. **Startup refusal:** the host throws during startup if the switch is explicitly `false` and the environment isn't Development (Production, Staging, Testing or any custom name).
+  2. **Binding check:** if enabled, every bound address must be loopback; otherwise the application stops itself with a critical log.
+  3. **Per-request loopback check** (c): a non-loopback request while enabled is enforced normally, plus a Warning.
+  4. **Warning on every fallback use:** event `Auth.DevFallbackUsed` (Warning) with **only** the fallback case (`IdentityFromClient`, `SignupResetWithoutProof`, `FileWithoutToken`, `ImageWithoutSignature`) and the route *template* (e.g. `api/Posts/{id}/like`). No user ids, emails, IPs, tokens or query strings. Also a startup Warning, a reminder every 10 minutes, and `X-DevLink-Auth: NOT-ENFORCED` on every response.
+  5. **Tests:**
+     - T-SW-01…05 (startup refusal per environment; binding check; missing key = enforced);
+     - **T-SW-06…09**: one per fallback case, proving it is **off by default** (no key → 401/400/403), off with the key on a non-Development host (startup fails), and off for a non-loopback remote address;
+     - **T-SW-10**: each case logs `Auth.DevFallbackUsed` with no personal data or token value (captured-log scan).
+  6. **Removal:** the switch, all four fallback paths, `Auth.DevFallbackUsed` and the header are **deleted in M2.13**. **T-SW-R** then proves the paths are gone:
+     - with `Auth:EnforceAuthorization=false` in Development on loopback, all four cases are enforced;
+     - a source-level test asserts that the `LegacyFallback` type no longer exists.
 
 ### 7.4 Suspended accounts — restricted mode (Q5)
 - `Users.Status` = `Active` or `Suspended`; `SuspendedReason nvarchar(500)` (written by the admin, shown to the user); `SuspendedAt`.
@@ -889,7 +953,8 @@ The architecture stays: `Navigator` + `http` + `SessionManager`. Existing routes
 | T-MT-04 | `navigator.locks` missing → sign-in buttons disabled, message shown, no session call made | Flutter unit (bootstrap with a fake feature detector) |
 | T-MT-05 | Lock not granted within 15 s → "please sign in again", navigation to `WelcomePage`, no refresh sent | Flutter unit (fake clock) |
 | T-MT-06 | Server: two clients sharing one cookie container refresh one after the other → both 200, one `Active` token | Backend integration |
-| T-MT-07 | Manual (M2.14): two Chrome tabs and two Edge tabs; Development-only access-token lifetime of 1 minute; 10 cycles of simultaneous actions → zero `Auth.RefreshTokenReuse` rows | Manual E2E (scripted with CDP where practical) |
+| T-MT-07 | **Automated two-tab test (C3)** — a script in `tests/e2e/` (Node's built-in WebSocket; no package) drives Chrome through the DevTools Protocol against the local API + `localhost:5200`:<br>1. Sign in once.<br>2. Open a second tab.<br>3. **Reload both tabs in the same instant**, 20 times. Each reload makes the bootstrap call `session/refresh`, so both tabs race for the same cookie.<br>4. Repeat with a Development-only access-token lifetime of 1 minute, letting both tabs' proactive timers fire together.<br>Pass criteria: both tabs signed in after every round; **zero** `Auth.RefreshTokenReuse` rows and zero `SESSION_REVOKED` responses; exactly one `Active` refresh token in the session. Run once in Chrome and once in Edge. **M2 can't be marked complete unless it passes** | Automated E2E (M2.14) |
+| T-MT-08 | Server-side counter-check: the same race with Web Locks disabled in the test page shows reuse detection firing, proving T-MT-07 tests the right thing | Automated E2E (M2.14) |
 
 ### 10.3 Clarification C — revocation and cache
 
@@ -936,16 +1001,21 @@ The architecture stays: `Navigator` + `http` + `SessionManager`. Existing routes
 | T-NT-01/02 | Read or mark another user's notification → 403; DB unchanged | |
 | T-NR-01…03 (N1) | Notifications | Creating 7 notifications keeps all 7 (replaces the old 5-retention characterization test); `GET` without parameters returns the newest 5 as an array (bell unchanged); `limit`/`before` page through all, `limit` capped at 50 |
 | T-PD-01…05 | Private data | `Posts/profile/{id}` from another user has no email/phone; `search` has no email for non-admins; applications: no email unless accepted **and** consented (Q16), consent route only by the applicant, withdrawing consent hides it again; `Support/{id}` of another user → 403 |
-| T-IM-01…05 (Q15) | Images | Avatar/post image without signature or token → 401; valid signature → 200; expired → 403; tampered → 403; suspended/deleted account → 404; pending post image only through the 10-minute admin/owner URL |
+| T-IM-01…07 (Q15, C5) | Images | Avatar/post image without signature or token → 401; valid signature → 200; expired → 403; tampered → 403; suspended/deleted account → 404; pending post image only through the admin/owner URL; **two URLs issued in the same 10-minute bucket are identical, and different in the next bucket; a URL is accepted up to 20 min and rejected after** (`TimeProvider`); captured logs contain no `sig` value |
 | T-SP-01…05 (Q5) | Suspended accounts | Suspended login succeeds with `status: Suspended`; every allowlisted route works; every other route → 403 `ACCOUNT_SUSPENDED` (data-driven over §8); support message and appeal can be sent; an admin can't be suspended |
 | T-VF-01 (Q14) | Uploading, replacing or deleting a certificate sets `IsVerified = false` (Pending); uploading a CV doesn't | |
 | T-GG-01…08 | Google | Invalid token, `email_verified=false`, wrong audience → 401; existing email without subject → 409, no session; known subject → session; new email + signup → account with subject; Admin → 403 (Q13); `google-link` rules |
 | T-PW-01…04 | Passwords | Change-password keeps the current session and kills others; reset kills all; P1: a 7-character new password → 400; admin create/update apply the policy |
+| T-PW-05…08 (C7) | Blocklist | A listed password (any case) → 400 on sign-up, reset, change-password and admin create/update; the email or its local part as the password → 400; an 8+-character unlisted password → accepted; **a legacy account whose stored password is on the blocklist still signs in** (and is rehashed if plaintext) |
 | T-RC-01 | Role change revokes the target's sessions; a new login carries the new role | |
 | T-CD-01…10 (Q7) | Codes | 6th wrong attempt → destroyed; expiry 10 min; single use; a new code invalidates the old one and its proof token; `signup`/`reset-password` without, with an expired or a reused proof token → 400; registered email in `send-code` → same response + "account exists" email, no code; per-email 60 s and 5/hour → 429; per-IP limits → 429; **the DB contains no plaintext code or email** (scan of `OneTimeCodes`); parallel wrong attempts can't exceed 5 |
+| T-CD-11…14 (C6) | Aggregate limits | 10 failed attempts for one email spread over 3 successive codes → the 11th → 429, even with a fresh code; the limit applies across both purposes; 20 failed attempts from one IP across different emails → 429; an unknown email hits the same limits with the same responses; after the window (`TimeProvider`) verification works again |
 | T-AU-01…05 (Q8) | Audit | Each listed security action writes its event; a transactional event rolls back with its failed change; a full async channel never blocks a request; **no row contains a token, code, password, cookie value or full email** (scan with the test's known secret values); rows older than 90 days are removed |
 | T-AL-01…03 (Q12) | Reuse alert | One generic email queued per reuse; at most 3 per user per 24 h; the body contains no IP, token or device data; an email failure doesn't affect the revocation |
-| T-SW-01…05 | Migration switch | `false` with `Production`, `Staging`, `Testing` → host fails to start; `Development` + false → starts, warns, adds `X-DevLink-Auth`; non-loopback binding + false → stops; missing key → enforced. After M2.13: the key has no effect |
+| T-SW-01…05 | Migration switch | `false` with `Production`, `Staging`, `Testing` → host fails to start; `Development` + false → starts, warns, adds `X-DevLink-Auth`; non-loopback binding + false → stops; missing key → enforced |
+| T-SW-06…10 (C1) | Fallback cases | Per case: off by default; off outside Development; off for a non-loopback remote address; each use logs `Auth.DevFallbackUsed` without personal data or tokens (§7.3) |
+| T-SW-R (C1) | Removal (M2.13) | With the key `false` in Development on loopback, all four cases are enforced; `LegacyFallback` no longer exists |
+| T-SC-07 (C2) | Staleness bound | A change written directly to the DB (outside the API) takes effect within 30 s and never later (`TimeProvider`); a change through the API takes effect on the next request |
 | T-LOG-01 | Captured logs during login, refresh, reuse, download and code tests contain no token, hash, code, password or key value | |
 | T-REG-* | Regression | Feed, like → notification, comments, weather wiring, admin statistics, legacy rehash — all with authenticated clients |
 
@@ -967,10 +1037,10 @@ Each task is implemented alone. Then the diff is shown, the tests are run, and a
 | ID | Task | Main files | Depends | Risk | Done when (acceptance) | Test evidence in the report |
 |---|---|---|---|---|---|---|
 | M2.1 | Owner approval of revision 3; partner informed | `docs/*` | — | L | Decision log updated | Log entry |
-| M2.2 | Foundation: options + key validation (JWT, code, media keys), `TokenService`, JwtBearer, 401/403 ProblemDetails, CORS allowlist + validation, security headers, log-level guard, `Deployment:Topology` guard, **switch with safeguards** (default enforced, nothing protected yet) | `Program.cs`, `DotnetAPI.csproj` (+`Microsoft.AspNetCore.Authentication.JwtBearer`), `Services/Auth/*`, `appsettings.example.json` (placeholders only), README | M2.1 | M | Existing 32 tests pass; keys created via user-secrets without being displayed | T-JWT-*, T-SW-*, T-CS-07, T-SC-06, T-LOG-01 (partial); full test output |
+| M2.2 | Foundation: options + key validation (JWT, code, media keys), `TokenService`, JwtBearer, 401/403 ProblemDetails, CORS allowlist + validation, security headers, log-level guard, `Deployment:Topology` guard, **switch with safeguards** (default enforced, nothing protected yet) | `Program.cs`, `DotnetAPI.csproj` (+`Microsoft.AspNetCore.Authentication.JwtBearer` **9.0.0** — C8: the same patch as `Microsoft.AspNetCore.Mvc.Testing` 9.0.0 and EF Core 9.0.0; the only package change in M2.2; `dotnet list package --vulnerable --include-transitive` output in the report), `Services/Auth/*`, `appsettings.example.json` (placeholders only), README | M2.1 | M | Existing 32 tests pass; keys created via user-secrets without being displayed | T-JWT-*, T-SW-*, T-CS-07, T-SC-06, T-LOG-01 (partial); full test output |
 | M2.3 | Migration `AddAuthSecurity` (`AuthSessions`, `RefreshTokens`, `OneTimeCodes`, `SecurityEvents`, Users columns `SecurityStamp`/`Status`/`SuspendedReason`/`SuspendedAt`/`FailedLoginCount`/`LockoutEndAt`/`GoogleSubject`/`LastLoginAt`, `PostApplications.ContactShareConsentAt`) — validated **only on disposable DBs** | `DataBase/*`, `AppDbContext.cs`, `Migrations/*` | M2.2 | **H** | Both validation paths identical; existing rows keep their values; idempotent script; no pending model changes | Reviewed SQL script; catalog comparison; `has-pending-model-changes` output |
 | M2.4 | Sessions: login/sign-up/Google login issue sessions; strict rotation; reuse handling; logout; logout-all; `me`; cookie mode + `[CookieSessionGuard]`; binding cookie; session-state cache with generation counter; cleanup service | `Services/Auth/*`, `Controllers.cs`, `Program.cs` | M2.3 | **H** | Clarifications A–C verified on the server | T-LG-*, T-RT-01…12, T-MT-06, T-SC-01…05, T-CS-01…06 |
-| M2.5 | Account security: P1; DB-backed codes + proof tokens; generic responses; rate limits; lockout; background email queue; change-password; suspend/unsuspend/revoke-sessions; restricted mode; stamp rotation on admin changes; `SecurityEventWriter`; reuse alert email | `VerificationService`, `PasswordService`, `Controllers.cs`, `AdminController/Service`, `EmailService`, `Services/Security/*`, `Program.cs` | M2.4 | M | Q5, Q7, Q8, Q12 implemented | T-CD-*, T-PW-*, T-SP-*, T-RC-01, T-AU-*, T-AL-* |
+| M2.5 | Account security: P1 + common-password blocklist (C7, embedded data file); DB-backed codes + proof tokens + aggregate limits (C6); fallback case 2 (C1); generic responses; rate limits; lockout; background email queue; change-password; suspend/unsuspend/revoke-sessions; restricted mode; stamp rotation on admin changes; `SecurityEventWriter`; reuse alert email | `VerificationService`, `PasswordService`, `Controllers.cs`, `AdminController/Service`, `EmailService`, `Services/Security/*`, `Program.cs` | M2.4 | M | Q5, Q7, Q8, Q12 implemented | T-CD-* (incl. 11–14), T-PW-* (incl. 05–08), T-SP-*, T-RC-01, T-AU-*, T-AL-*, T-SW-07 |
 | M2.6 | Apply `AddAuthSecurity` to local `DevLink`: backup → restore-verify → update → verify. **Separate approval. Runs right after M2.3 (fix 1)** | — | M2.3 reviewed | M | EF up to date; row counts unchanged | Same evidence format as 2026-11-03 (backup path, checksums, catalog diff) |
 | M2.7 | Authorization: fallback policy, role policies, `[AllowAnonymous]` (8), `[AllowSuspended]`, `ICurrentUser`, ownership, identity from claims, Q3/Q16 projections and consent route, support rules (Q4), G18 error leaks | All controllers, `PostService`, `AdminService` | M2.5 | **H** | §8 matrix enforced with the switch on | T-AN-01, T-OW-*, T-AD-*, T-NT-*, T-PD-*, T-SP-* (data-driven), T-VF-01 |
 | M2.8 | Private files and images: link issue/consume, binding-cookie check, signed member URLs, 10-minute pending-image URLs, image hardening. **Early spike:** does `launchUrl` send the binding cookie? (else Bearer + `file_saver`) | `ProgrammerProfileController`, `PostsController`, `PostService`, new `FilesController`, `Services/Files/*` | M2.7 | M | Clarification D verified | T-DL-01…11, T-IM-*; spike result in the report |
@@ -978,8 +1048,8 @@ Each task is implemented alone. Then the diff is shown, the tests are run, and a
 | M2.10 | Notification retention (N1): remove the delete-all-but-5 code; add `limit`/`before`; default response unchanged. **Partner-owned code — partner informed before the change** | `PostService.CreateNotification`, `NotificationsController` | M2.7 | L | Bell behaviour unchanged; history preserved | T-NR-*; old characterization test replaced (shown in the diff) |
 | M2.11 | Backend security + regression suite complete; old tests migrated | `tests/**` | M2.4–M2.10 | L | All green | Full test report (counts per area) |
 | M2.12 | Flutter integration — files F1–F17, **after partner review** | §9 files | M2.11 + partner approval | **H** | `flutter analyze` 0 errors; `build web` OK; screens unchanged apart from listed texts and the new suspension screen | Flutter unit tests (T-MT-01…05 etc.); screenshots per role |
-| M2.13 | **Remove the migration switch** and fallbacks; enforcement unconditional | `Program.cs`, `ICurrentUser`, image routes, tests | M2.12 | M | Switch key has no effect | T-SW after-removal test; full suite |
-| M2.14 | E2E in Chrome and Edge on `localhost:5200` against the local API + `DevLink`: Customer, Programmer, Admin, a suspended user, two-tab check (T-MT-07). Needs `seed-admin` with your email (you enter the password locally) | — | M2.13 | L | Checklist complete; no reuse events in the two-tab check | Report, screenshots, `SecurityEvents` excerpt (no secrets) |
+| M2.13 | **Remove the migration switch** and fallbacks; enforcement unconditional | `Program.cs`, `ICurrentUser`, image routes, tests | M2.12 | M | Switch key has no effect | T-SW-R (C1); full suite |
+| M2.14 | E2E in Chrome and Edge on `localhost:5200` against the local API + `DevLink`: Customer, Programmer, Admin, a suspended user, two-tab check (T-MT-07). Needs `seed-admin` with your email (you enter the password locally) | — | M2.13 | L | Checklist complete; **automated T-MT-07 passes in Chrome and Edge** (C3) | Report, screenshots, T-MT-07/08 script output, `SecurityEvents` excerpt (no secrets) |
 
 M2 is complete only after M2.13 and M2.14. No marketplace or Clear Scope work before then.
 
@@ -1028,8 +1098,29 @@ M2 is complete only after M2.13 and M2.14. No marketplace or Clear Scope work be
    - confirmation that Q14 matches their intent — their code already resets verification.
 4. **Environment:** web app on fixed port 5200; their own keys in user-secrets; the migration on their database after a backup; Chrome/Edge for development.
 
+§13 gives the full, actionable partner-coordination list (C9).
+
 ### 12.4 Carried items
 - KI-27 notifications (fixed by M2.7).
 - Admin, support and personal-data exposure (M2.7, M2.8).
 - **The Gmail App Password is still in public Git history. It must never be reused; the account owner must revoke it (M1-01, KI-01).**
 - No secrets, database backups or `appsettings.json` in the public repository; keys only in user-secrets or the environment.
+
+---
+
+## 13. Partner coordination (condition C9)
+
+Everything your partner needs to know or approve for M2, in the order it will matter. Nothing on this list has been done to their code or database yet. Each item's outcome is recorded in the decision log when it is settled.
+
+| # | Item | What your partner does | When | Blocks |
+|---|---|---|---|---|
+| P-1 | **Migration `AddAuthSecurity` on their database** | Back up their database first (the same COPY_ONLY backup + restore-check procedure used for `DevLink` on 2026-11-03; script and steps provided). Then apply the migration — or, if their DB was never aligned, the alignment + baseline scripts first (KI-16). **Until it is applied, the API from this branch fails on their DB** (new `Users` columns) | Before they run the branch after M2.3 | Their local testing |
+| P-2 | **CORS origin / fixed port** | From M2.2 the API accepts browser calls only from exact origins. Default: `http://localhost:5200`. Either run `flutter run -d chrome --web-port 5200 --web-hostname localhost`, or add their origin locally with `dotnet user-secrets set "Cors:AllowedOrigins:1" "http://localhost:<port>" --project backend`. Use `localhost`, not `127.0.0.1` or a LAN IP (C4, KI-33) | Before they run the branch after M2.2 | Their local testing |
+| P-3 | **Their own secrets** | Generate their own `Jwt:SigningKeys`, `Security:CodeHmacKey` and `Security:MediaUrlKey` with the commands in §3.2 (never shared) | Same as P-2 | Their local API startup |
+| P-4 | **Removal of the "newest 5" notification deletion** (N1) | Agree before M2.10 changes `PostService.CreateNotification` and `NotificationsController` — their code. The bell keeps showing 5 (default `limit`); older notifications are kept instead of deleted; paging via `limit`/`before`. The old test `Current_behaviour_only_the_newest_five_notifications_are_kept` is replaced. Cleanup policy R4 decided later with them | Before M2.10 | M2.10 |
+| P-5 | **Other backend changes in their code** | Agree: feed/comment/profile responses gain `avatarUrl` / `images[].url` (M2.8); feed, weather and support endpoints require sign-in (M2.7); weather errors no longer return `ex.Message` | Before M2.7/M2.8 | M2.7, M2.8 |
+| P-6 | **Flutter review — F1–F18 (§9)**, including **`admin/admin_user_form_page.dart`** (lines 472, 480: password minimum 6 → 8) and the rest of **F18** (`set_password_page.dart:405`, `reset_password_page.dart:362`) | Review and approve each file's change before M2.12 is merged; especially login/sign-up/reset texts (F7–F9), logout (F10), app start (F5), the browser message (F6), the new suspension screen (F11) and the image-URL lines in feed/comments/admin pages (F14–F15) | Before M2.12 | M2.12 |
+| P-7 | **"Add admin" screen** (`admin/admin_add_admin_page.dart` → `ApiService.createAdmin`) | Be aware: since M1 the API returns **403** for creating admins (Q10, seed-admin only), so this screen can't succeed. Decide later whether to hide it or replace it with an explanation (no change in M2 without their approval) — KI-34 | Information now | — |
+| P-8 | **Product decisions** | R5 (programmer support entry point), R6 (consent checkbox location), confirm Q14 matches their intent (their code already resets verification) | Before the MVP | — |
+| P-9 | **Google client id** | `Google:ClientIds` in user-secrets for Google sign-in tests | Before M2.14 | Google part of M2.14 |
+| P-10 | **Gmail App Password** | The account owner revokes the leaked password (M1-01); it must never be reused | As soon as possible | Real email delivery |

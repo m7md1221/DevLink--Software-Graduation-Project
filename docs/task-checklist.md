@@ -30,6 +30,7 @@ Working branch: `feature/m1-foundation` (local; fast-forwarded on 2026-11-02 to 
 | M1-10 | README setup update | — | done | README rewritten: .NET 9, Docker SQL, `127.0.0.1` note, template location, user-secrets, seed-admin, Flutter 3.47.x, tests |
 | M1-11 | CI skeleton (stretch) | — | todo | |
 | M1-12 | Ignore test build output (contains copied appsettings.json) | — | done | `.gitignore`: `tests/**/bin/`, `tests/**/obj/`, `tests/**/appsettings*.json`, `TestResults/` |
+| M1-CP | **M1 checkpoint commit (local, not pushed)** | owner approval 2026-11-03 | **done** | Commit **`9b8e7aa`** on `feature/m1-foundation` (parent `2910d88`): 34 files, +4794/−96, includes `docs/` (D14); `DevLink_Product_Spec/` excluded (D15, separate commit later). Masked secret scan of the staged content: no secret values, leaked Gmail value absent. After the commit: `dotnet build` 0 errors, `dotnet test` 32/32. Stash `m1-foundation-wip-2026-11-02` kept. Not pushed |
 
 ## M2 — Authentication & authorisation
 
