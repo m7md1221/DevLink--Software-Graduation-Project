@@ -89,7 +89,7 @@ These conditions are **binding**: an M2 task isn't done until the conditions tha
 | **C5** | Signed image URLs use **10-minute** bucketed expiry windows, so URLs are stable within a window and browser caching works. Signatures are never logged | §5.2 | T-IM-01…07 | M2.8 |
 | **C6** | Besides 5 attempts per code, an aggregate limit per email and per IP across all codes in a rolling hour | §6.2 | T-CD-11…14 | M2.5 |
 | **C7** | Minimum 8 characters for new/changed passwords **plus** a bundled common-password blocklist. Legacy accounts can still sign in | §6.1 | T-PW-05…08, T-LG-04 | M2.5 |
-| **C8** | JwtBearer uses the same 9.0.x patch as the other `Microsoft.AspNetCore.*` packages, with the exact version recorded; no other package changes in M2.2 | §11 (M2.2), [decision-log](decision-log.md) | `git diff` of `DotnetAPI.csproj` = 1 line | M2.2 |
+| **C8** | JwtBearer: **latest stable 9.0.x = 9.0.22** (owner override 2026-11-03 of "same patch as the other packages"), exact version recorded; no other package changes in M2.2 | §11 (M2.2), [decision-log](decision-log.md) | `git diff` of `DotnetAPI.csproj` = 1 line | M2.2 |
 | **C9** | A partner-coordination section: migration on their DB after a backup, CORS origin/port, removal of the "newest 5" deletion, Flutter review list including `admin_user_form_page.dart` and F18 | §13 | Partner sign-off recorded in the decision log | M2.3/M2.6, M2.2, M2.10, M2.12 |
 
 ---
@@ -165,14 +165,10 @@ These conditions are **binding**: an M2 task isn't done until the conditions tha
 - If a separate service ever needs to validate tokens, switch to ES256 with a published JWKS.
 
 **Key generation:**
-- 64 bytes (512 bits) from a CSPRNG, base64-encoded. Generated locally without displaying it:
-  ```powershell
-  $k = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
-  dotnet user-secrets set "Jwt:SigningKeys:0:Key" $k --project backend; Remove-Variable k
-  ```
-  `Jwt:SigningKeys:0:Id` is a non-secret key id (`kid`), for example `2026-11-a`.
+- 64 bytes (512 bits) from a CSPRNG, base64-encoded — **64 bytes is also the enforced minimum** (owner decision at M2.2; HS256 itself needs 32). Generated locally and piped into user-secrets as JSON on stdin, so the value never appears on screen, in shell history or in a process command line (exact command: README "JWT signing key"; Git Bash, because Windows PowerShell 5.1 adds a byte-order mark when piping — KI-36).
+  `Jwt:SigningKeys:0:Id` is a non-secret key id (`kid`), for example `local-2026-11-a`.
 - The same procedure provisions the two other secrets introduced by this design: `Security:CodeHmacKey` (§6.2) and `Security:MediaUrlKey` (§5.2). Each key is separate; none is derived from another.
-- Startup **fails fast** if, for any of these keys: no active key exists; a key is not valid base64; a decoded key is shorter than 32 bytes; a key equals the placeholder in `appsettings.example.json`; two JWT keys share an `Id`.
+- Startup **fails fast** if, for any of these keys: no active key exists (JWT: exactly one `Active`); a key is not valid base64; a decoded key is shorter than 64 bytes (JWT) / 32 bytes (code and media keys, validated from M2.5 / M2.8 when they are introduced); a key equals the placeholder in `appsettings.example.json`; two JWT keys share an `Id`.
 
 **Provisioning:**
 - **Local:** `dotnet user-secrets` only. Each developer generates their own keys; they are never shared in chat, Git or `appsettings*.json`.
@@ -1037,7 +1033,7 @@ Each task is implemented alone. Then the diff is shown, the tests are run, and a
 | ID | Task | Main files | Depends | Risk | Done when (acceptance) | Test evidence in the report |
 |---|---|---|---|---|---|---|
 | M2.1 | Owner approval of revision 3; partner informed | `docs/*` | — | L | Decision log updated | Log entry |
-| M2.2 | Foundation: options + key validation (JWT, code, media keys), `TokenService`, JwtBearer, 401/403 ProblemDetails, CORS allowlist + validation, security headers, log-level guard, `Deployment:Topology` guard, **switch with safeguards** (default enforced, nothing protected yet) | `Program.cs`, `DotnetAPI.csproj` (+`Microsoft.AspNetCore.Authentication.JwtBearer` **9.0.0** — C8: the same patch as `Microsoft.AspNetCore.Mvc.Testing` 9.0.0 and EF Core 9.0.0; the only package change in M2.2; `dotnet list package --vulnerable --include-transitive` output in the report), `Services/Auth/*`, `appsettings.example.json` (placeholders only), README | M2.1 | M | Existing 32 tests pass; keys created via user-secrets without being displayed | T-JWT-*, T-SW-*, T-CS-07, T-SC-06, T-LOG-01 (partial); full test output |
+| M2.2 | Foundation: options + key validation (JWT, code, media keys), `TokenService`, JwtBearer, 401/403 ProblemDetails, CORS allowlist + validation, security headers, log-level guard, `Deployment:Topology` guard, **switch with safeguards** (default enforced, nothing protected yet) | `Program.cs`, `DotnetAPI.csproj` (+`Microsoft.AspNetCore.Authentication.JwtBearer` **9.0.22** — C8 as overridden by the owner on 2026-11-03: latest stable 9.0.x, so the token-validation package carries security patches; the only package change in M2.2; `dotnet list package --vulnerable --include-transitive` output in the report), `Services/Auth/*`, `appsettings.example.json` (placeholders only), README | M2.1 | M | Existing 32 tests pass; keys created via user-secrets without being displayed | T-JWT-*, T-SW-*, T-CS-07, T-SC-06, T-LOG-01 (partial); full test output |
 | M2.3 | Migration `AddAuthSecurity` (`AuthSessions`, `RefreshTokens`, `OneTimeCodes`, `SecurityEvents`, Users columns `SecurityStamp`/`Status`/`SuspendedReason`/`SuspendedAt`/`FailedLoginCount`/`LockoutEndAt`/`GoogleSubject`/`LastLoginAt`, `PostApplications.ContactShareConsentAt`) — validated **only on disposable DBs** | `DataBase/*`, `AppDbContext.cs`, `Migrations/*` | M2.2 | **H** | Both validation paths identical; existing rows keep their values; idempotent script; no pending model changes | Reviewed SQL script; catalog comparison; `has-pending-model-changes` output |
 | M2.4 | Sessions: login/sign-up/Google login issue sessions; strict rotation; reuse handling; logout; logout-all; `me`; cookie mode + `[CookieSessionGuard]`; binding cookie; session-state cache with generation counter; cleanup service | `Services/Auth/*`, `Controllers.cs`, `Program.cs` | M2.3 | **H** | Clarifications A–C verified on the server | T-LG-*, T-RT-01…12, T-MT-06, T-SC-01…05, T-CS-01…06 |
 | M2.5 | Account security: P1 + common-password blocklist (C7, embedded data file); DB-backed codes + proof tokens + aggregate limits (C6); fallback case 2 (C1); generic responses; rate limits; lockout; background email queue; change-password; suspend/unsuspend/revoke-sessions; restricted mode; stamp rotation on admin changes; `SecurityEventWriter`; reuse alert email | `VerificationService`, `PasswordService`, `Controllers.cs`, `AdminController/Service`, `EmailService`, `Services/Security/*`, `Program.cs` | M2.4 | M | Q5, Q7, Q8, Q12 implemented | T-CD-* (incl. 11–14), T-PW-* (incl. 05–08), T-SP-*, T-RC-01, T-AU-*, T-AL-*, T-SW-07 |

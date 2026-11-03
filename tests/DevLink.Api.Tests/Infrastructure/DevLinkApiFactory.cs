@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Services;
@@ -21,6 +22,8 @@ namespace DevLink.Api.Tests.Infrastructure
 
         public CapturingEmailSender Emails { get; } = new();
 
+        public string SigningKey { get; } = TestSecuritySettings.NewSigningKey();
+
         public string ConnectionString => TestDatabase.BuildConnectionString(DatabaseName);
 
         // Lets individual tests swap the email sender (e.g. one that throws).
@@ -31,8 +34,14 @@ namespace DevLink.Api.Tests.Infrastructure
             builder.UseEnvironment("Testing");
             builder.UseSetting("Google:ClientId", "test-client-id.apps.googleusercontent.com");
 
+            // M2.2: a random signing key and an https origin (non-Development rules) for every test host.
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(TestSecuritySettings.Defaults(SigningKey)));
+
             builder.ConfigureTestServices(services =>
             {
+                services.AddControllers().AddApplicationPart(typeof(AuthProbeController).Assembly);
+
                 // Replace the app's DbContext registration entirely (EF 9 composes
                 // configuration actions, so both service types must be removed).
                 services.RemoveAll<DbContextOptions<AppDbContext>>();

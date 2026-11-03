@@ -1,6 +1,8 @@
 using DataBase;
 using Microsoft.EntityFrameworkCore;
 using Services;
+using Services.Auth;
+using Services.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,18 +34,13 @@ builder.Services.AddScoped<GoogleAuthService>();
 builder.Services.AddScoped<PostService>();
 
 // ============================================================
-// CORS
+// Security foundation (M2.2): CORS allowlist, log-level guard,
+// deployment topology guard, migration switch, JWT validation.
+// Invalid settings stop the host at start-up with a clear message.
+// No endpoint requires a token yet — that is M2.7.
 // ============================================================
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy
-            .AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-    });
-});
+builder.Services.AddDevLinkSecurityFoundation(builder.Configuration);
+builder.Services.AddDevLinkJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
@@ -53,6 +50,8 @@ if (args.Contains(AdminSeeder.Command))
     Environment.ExitCode = await AdminSeeder.RunFromEnvironmentAsync(app.Services);
     return;
 }
+
+app.UseDevLinkSecurityHeaders();
 
 // Development keeps the detailed developer exception page; every other
 // environment returns a sanitized ProblemDetails response.
@@ -67,10 +66,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAll");
+app.UseCors(CorsSetup.PolicyName);
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

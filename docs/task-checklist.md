@@ -41,7 +41,7 @@ Design: [M2_AUTH_DESIGN.md](M2_AUTH_DESIGN.md) revision 3, **approved 2026-11-03
 | ID | Task | Gate | Status | Replaces |
 |---|---|---|---|---|
 | M2.1 | Record approvals; update docs | — | **done 2026-11-03** (docs only) | — |
-| M2.2 | Foundation: keys, `TokenService`, JwtBearer, CORS allowlist, headers, log guard, topology guard, migration switch + safeguards | Owner go-ahead (not in the 2026-11-03 session) | todo | M2-01 (part), M2-06 (part) |
+| M2.2 | Foundation: keys, `TokenService`, JwtBearer, CORS allowlist, headers, log guard, topology guard, migration switch + safeguards | Owner go-ahead given 2026-11-03 | **done — awaiting commit approval** (2026-11-03): JwtBearer **9.0.22** (C8 override, only package change); 64-byte signing key in user-secrets (`Jwt:SigningKeys:0:Key`, never displayed); `dotnet build` 0 errors; **100/100 tests** (32 existing + 68 new: T-JWT-01…07, T-SW-01…05, T-CS-06/07, T-SC-06, T-LOG-01, headers); runtime: Swagger + 4 existing GETs unchanged, web app on :5200 shows Welcome with no CORS errors. No endpoint behaviour change. Deferred by design: `Security:CodeHmacKey` → M2.5, `Security:MediaUrlKey` → M2.8 | M2-01 (part), M2-06 (part) |
 | M2.3 | Migration `AddAuthSecurity` on disposable DBs only | — | todo | — |
 | M2.6 | Apply migration to local `DevLink` (backup + restore check) — **right after M2.3** | Separate owner approval | todo | — |
 | M2.4 | Sessions, rotation, reuse, logout(-all), `me`, cookie guard, session cache | — | todo | M2-01 |
