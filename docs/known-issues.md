@@ -1,0 +1,39 @@
+# Known Issues
+
+Seeded from `CURRENT_STATE_INSPECTION.md` (25 Oct 2026); updated 28 Oct 2026 on branch `feature/m1-foundation`.
+**RV** = runtime-verified (read-only), **Code** = confirmed in source, **Schema** = confirmed in DB catalog, **Test** = covered by automated test. No secret values are recorded here.
+
+| ID | Severity | Issue | Evidence | Status | Planned fix |
+|---|---|---|---|---|---|
+| KI-01 | Critical | SMTP app password was hard-coded and published (public GitHub repo, since initial commit) | commit `f0aa0e1`; GitHub API 200 | **Partly fixed** — removed from code, now read from configuration (M1-05). Still in public history → **owner must revoke it** | M1-01 (partner) |
+| KI-02 | Critical | No authentication/authorisation; identity from request parameters | Code; RV: anonymous `GET /api/Admin/users` → 200 | Open — API bound to localhost only | M2.2, M2.4, M2.7 |
+| KI-03 | Critical | Anonymous admin creation and role/password changes | Code `AdminController` | **Fixed for admins** (403 for create/promote/change/delete admin; `seed-admin` command) — Test. Non-admin user management still anonymous (KI-02) | M2.7 |
+| KI-04 | Critical | Passwords stored and compared in plaintext | Code | **Fixed** — PBKDF2 hashing on every write path; legacy plaintext verified once then rehashed — Test | — |
+| KI-05 | High | Programmer self-verification endpoint | Code `ProgrammerProfileController.VerifyProgrammer` | Open | M2.7 |
+| KI-06 | High | Verification codes: unlimited attempts, `Random.Shared`, in-memory, logged to console | Code | **Partly fixed** — console logging of codes removed; attempts/RNG/persistence open | M2.5 (codes in DB, 5 attempts, CSPRNG) |
+| KI-07 | High | Personal data readable by ID: emails, phones, CVs, certificates, tickets | Code; RV | Open | M2.7, M2.8 |
+| KI-08 | High | Google sign-in auto-links existing password accounts; `email_verified` not checked | Code | Open | M2.9 / M2.5 |
+| KI-09 | Medium | Certificates served inline with client-supplied content type; image types checked by header only | Code | Open | MVP file hardening |
+| KI-10 | Medium | Deleting an active user likely fails (FK NO_ACTION) | Schema | Open (runtime-unverified) | Soft delete (MVP) |
+| KI-11 | Medium | Apply/like/comment on unapproved posts; approve/reject deleted posts; accept race | Code | Open | MVP state guards |
+| KI-12 | Medium | User enumeration in send-code / send-reset-code | Code | Open | M2.9 / M2.5 |
+| KI-13 | Medium | Programmers cannot reach the feed/apply flow | Code | Open | MVP item 4 |
+| KI-14 | Medium | Owners cannot see pending/rejected posts or rejection reason | Code | Open | MVP item 3 |
+| KI-15 | Medium | Admin statistics were hard-coded demo numbers | Code | **Fixed by partner** (`GET /api/Admin/statistics`, commit `462e265`) — endpoint is anonymous like the rest (KI-02) | M2 |
+| KI-16 | Medium | Schema drift: no EF migrations; EF ≠ DB; random constraint names | Schema | **Resolved for local `DevLink`** (applied 2026-11-03 after backup; EF up to date). **Pending:** partner's DB (back up first) | D6 |
+| KI-17 | Low | CORS `*`; no security headers | RV | Open | M2.2 |
+| KI-18 | Low | Empty search `GET /api/Posts/search?q=` returns 400 instead of empty list | RV | Open | minor fix |
+| KI-19 | Low | Session never restored on app start; support name prefill reads unwritten key | Code | Open | M2.12 |
+| KI-20 | Low | Local DB must be addressed as `127.0.0.1,1433` | RV | Documented in README | — |
+| KI-21 | Low | `Posts.Status` DB default is `'Approved'` (bypasses moderation for direct inserts) | Schema | Open — drop statement prepared (commented) in alignment script | Decision S7 |
+| KI-22 | Info | Rating never computed (always 0) | Code | Open | MVP item 7 |
+| KI-23 | High (dev env) | Local Flutter 3.38.7 cannot build the web app: partner's lockfile needs Flutter ≥ 3.44 / Dart ≥ 3.12; resolving with 3.38.7 downgrades packages and `image 4.11.0` fails to compile (`ZLibDecoder.decodeLazy` missing) | Build in an isolated copy, 28 Oct; 2026-11-03: 3.44.9 installed side by side but the lockfile actually needs **3.47.x** (SDK-pinned packages) — `--enforce-lockfile` refuses 3.44.9 | **Resolved locally 2026-11-03** — Flutter 3.47.9 at `C:\flutter-3.47.9` (side by side; `C:\flutter` 3.38.7 and PATH unchanged): lockfile accepted as is, analyze 0 errors, web build OK | Partner and you on the same 3.47.x |
+| KI-24 | Medium (dev env) | The IDE (Dart/Flutter extension) auto-runs `pub get` when `pubspec.yaml` changes; with Flutter 3.38.7 it **rewrote `frontend/pubspec.lock`** (54 downgrades) after the branch switch | `pubspec.lock` mtime 14:38:35; restored to committed version | Mitigated — happened again on 2026-11-02 after the fast-forward (restored again; copy in `C:\Users\dell\DevLink-backups\m1-wip-2026-11-02\`); local gitignored `.vscode/settings.json` now sets `dart.runPubGetOnPubspecChanges: never` | Compatible side-by-side Flutter SDK (approved, pending) |
+| KI-25 | Low | `frontend/pubspec.yaml`: `file_saver: ^0.2.14` was not indented (top-level key, not a dependency) | Code (partner commit) | **Fixed by partner** (`2910d88` range, 2026-11-01) | — |
+| KI-26 | Low | `database/DevLink_Full.sql` is outdated (partner's `scrip_23_10.sql` is current) | Schema | Open — README now points to `scrip_23_10.sql` | Remove/replace with partner |
+| KI-27 | **High** | Notification endpoints have no authentication/authorisation: `GET /api/Notifications/{userId}` returns any user's notifications; `POST /api/Notifications/{id}/read` marks anyone's notification read | Code `NotificationsController` (partner, 2026-11-01); RV: anonymous `GET /api/Notifications/1` → 200 | Open — **high-priority M2 item** | M2.7 |
+| KI-28 | Medium | Notification retention: `PostService.CreateNotification` keeps only the newest 5 notifications per user and hard-deletes older ones — conflicts with the spec's full notification history | Code `PostService.CreateNotification`; Test `Current_behaviour_only_the_newest_five_notifications_are_kept` | **N1 approved provisionally 2026-11-03** (keep history, paging) — not changed yet | M2.10 (partner informed first) |
+| KI-29 | Low | Weather endpoints (`/api/Posts/weather/{userId}`, `/weather-location`) create a new `HttpClient` per request and depend on outbound internet (Open-Meteo, keyless); weather by userId reveals a user's city | Code `PostsController` (partner) | Open | Later (IHttpClientFactory; M2 ownership check) |
+| KI-30 | Low (dev env) | Every `flutter pub get`/`run`/`build` rewrites 7 tracked generated plugin-registrant files (linux/macos/windows) with LF line endings; content is identical, but Git shows them as modified (repo uses `core.autocrlf=true`) | `git diff` empty; normalized hashes equal HEAD, 2026-11-03 | Open — restored with `git restore` after each run; do not commit these line-ending-only changes | `.gitattributes` for generated files (with partner) |
+| KI-31 | Low (dev env) | Flutter 3.47.9 `pub get` fails its first plugin-symlink step for Windows/Linux desktop ("Building with plugins requires symlink support … enable Developer Mode"); web is unaffected | 2026-11-03 | Open — only matters for Windows desktop builds | Enable Windows Developer Mode if desktop builds are needed (owner decision) |
+| KI-32 | Info | `flutter analyze`: 0 errors, 25 warnings (unused imports/variables), 445 infos (mostly `withOpacity` deprecations) → exit code 1 | 2026-11-03, Flutter 3.47.9 | Open — partner code, not changed | Cleanup with partner |

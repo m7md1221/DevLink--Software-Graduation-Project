@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UserSecretsId>devlink-api-local-secrets</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

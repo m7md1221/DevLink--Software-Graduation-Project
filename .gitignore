@@ -9,6 +9,13 @@ backend/**/appsettings.*.json
 !backend/appsettings.example.json
 *.log
 
+# Tests (build output contains a copy of backend/appsettings.json)
+tests/**/bin/
+tests/**/obj/
+tests/**/appsettings.json
+tests/**/appsettings.*.json
+TestResults/
+
 # Frontend
 frontend/.dart_tool/
 frontend/.flutter-plugins

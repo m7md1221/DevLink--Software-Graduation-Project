@@ -15,7 +15,7 @@ namespace DataBase
         public DbSet<PostComment> PostComments { get; set; }
         public DbSet<SupportMessage> SupportMessages { get; set; }
         public DbSet<PostApplication> PostApplications { get; set; }
-        
+
         // ✅ ضفنا جدول الإشعارات هنا
         public DbSet<Notification> Notifications { get; set; }
 
@@ -39,7 +39,8 @@ namespace DataBase
 
             modelBuilder.Entity<User>()
                 .Property(u => u.Email)
-                .IsRequired();
+                .IsRequired()
+                .HasMaxLength(256);
 
             modelBuilder.Entity<User>()
                 .Property(u => u.PasswordHash)
@@ -47,7 +48,8 @@ namespace DataBase
 
             modelBuilder.Entity<User>()
                 .Property(u => u.UserType)
-                .IsRequired();
+                .IsRequired()
+                .HasMaxLength(50);
 
             modelBuilder.Entity<CustomerProfile>()
                 .ToTable("CustomerProfiles");
@@ -84,7 +86,8 @@ namespace DataBase
                 .HasOne(cp => cp.User)
                 .WithOne(u => u.CustomerProfile)
                 .HasForeignKey<CustomerProfile>(cp => cp.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_CustomerProfiles_Users");
 
             modelBuilder.Entity<ProgrammerProfile>()
                 .ToTable("ProgrammerProfiles");
@@ -147,7 +150,8 @@ namespace DataBase
                 .HasOne(pp => pp.User)
                 .WithOne(u => u.ProgrammerProfile)
                 .HasForeignKey<ProgrammerProfile>(pp => pp.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ProgrammerProfiles_Users");
 
             modelBuilder.Entity<Post>()
                 .ToTable("Posts");
@@ -156,7 +160,12 @@ namespace DataBase
                 .HasIndex(p => p.UserId);
 
             modelBuilder.Entity<Post>()
-                .HasIndex(p => p.CreatedAt);
+                .Property(p => p.Status)
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<Post>()
+                .HasIndex(p => p.CreatedAt)
+                .IsDescending();
 
             modelBuilder.Entity<Post>()
                 .HasIndex(p => p.IsDeleted);
@@ -165,7 +174,8 @@ namespace DataBase
                 .HasOne(p => p.User)
                 .WithMany(u => u.Posts)
                 .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Posts_Users");
 
             modelBuilder.Entity<PostImage>()
                 .ToTable("PostImages");
@@ -177,26 +187,33 @@ namespace DataBase
                 .HasOne(i => i.Post)
                 .WithMany(p => p.Images)
                 .HasForeignKey(i => i.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostImages_Posts");
 
             modelBuilder.Entity<PostLike>()
                 .ToTable("PostLikes");
 
+            // The database enforces uniqueness with a UNIQUE constraint (not an index).
             modelBuilder.Entity<PostLike>()
-                .HasIndex(l => new { l.PostId, l.UserId })
-                .IsUnique();
+                .HasAlternateKey(l => new { l.PostId, l.UserId })
+                .HasName("UQ_PostLikes_Post_User");
+
+            modelBuilder.Entity<PostLike>()
+                .HasIndex(l => l.PostId);
 
             modelBuilder.Entity<PostLike>()
                 .HasOne(l => l.Post)
                 .WithMany(p => p.Likes)
                 .HasForeignKey(l => l.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostLikes_Posts");
 
             modelBuilder.Entity<PostLike>()
                 .HasOne(l => l.User)
                 .WithMany(u => u.Likes)
                 .HasForeignKey(l => l.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostLikes_Users");
 
             modelBuilder.Entity<PostComment>()
                 .ToTable("PostComments");
@@ -208,16 +225,20 @@ namespace DataBase
                 .HasOne(c => c.Post)
                 .WithMany(p => p.Comments)
                 .HasForeignKey(c => c.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostComments_Posts");
 
             modelBuilder.Entity<PostComment>()
                 .HasOne(c => c.User)
                 .WithMany(u => u.Comments)
                 .HasForeignKey(c => c.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostComments_Users");
 
             modelBuilder.Entity<SupportMessage>()
-                .ToTable("SupportMessages");
+                .ToTable("SupportMessages", t => t.HasCheckConstraint(
+                    "CK_SupportMessages_Status",
+                    "[Status]='Closed' OR [Status]='Replied' OR [Status]='Read' OR [Status]='New'"));
 
             modelBuilder.Entity<SupportMessage>()
                 .HasIndex(sm => sm.UserId);
@@ -226,13 +247,25 @@ namespace DataBase
                 .HasIndex(sm => sm.Status);
 
             modelBuilder.Entity<SupportMessage>()
+                .HasIndex(sm => sm.CreatedAt)
+                .IsDescending()
+                .HasDatabaseName("IX_SupportMessages_Created");
+
+            modelBuilder.Entity<SupportMessage>()
                 .HasOne(sm => sm.User)
                 .WithMany()
                 .HasForeignKey(sm => sm.UserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_SupportMessages_Users");
 
             modelBuilder.Entity<PostApplication>()
-                .ToTable("PostApplications");
+                .ToTable("PostApplications", t => t.HasCheckConstraint(
+                    "CK_PostApplications_Status",
+                    "[Status]='Rejected' OR [Status]='Accepted' OR [Status]='Pending'"));
+
+            modelBuilder.Entity<PostApplication>()
+                .Property(a => a.Price)
+                .HasPrecision(18, 2);
 
             modelBuilder.Entity<PostApplication>()
                 .HasIndex(a => a.PostId);
@@ -241,20 +274,26 @@ namespace DataBase
                 .HasIndex(a => a.ProgrammerId);
 
             modelBuilder.Entity<PostApplication>()
-                .HasIndex(a => new { a.PostId, a.ProgrammerId })
-                .IsUnique();
+                .HasIndex(a => a.Status);
+
+            // The database enforces uniqueness with a UNIQUE constraint (not an index).
+            modelBuilder.Entity<PostApplication>()
+                .HasAlternateKey(a => new { a.PostId, a.ProgrammerId })
+                .HasName("UQ_PostApplications_Post_Programmer");
 
             modelBuilder.Entity<PostApplication>()
                 .HasOne(a => a.Post)
                 .WithMany(p => p.Applications)
                 .HasForeignKey(a => a.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostApplications_Posts");
 
             modelBuilder.Entity<PostApplication>()
                 .HasOne(a => a.Programmer)
                 .WithMany(u => u.Applications)
                 .HasForeignKey(a => a.ProgrammerId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostApplications_Users");
 
             // ✅ إعدادات جدول الإشعارات
             modelBuilder.Entity<Notification>()
@@ -265,6 +304,10 @@ namespace DataBase
 
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => n.IsRead);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.CreatedAt)
+                .IsDescending();
 
             modelBuilder.Entity<Notification>()
                 .Property(n => n.Title)
@@ -282,10 +325,11 @@ namespace DataBase
                 .HasMaxLength(50);
 
             modelBuilder.Entity<Notification>()
-                .HasOne(n => n.User) 
+                .HasOne(n => n.User)
                 .WithMany()
                 .HasForeignKey(n => n.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Notifications_Users");
         }
     }
 }

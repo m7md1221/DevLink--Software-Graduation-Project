@@ -10,10 +10,10 @@ namespace Controllers
     public class PostsController : ControllerBase
     {
         private readonly PostService _postService;
-        private readonly EmailService _emailService;
+        private readonly IEmailSender _emailService;
         private readonly AppDbContext _context;
 
-        public PostsController(PostService postService, EmailService emailService, AppDbContext context)
+        public PostsController(PostService postService, IEmailSender emailService, AppDbContext context)
         {
             _postService = postService;
             _emailService = emailService;

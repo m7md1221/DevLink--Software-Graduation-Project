@@ -10,38 +10,53 @@ namespace Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly EmailService _emailService;
+        private readonly IEmailSender _emailService;
         private readonly VerificationService _verificationService;
         private readonly GoogleAuthService _googleAuthService;
+        private readonly PasswordService _passwordService;
 
         public AuthController(
             AppDbContext context,
-            EmailService emailService,
+            IEmailSender emailService,
             VerificationService verificationService,
-            GoogleAuthService googleAuthService)
+            GoogleAuthService googleAuthService,
+            PasswordService passwordService)
         {
             _context = context;
             _emailService = emailService;
             _verificationService = verificationService;
             _googleAuthService = googleAuthService;
+            _passwordService = passwordService;
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(
             [FromBody] LoginDto model)
         {
+            var email = model.Email.Trim().ToLower();
+
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
-                    u.Email == model.Email &&
+                    u.Email == email &&
                     u.UserType == model.UserType);
 
-            if (user == null ||
-                user.PasswordHash != model.Password)
+            var check = user == null
+                ? PasswordCheckResult.Failed
+                : _passwordService.Verify(user, user.PasswordHash, model.Password);
+
+            if (user == null || check == PasswordCheckResult.Failed)
             {
                 return Unauthorized(new
                 {
                     message = "Invalid email or password"
                 });
+            }
+
+            // ✅ ترقية كلمات المرور القديمة (نص عادي) إلى hash عند أول دخول ناجح
+            if (check == PasswordCheckResult.SuccessRehashNeeded)
+            {
+                user.PasswordHash = _passwordService.Hash(user, model.Password);
+                await _context.SaveChangesAsync();
             }
 
             var hasCustomerProfile = await _context.CustomerProfiles
@@ -138,9 +153,13 @@ namespace Controllers
             var newUser = new User
             {
                 Email = email,
-                PasswordHash = Guid.NewGuid().ToString(),
                 UserType = model.UserType
             };
+
+            // Google accounts get an unusable random password (hashed, never shown).
+            newUser.PasswordHash = _passwordService.Hash(
+                newUser,
+                Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
 
             _context.Users.Add(newUser);
             await _context.SaveChangesAsync();
@@ -161,8 +180,6 @@ namespace Controllers
         public async Task<IActionResult> SendCode(
             [FromBody] SendCodeDto model)
         {
-            Console.WriteLine($"📧 [SendCode] Email: {model.Email}");
-
             if (string.IsNullOrWhiteSpace(model.Email))
             {
                 return BadRequest(new
@@ -185,8 +202,6 @@ namespace Controllers
             }
 
             var code = _verificationService.CreateCode(email, "signup");
-
-            Console.WriteLine($"🔢 [SendCode] Generated Code: {code}");
 
             var sent = _emailService.SendEmail(
                 email,
@@ -262,6 +277,16 @@ namespace Controllers
                 });
             }
 
+            var passwordError = _passwordService.ValidatePolicy(model.Password);
+
+            if (passwordError != null)
+            {
+                return BadRequest(new
+                {
+                    message = passwordError
+                });
+            }
+
             var email = model.Email.Trim().ToLower();
 
             if (!_verificationService.IsEmailVerified(email))
@@ -287,9 +312,10 @@ namespace Controllers
             var user = new User
             {
                 Email = email,
-                PasswordHash = model.Password,
                 UserType = model.UserType
             };
+
+            user.PasswordHash = _passwordService.Hash(user, model.Password);
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -396,11 +422,13 @@ namespace Controllers
                 });
             }
 
-            if (model.NewPassword.Length < 6)
+            var passwordError = _passwordService.ValidatePolicy(model.NewPassword);
+
+            if (passwordError != null)
             {
                 return BadRequest(new
                 {
-                    message = "Password must be at least 6 characters"
+                    message = passwordError
                 });
             }
 
@@ -426,7 +454,7 @@ namespace Controllers
                 });
             }
 
-            user.PasswordHash = model.NewPassword;
+            user.PasswordHash = _passwordService.Hash(user, model.NewPassword);
             await _context.SaveChangesAsync();
 
             _verificationService.ConsumeVerifiedResetEmail(email);

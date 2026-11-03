@@ -36,14 +36,21 @@ namespace Controllers
             return Ok(user);
         }
 
+        // ✅ حسابات الأدمن لا تُنشأ ولا تُعدّل من الـ API (لا يوجد تسجيل دخول للـ API بعد)
+        private const string AdminProvisioningMessage =
+            "Admin accounts are provisioned locally with 'dotnet run -- seed-admin' until admin sign-in is secured.";
+
+        private Task<bool> IsAdminAsync(int id) =>
+            _context.Users.AnyAsync(u => u.Id == id && u.UserType == "Admin");
+
         [HttpPost("users")]
         public async Task<IActionResult> CreateUser([FromBody] CreateUserDto model)
         {
             if (string.IsNullOrWhiteSpace(model.Email) || string.IsNullOrWhiteSpace(model.Password) || string.IsNullOrWhiteSpace(model.UserType))
                 return BadRequest(new { message = "All fields are required" });
 
-            if (model.Password.Length < 6)
-                return BadRequest(new { message = "Password must be at least 6 characters" });
+            if (model.UserType == "Admin")
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
 
             var (success, message) = await _adminService.CreateUser(model.Email, model.Password, model.UserType);
             if (!success) return BadRequest(new { message });
@@ -53,6 +60,9 @@ namespace Controllers
         [HttpPut("users/{id}")]
         public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto model)
         {
+            if (model.UserType == "Admin" || await IsAdminAsync(id))
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
+
             var (success, message) = await _adminService.UpdateUser(id, model.Email, model.Password, model.UserType);
             if (!success) return BadRequest(new { message });
             return Ok(new { message });
@@ -61,6 +71,9 @@ namespace Controllers
         [HttpDelete("users/{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
+            if (await IsAdminAsync(id))
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
+
             var (success, message) = await _adminService.DeleteUser(id);
             if (!success) return BadRequest(new { message });
             return Ok(new { message });

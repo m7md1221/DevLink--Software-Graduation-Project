@@ -6,14 +6,17 @@ namespace Services
     public class AdminService
     {
         private readonly AppDbContext _context;
-        private readonly EmailService _emailService;
+        private readonly IEmailSender _emailService;
+        private readonly PasswordService _passwordService;
 
         public AdminService(
             AppDbContext context,
-            EmailService emailService)
+            IEmailSender emailService,
+            PasswordService passwordService)
         {
             _context = context;
             _emailService = emailService;
+            _passwordService = passwordService;
         }
 
         // ============================================================
@@ -118,12 +121,20 @@ namespace Services
                 return (false, "Invalid user type");
             }
 
+            var passwordError = _passwordService.ValidatePolicy(password);
+
+            if (passwordError != null)
+            {
+                return (false, passwordError);
+            }
+
             var user = new User
             {
                 Email = email,
-                PasswordHash = password,
                 UserType = userType
             };
+
+            user.PasswordHash = _passwordService.Hash(user, password);
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -159,7 +170,14 @@ namespace Services
 
             if (!string.IsNullOrWhiteSpace(password))
             {
-                user.PasswordHash = password;
+                var passwordError = _passwordService.ValidatePolicy(password);
+
+                if (passwordError != null)
+                {
+                    return (false, passwordError);
+                }
+
+                user.PasswordHash = _passwordService.Hash(user, password);
             }
 
             if (!string.IsNullOrWhiteSpace(userType))
