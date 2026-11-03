@@ -24,7 +24,29 @@ namespace DevLink.Api.Tests
             public IReadOnlyCollection<string> GetAddresses() => _addresses;
         }
 
+        // Records ApplicationStopping when it fires. The host may already be disposed by the time the
+        // test asserts (it stops itself), so tests must not resolve services from it afterwards (KI-40).
+        private class StopProbe
+        {
+            public TaskCompletionSource Stopping { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        private class StopProbeService : IHostedService
+        {
+            public StopProbeService(StopProbe probe, IHostApplicationLifetime lifetime)
+            {
+                lifetime.ApplicationStopping.Register(() => probe.Stopping.TrySetResult());
+            }
+
+            public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+            public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        }
+
         private static HostOnlyApiFactory Host(string environment, string? switchValue, params string[] boundAddresses) =>
+            Host(environment, switchValue, probe: null, boundAddresses);
+
+        private static HostOnlyApiFactory Host(string environment, string? switchValue, StopProbe? probe, params string[] boundAddresses) =>
             new(environment,
                 new Dictionary<string, string?> { [Switch] = switchValue },
                 services =>
@@ -33,6 +55,12 @@ namespace DevLink.Api.Tests
                     {
                         services.RemoveAll<IBoundAddressSource>();
                         services.AddSingleton<IBoundAddressSource>(new FixedAddresses(boundAddresses));
+                    }
+
+                    if (probe != null)
+                    {
+                        services.AddSingleton(probe);
+                        services.AddHostedService<StopProbeService>();
                     }
                 });
 
@@ -62,24 +90,32 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public void T_SW_03_switch_off_with_a_non_loopback_binding_stops_the_application()
+        public async Task T_SW_03_switch_off_with_a_non_loopback_binding_stops_the_application()
         {
-            using var factory = Host("Development", "false", "http://localhost:5133", "http://0.0.0.0:5133");
-            factory.CreateClient();
+            var probe = new StopProbe();
+            using var factory = Host("Development", "false", probe, "http://localhost:5133", "http://0.0.0.0:5133");
+            try
+            {
+                factory.CreateClient();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected race: the API stops itself (the behaviour under test) and Program's app.Run()
+                // disposes the host while WebApplicationFactory is still finishing CreateClient().
+            }
 
-            var lifetime = factory.Services.GetRequiredService<IHostApplicationLifetime>();
-            Assert.True(lifetime.ApplicationStopping.IsCancellationRequested);
+            await probe.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Contains(factory.Logs.Entries, e => e.Level == LogLevel.Critical && e.Message.Contains("0.0.0.0"));
         }
 
         [Fact]
         public void T_SW_03_switch_off_with_loopback_bindings_keeps_running()
         {
-            using var factory = Host("Development", "false", "http://localhost:5133", "http://127.0.0.1:5134", "http://[::1]:5135");
+            var probe = new StopProbe();
+            using var factory = Host("Development", "false", probe, "http://localhost:5133", "http://127.0.0.1:5134", "http://[::1]:5135");
             factory.CreateClient();
 
-            var lifetime = factory.Services.GetRequiredService<IHostApplicationLifetime>();
-            Assert.False(lifetime.ApplicationStopping.IsCancellationRequested);
+            Assert.False(probe.Stopping.Task.IsCompleted);
         }
 
         [Theory]
