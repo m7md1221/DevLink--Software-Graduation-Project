@@ -20,6 +20,10 @@ namespace Controllers
         private readonly GoogleAuthService _googleAuthService;
         private readonly PasswordService _passwordService;
         private readonly LoginService _loginService;
+        private readonly RefreshSessionService _refreshSessions;
+        private readonly CookieSessionGuard _cookieGuard;
+        private readonly SecurityEventFactory _events;
+        private readonly TimeProvider _time;
 
         public AuthController(
             AppDbContext context,
@@ -27,7 +31,11 @@ namespace Controllers
             VerificationService verificationService,
             GoogleAuthService googleAuthService,
             PasswordService passwordService,
-            LoginService loginService)
+            LoginService loginService,
+            RefreshSessionService refreshSessions,
+            CookieSessionGuard cookieGuard,
+            SecurityEventFactory events,
+            TimeProvider time)
         {
             _context = context;
             _emailService = emailService;
@@ -35,21 +43,32 @@ namespace Controllers
             _googleAuthService = googleAuthService;
             _passwordService = passwordService;
             _loginService = loginService;
+            _refreshSessions = refreshSessions;
+            _cookieGuard = cookieGuard;
+            _events = events;
+            _time = time;
         }
 
         // Response keeps every pre-M2.4a field (message, userId, userType, email, hasProfile,
-        // hasProgrammerProfile); accessToken, accessTokenExpiresAt, role and status are additions.
+        // hasProgrammerProfile); everything else is an addition.
+        // Refresh token by client mode (X-DevLink-Client): "web" → HttpOnly cookie (CSRF-guarded),
+        // "mobile" → response body, no header (today's app) → none, exactly as in M2.4a.
         [HttpPost("login")]
         public async Task<IActionResult> Login(
             [FromBody] LoginDto model,
             CancellationToken cancellationToken)
         {
-            var clientType = string.Equals(Request.Headers[CorsSetup.ClientHeader], AuthClientType.Mobile, StringComparison.Ordinal)
-                ? AuthClientType.Mobile
-                : AuthClientType.Web;
+            var csrf = _cookieGuard.Check(Request);
+            if (!csrf.Allowed)
+            {
+                return await CsrfRejectedAsync(csrf, cancellationToken);
+            }
+
+            var clientType = csrf.Mode == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
 
             var result = await _loginService.LoginAsync(
-                model.Email, model.Password, model.UserType, clientType, HttpContext, cancellationToken);
+                model.Email, model.Password, model.UserType, clientType,
+                issueRefreshToken: csrf.Mode != ClientMode.Legacy, HttpContext, cancellationToken);
 
             if (result.Outcome == LoginOutcome.LockedOut)
             {
@@ -72,6 +91,11 @@ namespace Controllers
             var hasProgrammerProfile = await _context.ProgrammerProfiles
                 .AnyAsync(p => p.UserId == user.Id, cancellationToken);
 
+            if (result.RefreshToken != null && csrf.Mode == ClientMode.Web)
+            {
+                RefreshCookie.Append(Response, result.RefreshToken, _time.GetUtcNow().UtcDateTime);
+            }
+
             return Ok(new
             {
                 message = "Login successful",
@@ -83,8 +107,125 @@ namespace Controllers
                 accessToken = result.Token!.Token,
                 accessTokenExpiresAt = result.Token.ExpiresAtUtc,
                 role = user.UserType,
-                status = user.Status
+                status = user.Status,
+                refreshTokenExpiresAt = result.RefreshToken?.ExpiresAt,
+                refreshToken = csrf.Mode == ClientMode.Mobile ? result.RefreshToken?.RawToken : null
             });
+        }
+
+        // Strict rotation (M2_AUTH_DESIGN §3.4). Web: refresh cookie + CSRF guard. Mobile: token in the body.
+        [HttpPost("session/refresh")]
+        public async Task<IActionResult> RefreshSession(
+            [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] RefreshSessionDto? model,
+            CancellationToken cancellationToken)
+        {
+            var csrf = _cookieGuard.Check(Request);
+            if (!csrf.Allowed || csrf.Mode == ClientMode.Legacy)
+            {
+                return await CsrfRejectedAsync(csrf with { Reason = csrf.Reason ?? "MissingClientHeader" }, cancellationToken);
+            }
+
+            var raw = csrf.Mode == ClientMode.Web ? Request.Cookies[RefreshCookie.Name] : model?.RefreshToken;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return SessionEnded(csrf.Mode, AuthErrorCodes.SessionExpired, "Your session has expired. Please sign in again.");
+            }
+
+            var clientType = csrf.Mode == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+            var result = await _refreshSessions.RefreshAsync(raw.Trim(), HttpContext, clientType, cancellationToken);
+
+            switch (result.Outcome)
+            {
+                case RefreshOutcome.Success:
+                    if (csrf.Mode == ClientMode.Web)
+                    {
+                        RefreshCookie.Append(Response, result.RefreshToken!, _time.GetUtcNow().UtcDateTime);
+                    }
+
+                    return Ok(new
+                    {
+                        userId = result.User!.Id,
+                        role = result.User.UserType,
+                        status = result.User.Status,
+                        accessToken = result.AccessToken!.Token,
+                        accessTokenExpiresAt = result.AccessToken.ExpiresAtUtc,
+                        refreshTokenExpiresAt = result.RefreshToken!.ExpiresAt,
+                        refreshToken = csrf.Mode == ClientMode.Mobile ? result.RefreshToken.RawToken : null
+                    });
+                case RefreshOutcome.Expired:
+                    return SessionEnded(csrf.Mode, AuthErrorCodes.SessionExpired, "Your session has expired. Please sign in again.");
+                default:
+                    return SessionEnded(csrf.Mode, AuthErrorCodes.SessionRevoked, "For your security, you were signed out. Please sign in again.");
+            }
+        }
+
+        // Ends the current session. Web: cookie + CSRF guard; mobile: body token; no client header: the Bearer token's session.
+        [HttpPost("session/logout")]
+        public async Task<IActionResult> Logout(
+            [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] RefreshSessionDto? model,
+            CancellationToken cancellationToken)
+        {
+            var csrf = _cookieGuard.Check(Request);
+            var bearerSession = Guid.TryParse(User.FindFirst("sid")?.Value, out var sid) ? sid : (Guid?)null;
+            if (!csrf.Allowed || (csrf.Mode == ClientMode.Legacy && bearerSession == null))
+            {
+                return await CsrfRejectedAsync(csrf with { Reason = csrf.Reason ?? "MissingClientHeader" }, cancellationToken);
+            }
+
+            var raw = csrf.Mode switch
+            {
+                ClientMode.Web => Request.Cookies[RefreshCookie.Name],
+                ClientMode.Mobile => model?.RefreshToken,
+                _ => null
+            };
+            var clientType = csrf.Mode == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+
+            await _refreshSessions.LogoutAsync(raw?.Trim(), bearerSession, HttpContext, clientType, cancellationToken);
+
+            if (csrf.Mode != ClientMode.Mobile)
+            {
+                RefreshCookie.Delete(Response);
+            }
+
+            return NoContent();
+        }
+
+        // Every session of the signed-in user (M2_AUTH_DESIGN §3.6). Bearer-authenticated, so not CSRF-relevant.
+        [HttpPost("logout-all")]
+        [Authorize]
+        public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var clientType = CookieSessionGuard.ModeOf(Request) == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+            await _refreshSessions.LogoutAllAsync(userId, HttpContext, clientType, cancellationToken);
+            RefreshCookie.Delete(Response);
+            return NoContent();
+        }
+
+        private ObjectResult SessionEnded(ClientMode mode, string errorCode, string message)
+        {
+            if (mode == ClientMode.Web)
+            {
+                RefreshCookie.Delete(Response);
+            }
+
+            return AuthError(StatusCodes.Status401Unauthorized, errorCode, message);
+        }
+
+        private async Task<ObjectResult> CsrfRejectedAsync(CsrfCheckResult csrf, CancellationToken cancellationToken)
+        {
+            _context.SecurityEvents.Add(_events.Create(HttpContext, SecurityEventTypes.CsrfRejected, SecurityEventOutcome.Blocked,
+                _time.GetUtcNow().UtcDateTime, reason: csrf.Reason));
+            await _context.SaveChangesAsync(cancellationToken);
+            HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DevLink.Security")
+                .LogWarning("Auth.CsrfRejected {Reason}", csrf.Reason);
+
+            return AuthError(StatusCodes.Status403Forbidden, AuthErrorCodes.CsrfFailed,
+                "This request was blocked for your security. Please reload DevLink and try again.");
         }
 
         // The trusted source for the signed-in user's role and status (M2_AUTH_DESIGN §6.1).
@@ -522,6 +663,12 @@ namespace Controllers
                 message = "Password reset successfully"
             });
         }
+    }
+
+    public class RefreshSessionDto
+    {
+        // Mobile clients only; web clients use the HttpOnly cookie.
+        public string? RefreshToken { get; set; }
     }
 
     public class LoginDto

@@ -155,6 +155,8 @@ namespace Services.Auth
         public const string Unauthenticated = "UNAUTHENTICATED";
         public const string TokenExpired = "TOKEN_EXPIRED";
         public const string SessionRevoked = "SESSION_REVOKED";
+        public const string SessionExpired = "SESSION_EXPIRED";
+        public const string CsrfFailed = "CSRF_FAILED";
         public const string Forbidden = "FORBIDDEN";
         public const string AccountSuspended = "ACCOUNT_SUSPENDED";
         public const string InvalidCredentials = "INVALID_CREDENTIALS";

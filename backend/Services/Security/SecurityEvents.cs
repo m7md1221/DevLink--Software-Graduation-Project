@@ -11,11 +11,16 @@ namespace Services.Security
         public const string LoginSucceeded = "Auth.LoginSucceeded";
         public const string LoginFailed = "Auth.LoginFailed";
         public const string LockedOut = "Auth.LockedOut";
+        public const string RefreshTokenReuse = "Auth.RefreshTokenReuse";
+        public const string EndedSessionTokenPresented = "Auth.EndedSessionTokenPresented";
+        public const string CsrfRejected = "Auth.CsrfRejected";
+        public const string Logout = "Auth.Logout";
+        public const string LogoutAll = "Auth.LogoutAll";
 
         // R3: the only events that may carry a (truncated) IP prefix.
         public static readonly IReadOnlySet<string> WithIpPrefix = new HashSet<string>
         {
-            LoginFailed, LockedOut, "Auth.RateLimited", "Auth.CsrfRejected", "Auth.CodeAttemptsExceeded", "Auth.RefreshTokenReuse"
+            LoginFailed, LockedOut, "Auth.RateLimited", CsrfRejected, "Auth.CodeAttemptsExceeded", RefreshTokenReuse
         };
     }
 
