@@ -19,9 +19,13 @@ namespace Controllers
             _currentUser = currentUser;
         }
 
+        // Self or admin: full. Other members: phone and file names are null, keys kept (design 8 #22, D-5).
         [HttpGet("{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetProfile(int userId)
         {
+            var full = _currentUser.ResolveUserId(userId) == userId || _currentUser.IsAdmin;
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -38,15 +42,15 @@ namespace Controllers
                 id = profile.Id,
                 userId = profile.UserId,
                 nickname = profile.Nickname,
-                phoneNumber = profile.PhoneNumber,
+                phoneNumber = full ? profile.PhoneNumber : null,
                 country = profile.Country,
                 city = profile.City,
                 specialty = profile.Specialty,
                 university = profile.University,
                 hasCertificate = profile.Certificate != null,
                 hasCV = profile.CV != null,
-                cvName = profile.CVName,
-                certificateName = profile.CertificateName,
+                cvName = full ? profile.CVName : null,
+                certificateName = full ? profile.CertificateName : null,
                 linkedInUrl = profile.LinkedInUrl,
                 rating = profile.Rating,
                 isVerified = profile.IsVerified,

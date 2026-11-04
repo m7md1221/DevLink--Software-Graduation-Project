@@ -205,6 +205,7 @@ namespace Controllers
 
         [HttpGet("{id}")]
         [AllowSuspended]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> GetMessage(int id)
         {
             var m = await _context.SupportMessages
@@ -213,6 +214,12 @@ namespace Controllers
             if (m == null)
             {
                 return NotFound(new { message = "Message not found" });
+            }
+
+            // The sender or an admin. A tokenless request gets here only through the development fallback.
+            if (_currentUser.IsAuthenticated && m.UserId != _currentUser.UserId && !_currentUser.IsAdmin)
+            {
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own messages");
             }
 
             return Ok(new
@@ -319,8 +326,12 @@ namespace Controllers
 
         [HttpGet("my/{userId}")]
         [AllowSuspended]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
         public async Task<IActionResult> GetMyMessages(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own messages");
+
             var messages = await _context.SupportMessages
                 .Where(m => m.UserId == userId)
                 .OrderByDescending(m => m.CreatedAt)
@@ -342,8 +353,12 @@ namespace Controllers
 
         [HttpGet("my/{userId}/unread-count")]
         [AllowSuspended]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
         public async Task<IActionResult> GetUnreadRepliesCount(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own messages");
+
             var count = await _context.SupportMessages
                 .CountAsync(m =>
                     m.UserId == userId &&

@@ -19,9 +19,14 @@ namespace Controllers
             _currentUser = currentUser;
         }
 
+        // Holds the phone number: the customer themself or an admin (design 8 #18).
         [HttpGet("{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetProfile(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId && !_currentUser.IsAdmin)
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own profile");
+
             var profile = await _context.CustomerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 

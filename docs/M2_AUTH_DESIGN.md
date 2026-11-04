@@ -825,7 +825,7 @@ The current messages "This email is already registered" / "This email is not reg
 | 54 | GET `pending` | Auth | A | — | R | Moderation queue (G4); returns 10-minute image URLs |
 | 55 | POST `{id}/approve` | Auth | A | — | W | Moderation |
 | 56 | POST `{id}/reject` | Auth | A | — | W | Moderation |
-| 57 | GET `weather/{userId}` | Auth | any | Self or A | R (city) | The city is personal (KI-29); no `ex.Message` in errors |
+| 57 | GET `weather/{userId}` | Auth | any | Self only *(owner rule 2026-11-04, M2.7c; was Self or A)* | R (city) | The city is personal (KI-29); no `ex.Message` in errors |
 | 58 | GET `weather-location` | Auth | any | — | — (coordinates from the caller) | No anonymous proxy to Open-Meteo/Nominatim |
 
 **SupportController — `/api/Support`**

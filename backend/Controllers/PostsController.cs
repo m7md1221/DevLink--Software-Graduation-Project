@@ -252,6 +252,7 @@ namespace Controllers
         }
 
         [HttpGet("search")]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> Search(
             [FromQuery] string q,
             [FromQuery] string? userType = null)
@@ -259,14 +260,16 @@ namespace Controllers
             if (string.IsNullOrWhiteSpace(q))
                 return Ok(new { users = new List<object>() });
 
-            var users = await _postService.SearchUsers(q, userType);
+            var users = await _postService.SearchUsers(q, userType, _currentUser.IsAdmin);
             return Ok(new { users });
         }
 
+        // A tokenless (development fallback) caller is nobody in particular, so it gets the public fields.
         [HttpGet("profile/{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> GetUserProfile(int userId)
         {
-            var profile = await _postService.GetUserProfile(userId);
+            var profile = await _postService.GetUserProfile(userId, _currentUser.UserId == userId || _currentUser.IsAdmin);
 
             if (profile == null)
                 return NotFound(new { message = "Profile not found" });
@@ -433,9 +436,14 @@ namespace Controllers
         // ============================================================
         // WEATHER ENDPOINTS
         // ============================================================
+        // Only the user themself: the result reveals the user's city (owner rule, M2.7c).
         [HttpGet("weather/{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetWeather(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own weather");
+
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound(new { message = "User not found" });
 
@@ -509,9 +517,9 @@ namespace Controllers
                     longitude = lon
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { message = $"Error: {ex.Message}" });
+                return StatusCode(500, new { message = "Failed to fetch weather" });
             }
         }
 

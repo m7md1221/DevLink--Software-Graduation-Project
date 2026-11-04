@@ -1,6 +1,6 @@
 # M2.7 Endpoint Authorization Plan
 
-**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a committed (`0981629`); M2.7b implemented (uncommitted); 7c–7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
+**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a committed (`0981629`); M2.7b committed (`43534f7`); M2.7c implemented (uncommitted); 7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
 **Target rules** come from the approved design ([M2_AUTH_DESIGN.md §8](M2_AUTH_DESIGN.md), rows #1–#67). Where this plan needs a choice the design does not settle, it is listed in [§4 Decisions needed](#4-decisions-needed).
 
 **Legend**
@@ -97,7 +97,7 @@
 | 60 | GET | `pending` | **Anon** — moderation queue | Admin | role | `admin_posts_page` | HIGH | **7a** |
 | 61 | POST | `{id}/approve` | **Anon** — anyone publishes | Admin | role | `admin_posts_page` | **CRITICAL** (moderation bypass) | **7a** |
 | 62 | POST | `{id}/reject` | **Anon** (+ email to author) | Admin | role | `admin_posts_page` | **CRITICAL** | **7a** |
-| 63 | GET | `weather/{userId}` | **Anon** — reveals a user's city (KI-29) | Auth; Self or Admin | `{userId}` = `sub` | `customer_home_page` | MEDIUM | **7c** |
+| 63 | GET | `weather/{userId}` | **Anon** — reveals a user's city (KI-29) | Auth; Self only | `{userId}` = `sub` | `customer_home_page` | MEDIUM | **7c** |
 | 64 | GET | `weather-location` | Anon — open proxy to Open-Meteo/Nominatim | Auth | — | `customer_home_page` | LOW-MEDIUM (abuse) | **7d** |
 
 ### SupportController — `/api/Support`
@@ -113,7 +113,7 @@
 | 72 | GET | `my/{userId}/unread-count` | Anon | Role C/P (S), Self | `{userId}` = `sub` | `contact_support_page` | LOW | **7c** |
 | 73 | POST | `{id}/mark-reply-read` | Anon | Role C/P (S), Owner | message `UserId` = `sub` | `customer_support_messages_page` | LOW | **7b** |
 
-**Closed:** by M2.7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); by M2.7b (uncommitted) #46 and #50 (`isAdmin=true` deletes anything). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
+**Closed:** by M2.7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); by M2.7b #46 and #50 (`isAdmin=true` deletes anything). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
 
 **Counts:** 8 public (#1–#8) + 4 already token-protected (#9–#12) + 2 admin routes done in M2.5b (#18, #19) + 4 signed-image routes and 2 document routes (#33, #34) in M2.8 + **53 routes to change in M2.7** (7a: 18, 7b: 19, 7c: 9, 7d: 7).
 

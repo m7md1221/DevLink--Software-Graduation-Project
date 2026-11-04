@@ -20,8 +20,12 @@ namespace Controllers
         }
 
         [HttpGet("{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetNotifications(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only view your own notifications");
+
             var notifications = await _context.Notifications
                 .Where(n => n.UserId == userId)
                 .OrderByDescending(n => n.CreatedAt)

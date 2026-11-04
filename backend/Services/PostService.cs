@@ -344,7 +344,8 @@ namespace Services
             return (null, null);
         }
 
-        public async Task<List<object>> SearchUsers(string query, string? userType = null)
+        // Emails are returned and searchable only for admins (Q3); others get email = null, key kept (D-5).
+        public async Task<List<object>> SearchUsers(string query, string? userType, bool includeEmail)
         {
             if (string.IsNullOrWhiteSpace(query)) return new List<object>();
 
@@ -374,14 +375,14 @@ namespace Services
 
                 if (nickname == null) continue;
 
-                var matches = nickname.ToLower().Contains(query) || user.Email.ToLower().Contains(query) || (specialty != null && specialty.ToLower().Contains(query));
+                var matches = nickname.ToLower().Contains(query) || (includeEmail && user.Email.ToLower().Contains(query)) || (specialty != null && specialty.ToLower().Contains(query));
 
                 if (matches)
                 {
                     results.Add(new
                     {
                         userId = user.Id,
-                        email = user.Email,
+                        email = includeEmail ? user.Email : null,
                         nickname = nickname,
                         userType = user.UserType,
                         specialty = specialty,
@@ -394,7 +395,8 @@ namespace Services
             return results.Take(30).ToList();
         }
 
-        public async Task<object?> GetUserProfile(int userId)
+        // Email and phone only for the user themself or an admin (Q3); others get null, keys kept (D-5).
+        public async Task<object?> GetUserProfile(int userId, bool includeContact)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null || user.UserType == "Admin") return null;
@@ -409,12 +411,12 @@ namespace Services
                 return new
                 {
                     userId = user.Id,
-                    email = user.Email,
+                    email = includeContact ? user.Email : null,
                     userType = user.UserType,
                     nickname = p.Nickname,
                     country = p.Country,
                     city = p.City,
-                    phoneNumber = p.PhoneNumber,
+                    phoneNumber = includeContact ? p.PhoneNumber : null,
                     hasImage = p.ProfileImage != null,
                     avatarUrl = p.ProfileImage != null ? $"/api/Posts/user/{user.Id}/avatar" : null,
                     postCount = postCount,
@@ -429,12 +431,12 @@ namespace Services
                 return new
                 {
                     userId = user.Id,
-                    email = user.Email,
+                    email = includeContact ? user.Email : null,
                     userType = user.UserType,
                     nickname = p.Nickname,
                     country = p.Country,
                     city = p.City,
-                    phoneNumber = p.PhoneNumber,
+                    phoneNumber = includeContact ? p.PhoneNumber : null,
                     specialty = p.Specialty,
                     university = p.University,
                     linkedInUrl = p.LinkedInUrl,

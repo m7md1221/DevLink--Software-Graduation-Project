@@ -69,7 +69,7 @@ namespace DevLink.Api.Tests
 
         private async Task<JsonElement> NotificationsForAsync(int userId)
         {
-            var response = await _client.GetAsync($"/api/Notifications/{userId}");
+            var response = await _clients[userId].GetAsync($"/api/Notifications/{userId}");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return await response.Content.ReadFromJsonAsync<JsonElement>();
         }
@@ -105,12 +105,12 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public async Task Weather_endpoint_is_wired_and_reports_unknown_user()
+        public async Task Weather_endpoint_is_wired_and_refuses_anonymous_callers()
         {
-            // Unknown user returns before any call to the external weather service.
+            // Refused before any call to the external weather service (unknown user: T-7C-06).
             var response = await _client.GetAsync("/api/Posts/weather/999999");
 
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
         [Fact]
