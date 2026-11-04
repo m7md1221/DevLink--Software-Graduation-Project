@@ -10,15 +10,20 @@ namespace Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    // M2.7a: every route needs an Admin token. Tokenless requests pass only through the development
+    // fallback (D-1). suspend/unsuspend additionally require the strict AdminOnly policy (no fallback).
+    [Authorize(Policy = AuthPolicies.AdminOrDevFallback)]
     public class AdminController : ControllerBase
     {
         private readonly AdminService _adminService;
         private readonly AppDbContext _context; // ✅ ضروري للإحصائيات
+        private readonly ICurrentUser _currentUser;
 
-        public AdminController(AdminService adminService, AppDbContext context)
+        public AdminController(AdminService adminService, AppDbContext context, ICurrentUser currentUser)
         {
             _adminService = adminService;
             _context = context;
+            _currentUser = currentUser;
         }
 
         // ============================================================
@@ -104,9 +109,8 @@ namespace Controllers
             return AdminResult(status, message);
         }
 
-        // The token subject when a valid access token was sent (always, on AdminOnly routes).
-        private int? CallerUserId() =>
-            User.Identity?.IsAuthenticated == true && int.TryParse(User.Identity.Name, out var id) ? id : null;
+        // The admin from the token; null only for a tokenless request on the development fallback.
+        private int? CallerUserId() => _currentUser.UserId;
 
         private IActionResult AdminResult(AdminActionStatus status, string message) => status switch
         {

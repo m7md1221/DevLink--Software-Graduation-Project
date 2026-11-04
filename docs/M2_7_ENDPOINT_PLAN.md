@@ -1,6 +1,6 @@
 # M2.7 Endpoint Authorization Plan
 
-**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a in progress. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
+**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a implemented (uncommitted); 7b–7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
 **Target rules** come from the approved design ([M2_AUTH_DESIGN.md §8](M2_AUTH_DESIGN.md), rows #1–#67). Where this plan needs a choice the design does not settle, it is listed in [§4 Decisions needed](#4-decisions-needed).
 
 **Legend**
@@ -113,7 +113,7 @@
 | 72 | GET | `my/{userId}/unread-count` | Anon | Role C/P (S), Self | `{userId}` = `sub` | `contact_support_page` | LOW | **7c** |
 | 73 | POST | `{id}/mark-reply-read` | Anon | Role C/P (S), Owner | message `UserId` = `sub` | `customer_support_messages_page` | LOW | **7b** |
 
-**Critical today (anonymous, no client trick needed):** #13, #15, #16, #17 (admin user management), #39 (self-verification), #46 and #50 (`isAdmin=true` deletes anything), #61 and #62 (moderation), #66 (support inbox). Mitigation until fixed: the API listens on `localhost` only (README warning).
+**Critical until their sub-phase ships:** #46 and #50 (`isAdmin=true` deletes anything) → M2.7b. **Closed by M2.7a:** #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
 
 **Counts:** 8 public (#1–#8) + 4 already token-protected (#9–#12) + 2 admin routes done in M2.5b (#18, #19) + 4 signed-image routes and 2 document routes (#33, #34) in M2.8 + **53 routes to change in M2.7** (7a: 18, 7b: 19, 7c: 9, 7d: 7).
 

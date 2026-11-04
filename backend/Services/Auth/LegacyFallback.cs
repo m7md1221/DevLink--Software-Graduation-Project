@@ -6,6 +6,8 @@ namespace Services.Auth
     public enum LegacyFallbackCase
     {
         IdentityFromClient,
+        // Owner decision D-1 (M2.7): a tokenless request to a role-protected route behaves as before.
+        TokenlessRequest,
         SignupResetWithoutProof,
         FileWithoutToken,
         ImageWithoutSignature

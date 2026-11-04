@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using DataBase;
 using Microsoft.AspNetCore.Mvc;
 using Services.Auth;
@@ -73,6 +74,7 @@ namespace Controllers
         }
 
         [HttpGet("all")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> GetAllMessages(
             [FromQuery] string? status = null)
         {
@@ -168,6 +170,7 @@ namespace Controllers
         }
 
         [HttpPost("{id}/reply")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> ReplyToMessage(
             int id,
             [FromBody] ReplyDto model)
@@ -208,6 +211,7 @@ namespace Controllers
         }
 
         [HttpPost("{id}/read")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> MarkAsRead(int id)
         {
             var msg = await _context.SupportMessages
@@ -234,6 +238,7 @@ namespace Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> DeleteMessage(int id)
         {
             var msg = await _context.SupportMessages

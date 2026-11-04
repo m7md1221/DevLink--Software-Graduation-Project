@@ -277,16 +277,16 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public async Task T_DEL_02_the_existing_route_still_works_without_a_token_and_records_no_actor()
+        public async Task T_DEL_02_since_M2_7a_a_delete_without_a_token_is_refused_and_deletes_nothing()
         {
+            // The tokenless (development fallback) case, audited without an actor, is T-7A-03c.
             var target = await CustomerAsync();
 
             var response = await Send(HttpMethod.Delete, $"/api/Admin/users/{target.Id}", null);
 
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var evt = Assert.Single(await EventsFor(target.Id, "Admin.UserDeleted"));
-            Assert.Null(evt.ActorUserId);
-            Assert.Equal(SecurityEventOutcome.Success, evt.Outcome);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Empty(await EventsFor(target.Id, "Admin.UserDeleted"));
+            await _factory.WithDbAsync(async db => Assert.True(await db.Users.AnyAsync(u => u.Id == target.Id)));
         }
 
         [Fact]

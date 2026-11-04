@@ -130,7 +130,8 @@ namespace DevLink.Api.Tests
         {
             var email = ApiTestHelpers.UniqueEmail("managed");
 
-            var create = await _client.PostAsJsonAsync("/api/Admin/users",
+            var admin = await ApiTestHelpers.AdminClientAsync(_factory);
+            var create = await admin.PostAsJsonAsync("/api/Admin/users",
                 new { email, password = "Managed123", userType = "Customer" });
             Assert.Equal(HttpStatusCode.OK, create.StatusCode);
             Assert.True(PasswordService.IsIdentityHash(await StoredPasswordAsync(email)));
@@ -139,7 +140,7 @@ namespace DevLink.Api.Tests
             await _factory.WithDbAsync(async db =>
                 id = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync());
 
-            var update = await _client.PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "Changed456" });
+            var update = await admin.PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "Changed456" });
             Assert.Equal(HttpStatusCode.OK, update.StatusCode);
             Assert.True(PasswordService.IsIdentityHash(await StoredPasswordAsync(email)));
             Assert.Equal(HttpStatusCode.OK,

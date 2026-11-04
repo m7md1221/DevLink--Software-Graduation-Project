@@ -701,6 +701,7 @@ The current messages "This email is already registered" / "This email is not reg
   2. `signup` and `reset-password` accepted **without** a proof token if the email passed `verify-code`/`verify-reset-code` within the last 15 minutes (today's flow), so the current sign-up and reset screens keep working after M2.5. Codes are still hardened (DB-stored hashes, 5 attempts, rate limits).
   3. `GET ProgrammerProfile/{userId}/cv` and `/certificate` without a Bearer token (today's direct `launchUrl` URLs) after M2.8.
   4. Image routes without a signature (today's client-built URLs) after M2.8.
+  5. *(owner decision D-1, 2026-11-04)* Tokenless requests to role-protected routes that carry no client id (admin, moderation, support inbox, and the member reads of M2.7d), so the unchanged screens keep working until M2.12. Case `TokenlessRequest`. Same safeguards; never when an `Authorization` header is present, and never on routes with a strict policy (`suspend`, `unsuspend`).
 
   Each fallback path is behind one `LegacyFallback` check. Each is covered by a T-SW test proving it is **unreachable** when the switch is on or the environment isn't Development. All of them are deleted in M2.13.
 - **Safeguards (binding condition C1).** A fallback path runs only when **all three** hold, evaluated per request:
@@ -712,7 +713,7 @@ The current messages "This email is already registered" / "This email is not reg
   1. **Startup refusal:** the host throws during startup if the switch is explicitly `false` and the environment isn't Development (Production, Staging, Testing or any custom name).
   2. **Binding check:** if enabled, every bound address must be loopback; otherwise the application stops itself with a critical log.
   3. **Per-request loopback check** (c): a non-loopback request while enabled is enforced normally, plus a Warning.
-  4. **Warning on every fallback use:** event `Auth.DevFallbackUsed` (Warning) with **only** the fallback case (`IdentityFromClient`, `SignupResetWithoutProof`, `FileWithoutToken`, `ImageWithoutSignature`) and the route *template* (e.g. `api/Posts/{id}/like`). No user ids, emails, IPs, tokens or query strings. Also a startup Warning, a reminder every 10 minutes, and `X-DevLink-Auth: NOT-ENFORCED` on every response.
+  4. **Warning on every fallback use:** event `Auth.DevFallbackUsed` (Warning) with **only** the fallback case (`IdentityFromClient`, `TokenlessRequest`, `SignupResetWithoutProof`, `FileWithoutToken`, `ImageWithoutSignature`) and the route *template* (e.g. `api/Posts/{id}/like`). No user ids, emails, IPs, tokens or query strings. Also a startup Warning, a reminder every 10 minutes, and `X-DevLink-Auth: NOT-ENFORCED` on every response.
   5. **Tests:**
      - T-SW-01…05 (startup refusal per environment; binding check; missing key = enforced);
      - **T-SW-06…09**: one per fallback case, proving it is **off by default** (no key → 401/400/403), off with the key on a non-Development host (startup fails), and off for a non-loopback remote address;

@@ -1,3 +1,5 @@
+using Services.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
 using DataBase;
@@ -328,6 +330,7 @@ namespace Controllers
         }
 
         [HttpGet("pending")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> GetPendingPosts()
         {
             var posts = await _postService.GetPendingPosts();
@@ -335,6 +338,7 @@ namespace Controllers
         }
 
         [HttpPost("{id}/approve")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> ApprovePost(int id)
         {
             var (success, message) = await _postService.ApprovePost(id);
@@ -364,6 +368,7 @@ namespace Controllers
         }
 
         [HttpPost("{id}/reject")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> RejectPost(
             int id,
             [FromBody] RejectPostDto model)

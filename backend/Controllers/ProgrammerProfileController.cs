@@ -1,3 +1,5 @@
+using Services.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
@@ -674,6 +676,7 @@ namespace Controllers
         }
 
         [HttpPost("{userId}/verify")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> VerifyProgrammer(int userId)
         {
             var profile = await _context.ProgrammerProfiles
@@ -699,6 +702,7 @@ namespace Controllers
         }
 
         [HttpPost("{userId}/unverify")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> UnverifyProgrammer(int userId)
         {
             var profile = await _context.ProgrammerProfiles

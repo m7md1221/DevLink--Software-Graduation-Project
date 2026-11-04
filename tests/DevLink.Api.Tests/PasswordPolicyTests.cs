@@ -103,12 +103,13 @@ namespace DevLink.Api.Tests
         public async Task T_PW_04_admin_create_and_update_apply_the_policy()
         {
             var email = ApiTestHelpers.UniqueEmail("admin-made");
-            Assert.Equal(HttpStatusCode.BadRequest, (await _client.PostAsJsonAsync("/api/Admin/users", new { email, password = "password1", userType = "Customer" })).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync("/api/Admin/users", new { email, password = "Managed-Ok-9", userType = "Customer" })).StatusCode);
+            var admin = await ApiTestHelpers.AdminClientAsync(_factory);
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/Admin/users", new { email, password = "password1", userType = "Customer" })).StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/Admin/users", new { email, password = "Managed-Ok-9", userType = "Customer" })).StatusCode);
 
             int id = 0;
             await _factory.WithDbAsync(async db => id = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync());
-            Assert.Equal(HttpStatusCode.BadRequest, (await _client.PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "qwerty123" })).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "qwerty123" })).StatusCode);
         }
 
         [Fact]
@@ -145,7 +146,7 @@ namespace DevLink.Api.Tests
             var token = await SessionApiFactory.TokenFrom(await SessionApiFactory.LoginAsync(_client, email, "Secret123", "Customer"));
             Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, "/api/Auth/me", token)).StatusCode);
 
-            var update = await _client.PutAsJsonAsync($"/api/Admin/users/{userId}", new { userType = "Programmer" });
+            var update = await (await ApiTestHelpers.AdminClientAsync(_factory)).PutAsJsonAsync($"/api/Admin/users/{userId}", new { userType = "Programmer" });
             Assert.Equal(HttpStatusCode.OK, update.StatusCode);
 
             Assert.Equal("SESSION_REVOKED", await SessionApiFactory.ErrorCode(await SessionApiFactory.GetWithToken(_client, "/api/Auth/me", token)));

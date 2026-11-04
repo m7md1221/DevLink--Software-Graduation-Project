@@ -21,10 +21,14 @@ namespace DevLink.Api.Tests
             _client = factory.CreateClient();
         }
 
+        private HttpClient? _adminClient;
+
+        // M2.7a: admin routes need an Admin token.
+        private async Task<HttpClient> Admin() => _adminClient ??= await ApiTestHelpers.AdminClientAsync(_factory);
         private async Task<int> CreateUserAsync(string userType)
         {
             var email = ApiTestHelpers.UniqueEmail(userType.ToLower());
-            var response = await _client.PostAsJsonAsync("/api/Admin/users",
+            var response = await (await Admin()).PostAsJsonAsync("/api/Admin/users",
                 new { email, password = "Secret123", userType });
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -80,7 +84,7 @@ namespace DevLink.Api.Tests
             var customerId = await CreateUserAsync("Customer");
 
             var feed = await _client.GetAsync($"/api/Posts/feed?userId={customerId}");
-            var pending = await _client.GetAsync("/api/Posts/pending");
+            var pending = await (await Admin()).GetAsync("/api/Posts/pending");
 
             Assert.Equal(HttpStatusCode.OK, feed.StatusCode);
             Assert.Equal(HttpStatusCode.OK, pending.StatusCode);

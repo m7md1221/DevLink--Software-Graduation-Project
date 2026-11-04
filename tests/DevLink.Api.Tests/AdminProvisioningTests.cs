@@ -19,6 +19,10 @@ namespace DevLink.Api.Tests
             _client = factory.CreateClient();
         }
 
+        private HttpClient? _adminClient;
+
+        // M2.7a: admin routes need an Admin token.
+        private async Task<HttpClient> Admin() => _adminClient ??= await ApiTestHelpers.AdminClientAsync(_factory);
         private async Task<AdminSeedResult> SeedAsync(string email, string password)
         {
             AdminSeedResult result = null!;
@@ -43,7 +47,7 @@ namespace DevLink.Api.Tests
         {
             var email = ApiTestHelpers.UniqueEmail("wannabe");
 
-            var response = await _client.PostAsJsonAsync("/api/Admin/users",
+            var response = await (await Admin()).PostAsJsonAsync("/api/Admin/users",
                 new { email, password = "Admin1234", userType = "Admin" });
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -55,10 +59,10 @@ namespace DevLink.Api.Tests
         public async Task Api_cannot_promote_a_user_to_admin()
         {
             var email = ApiTestHelpers.UniqueEmail("promote");
-            await _client.PostAsJsonAsync("/api/Admin/users", new { email, password = "User1234", userType = "Customer" });
+            await (await Admin()).PostAsJsonAsync("/api/Admin/users", new { email, password = "User1234", userType = "Customer" });
             var id = await IdOfAsync(email);
 
-            var response = await _client.PutAsJsonAsync($"/api/Admin/users/{id}", new { userType = "Admin" });
+            var response = await (await Admin()).PutAsJsonAsync($"/api/Admin/users/{id}", new { userType = "Admin" });
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             await _factory.WithDbAsync(async db =>
@@ -72,8 +76,8 @@ namespace DevLink.Api.Tests
             Assert.True((await SeedAsync(email, "Admin1234")).Success);
             var id = await IdOfAsync(email);
 
-            var update = await _client.PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "Hijack123" });
-            var delete = await _client.DeleteAsync($"/api/Admin/users/{id}");
+            var update = await (await Admin()).PutAsJsonAsync($"/api/Admin/users/{id}", new { password = "Hijack123" });
+            var delete = await (await Admin()).DeleteAsync($"/api/Admin/users/{id}");
 
             Assert.Equal(HttpStatusCode.Forbidden, update.StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
@@ -118,7 +122,7 @@ namespace DevLink.Api.Tests
         public async Task Seeder_refuses_to_take_over_a_non_admin_account()
         {
             var email = ApiTestHelpers.UniqueEmail("taken");
-            await _client.PostAsJsonAsync("/api/Admin/users", new { email, password = "User1234", userType = "Programmer" });
+            await (await Admin()).PostAsJsonAsync("/api/Admin/users", new { email, password = "User1234", userType = "Programmer" });
 
             var result = await SeedAsync(email, "Admin1234");
 
