@@ -4,6 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Services
 {
+    public enum PostActionStatus
+    {
+        Ok,
+        BadRequest,
+        Forbidden
+    }
+
     public class PostService
     {
         private readonly AppDbContext _context;
@@ -179,22 +186,24 @@ namespace Services
             return (true, "Post created successfully", post.Id);
         }
 
-        public async Task<(bool success, string message)> DeletePost(int postId, int userId, bool isAdmin = false)
+        // callerIsAdmin comes from the access token only; a client-sent isAdmin never reaches this (D-2).
+        public async Task<(PostActionStatus status, string message)> DeletePost(int postId, int userId, bool callerIsAdmin)
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId);
-            if (post == null || post.IsDeleted) return (false, "Post not found");
-            if (post.UserId != userId && !isAdmin) return (false, "You can only delete your own posts");
+            if (post == null || post.IsDeleted) return (PostActionStatus.BadRequest, "Post not found");
+            if (post.UserId != userId && !callerIsAdmin) return (PostActionStatus.Forbidden, "You can only delete your own posts");
 
             post.IsDeleted = true;
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return (true, "Post deleted successfully");
+            return (PostActionStatus.Ok, "Post deleted successfully");
         }
 
         public async Task<(bool success, string message, bool isLiked, int likeCount)> ToggleLike(int postId, int userId)
         {
-            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+            // Social actions on approved posts only (design 8 #41, #43).
+            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted && p.Status == "Approved");
             if (post == null) return (false, "Post not found", false, 0);
 
             var existing = await _context.PostLikes.FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userId);
@@ -265,7 +274,7 @@ namespace Services
             if (string.IsNullOrWhiteSpace(content)) return (false, "Comment cannot be empty", null);
             if (content.Length > 1000) return (false, "Comment is too long", null);
 
-            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted && p.Status == "Approved");
             if (post == null) return (false, "Post not found", null);
 
             var comment = new PostComment
@@ -290,16 +299,20 @@ namespace Services
             return (true, "Comment added", comment.Id);
         }
 
-        public async Task<(bool success, string message)> DeleteComment(int commentId, int userId, bool isAdmin = false)
+        // Comment author, post owner, or an admin (from the token).
+        public async Task<(PostActionStatus status, string message)> DeleteComment(int commentId, int userId, bool callerIsAdmin)
         {
             var comment = await _context.PostComments.FirstOrDefaultAsync(c => c.Id == commentId);
-            if (comment == null) return (false, "Comment not found");
-            if (comment.UserId != userId && !isAdmin) return (false, "You can only delete your own comments");
+            if (comment == null) return (PostActionStatus.BadRequest, "Comment not found");
+
+            var isPostOwner = await _context.Posts.AnyAsync(p => p.Id == comment.PostId && p.UserId == userId);
+            if (comment.UserId != userId && !isPostOwner && !callerIsAdmin)
+                return (PostActionStatus.Forbidden, "You can only delete your own comments");
 
             _context.PostComments.Remove(comment);
             await _context.SaveChangesAsync();
 
-            return (true, "Comment deleted successfully");
+            return (PostActionStatus.Ok, "Comment deleted successfully");
         }
 
         public async Task<(byte[]? data, string? contentType)> GetPostImage(int imageId)
@@ -447,6 +460,11 @@ namespace Services
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
             if (post == null) return (false, "Post not found", null);
             if (post.UserId == programmerId) return (false, "You cannot apply to your own post", null);
+            if (post.Status != "Approved") return (false, "This post is not open for applications", null);
+
+            // D-11: only customers publish projects that accept applications.
+            if (!await IsOwnedByCustomerAsync(post)) return (false, "This post is not open for applications", null);
+
             if (post.IsClosed) return (false, "This post is already closed", null);
 
             var existing = await _context.PostApplications.FirstOrDefaultAsync(a => a.PostId == postId && a.ProgrammerId == programmerId);
@@ -464,10 +482,25 @@ namespace Services
             };
 
             _context.PostApplications.Add(application);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Two parallel requests: UQ_PostApplications_Post_Programmer keeps it to one application.
+                _context.Entry(application).State = EntityState.Detached;
+                return (false, "You have already applied to this post", null);
+            }
 
             return (true, "Application submitted successfully", application.Id);
         }
+
+        private Task<bool> IsOwnedByCustomerAsync(Post post) =>
+            _context.Users.AnyAsync(u => u.Id == post.UserId && u.UserType == "Customer");
+
+        public Task<int?> GetPostOwnerId(int postId) =>
+            _context.Posts.Where(p => p.Id == postId && !p.IsDeleted).Select(p => (int?)p.UserId).FirstOrDefaultAsync();
 
         public async Task<List<object>> GetPostApplications(int postId, int requesterId)
         {
@@ -511,16 +544,17 @@ namespace Services
             return result;
         }
 
-        public async Task<(bool success, string message)> AcceptApplication(int postId, int applicationId, int requesterId)
+        public async Task<(PostActionStatus status, string message)> AcceptApplication(int postId, int applicationId, int requesterId)
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
-            if (post == null) return (false, "Post not found");
-            if (post.UserId != requesterId) return (false, "You can only manage your own posts");
-            if (post.IsClosed) return (false, "This post is already closed");
+            if (post == null) return (PostActionStatus.BadRequest, "Post not found");
+            if (post.UserId != requesterId) return (PostActionStatus.Forbidden, "You can only manage your own posts");
+            if (!await IsOwnedByCustomerAsync(post)) return (PostActionStatus.Forbidden, "Only customers can accept applications");
+            if (post.IsClosed) return (PostActionStatus.BadRequest, "This post is already closed");
 
             var application = await _context.PostApplications.FirstOrDefaultAsync(a => a.Id == applicationId && a.PostId == postId);
-            if (application == null) return (false, "Application not found");
-            if (application.Status != "Pending") return (false, "This application is not pending");
+            if (application == null) return (PostActionStatus.BadRequest, "Application not found");
+            if (application.Status != "Pending") return (PostActionStatus.BadRequest, "This application is not pending");
 
             application.Status = "Accepted";
             application.UpdatedAt = DateTime.UtcNow;
@@ -538,7 +572,7 @@ namespace Services
 
             await CreateNotification(application.ProgrammerId, "Application Accepted", "Congratulations! Your application has been accepted.", "accepted", postId);
 
-            return (true, "Application accepted successfully");
+            return (PostActionStatus.Ok, "Application accepted successfully");
         }
 
         public async Task<int> GetApplicationsCount(int postId)

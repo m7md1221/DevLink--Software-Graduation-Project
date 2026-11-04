@@ -11,6 +11,17 @@ namespace Services.Auth
         // An Admin access token; a request WITHOUT a token may still pass through the
         // development fallback (owner decision D-1, removed in M2.13).
         public const string AdminOrDevFallback = "AdminOrDevFallback";
+
+        // M2.7b: a token with the role; a tokenless request may pass through the development fallback with a
+        // client-supplied id (design 7.3 case 1). Ownership is checked in the action.
+        public const string MemberOrDevFallback = "MemberOrDevFallback";
+        public const string NonAdminOrDevFallback = "NonAdminOrDevFallback";
+        public const string CustomerOrDevFallback = "CustomerOrDevFallback";
+        public const string ProgrammerOrDevFallback = "ProgrammerOrDevFallback";
+
+        // Same, for routes that only name a resource (no client id to act as): case TokenlessRequest.
+        public const string MemberResourceOrDevFallback = "MemberResourceOrDevFallback";
+        public const string NonAdminResourceOrDevFallback = "NonAdminResourceOrDevFallback";
     }
 
     // ============================================================
@@ -22,12 +33,16 @@ namespace Services.Auth
     // ============================================================
     public sealed class RoleOrDevFallbackRequirement : IAuthorizationRequirement
     {
-        public RoleOrDevFallbackRequirement(string role)
+        public RoleOrDevFallbackRequirement(LegacyFallbackCase fallbackCase, params string[] roles)
         {
-            Role = role;
+            FallbackCase = fallbackCase;
+            Roles = roles;
         }
 
-        public string Role { get; }
+        public LegacyFallbackCase FallbackCase { get; }
+
+        // Empty: any signed-in role.
+        public IReadOnlyList<string> Roles { get; }
     }
 
     public sealed class RoleOrDevFallbackHandler : AuthorizationHandler<RoleOrDevFallbackRequirement>
@@ -43,7 +58,7 @@ namespace Services.Auth
         {
             if (context.User.Identity?.IsAuthenticated == true)
             {
-                if (context.User.IsInRole(requirement.Role))
+                if (requirement.Roles.Count == 0 || requirement.Roles.Any(context.User.IsInRole))
                 {
                     context.Succeed(requirement);
                 }
@@ -52,7 +67,7 @@ namespace Services.Auth
                      CurrentUser.IsTokenless(http) &&
                      // A route that also has a strict policy (suspend/unsuspend) refuses the request: not a fallback use.
                      !context.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any() &&
-                     _fallback.TryUse(http, LegacyFallbackCase.TokenlessRequest))
+                     _fallback.TryUse(http, requirement.FallbackCase))
             {
                 context.Succeed(requirement);
             }
@@ -73,7 +88,13 @@ namespace Services.Auth
             services.AddAuthorization(options =>
             {
                 options.AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Admin"));
-                options.AddPolicy(AuthPolicies.AdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement("Admin")));
+                options.AddPolicy(AuthPolicies.AdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Admin")));
+                options.AddPolicy(AuthPolicies.MemberOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient)));
+                options.AddPolicy(AuthPolicies.NonAdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient, "Customer", "Programmer")));
+                options.AddPolicy(AuthPolicies.CustomerOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient, "Customer")));
+                options.AddPolicy(AuthPolicies.ProgrammerOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient, "Programmer")));
+                options.AddPolicy(AuthPolicies.MemberResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest)));
+                options.AddPolicy(AuthPolicies.NonAdminResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Customer", "Programmer")));
             });
 
             return services;

@@ -35,22 +35,36 @@ namespace DevLink.Api.Tests
             int id = 0;
             await _factory.WithDbAsync(async db =>
                 id = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync());
+
+            // M2.7b: write routes take the caller from the token.
+            var client = _factory.CreateClient();
+            var login = await ApiTestHelpers.LoginAsync(client, email, "Secret123", userType);
+            var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            _clients[id] = client;
             return id;
         }
 
+        private readonly Dictionary<int, HttpClient> _clients = new();
+
+        // Creates a post as its author, then approves it: likes and comments need an approved post.
         private async Task<int> CreatePostAsync(int userId)
         {
             using var form = new MultipartFormDataContent
             {
-                { new StringContent(userId.ToString()), "UserId" },
                 { new StringContent("Need a small website for my bakery"), "Content" }
             };
 
-            var response = await _client.PostAsync("/api/Posts", form);
+            var response = await _clients[userId].PostAsync("/api/Posts", form);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-            return body.GetProperty("postId").GetInt32();
+            var postId = body.GetProperty("postId").GetInt32();
+            Assert.Equal(HttpStatusCode.OK, (await (await Admin()).PostAsync($"/api/Posts/{postId}/approve", null)).StatusCode);
+
+            // Approval notifies the author; these tests count later notifications only.
+            await _factory.WithDbAsync(async db => await db.Notifications.Where(n => n.UserId == userId).ExecuteDeleteAsync());
+            return postId;
         }
 
         private async Task<JsonElement> NotificationsForAsync(int userId)
@@ -106,7 +120,7 @@ namespace DevLink.Api.Tests
             var likerId = await CreateUserAsync("Programmer");
             var postId = await CreatePostAsync(authorId);
 
-            var like = await _client.PostAsJsonAsync($"/api/Posts/{postId}/like", new { userId = likerId });
+            var like = await _clients[likerId].PostAsJsonAsync($"/api/Posts/{postId}/like", new { });
             Assert.Equal(HttpStatusCode.OK, like.StatusCode);
 
             var notifications = await NotificationsForAsync(authorId);
@@ -116,7 +130,7 @@ namespace DevLink.Api.Tests
             Assert.False(notification.GetProperty("isRead").GetBoolean());
 
             var id = notification.GetProperty("id").GetInt32();
-            var markRead = await _client.PostAsync($"/api/Notifications/{id}/read", null);
+            var markRead = await _clients[authorId].PostAsync($"/api/Notifications/{id}/read", null);
             Assert.Equal(HttpStatusCode.OK, markRead.StatusCode);
 
             var after = await NotificationsForAsync(authorId);
@@ -135,8 +149,8 @@ namespace DevLink.Api.Tests
 
             for (var i = 0; i < 7; i++)
             {
-                var comment = await _client.PostAsJsonAsync($"/api/Posts/{postId}/comments",
-                    new { userId = commenterId, content = $"Comment {i}" });
+                var comment = await _clients[commenterId].PostAsJsonAsync($"/api/Posts/{postId}/comments",
+                    new { content = $"Comment {i}" });
                 Assert.Equal(HttpStatusCode.OK, comment.StatusCode);
             }
 

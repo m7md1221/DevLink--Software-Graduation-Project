@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -173,6 +174,28 @@ namespace Services.Auth
     // ProblemDetails-shaped 401/403 bodies. Keeps "message" because the Flutter app reads data['message'] (§3.5).
     public static class AuthProblem
     {
+        // The same body as an action result, for refusals decided inside an action (ownership, limits).
+        public static ObjectResult Result(HttpContext context, int status, string errorCode, string message)
+        {
+            var result = new ObjectResult(new
+            {
+                type = "about:blank",
+                title = ReasonPhrases.GetReasonPhrase(status),
+                status,
+                errorCode,
+                message,
+                traceId = Activity.Current?.Id ?? context.TraceIdentifier
+            })
+            {
+                StatusCode = status
+            };
+            result.ContentTypes.Add("application/problem+json");
+            return result;
+        }
+
+        public static ObjectResult Forbidden(HttpContext context, string message) =>
+            Result(context, StatusCodes.Status403Forbidden, AuthErrorCodes.Forbidden, message);
+
         public static Task WriteAsync(HttpContext context, int status, string errorCode, string message)
         {
             context.Response.StatusCode = status;

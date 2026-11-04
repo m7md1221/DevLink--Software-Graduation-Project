@@ -14,13 +14,21 @@ namespace Controllers
         private readonly PostService _postService;
         private readonly IEmailSender _emailService;
         private readonly AppDbContext _context;
+        private readonly ICurrentUser _currentUser;
 
-        public PostsController(PostService postService, IEmailSender emailService, AppDbContext context)
+        public PostsController(PostService postService, IEmailSender emailService, AppDbContext context, ICurrentUser currentUser)
         {
             _postService = postService;
             _emailService = emailService;
             _context = context;
+            _currentUser = currentUser;
         }
+
+        // M2.7b: refusals keep today's 400 { message }; ownership refusals are 403 FORBIDDEN with the same message.
+        private IActionResult Refused(PostActionStatus status, string message) =>
+            status == PostActionStatus.Forbidden
+                ? AuthProblem.Forbidden(HttpContext, message)
+                : BadRequest(new { message });
 
         // ============================================================
         // Helper: Get City from Coordinates using Nominatim
@@ -87,10 +95,12 @@ namespace Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
         public async Task<IActionResult> CreatePost(
             [FromForm] CreatePostDto model)
         {
-            if (model.UserId <= 0)
+            var userId = _currentUser.ResolveUserId(model.UserId);
+            if (userId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
             var images = new List<(byte[], string)>();
@@ -117,7 +127,7 @@ namespace Controllers
 
             var (success, message, postId) =
                 await _postService.CreatePost(
-                    model.UserId,
+                    userId.Value,
                     model.Content,
                     images.Count > 0 ? images : null);
 
@@ -132,33 +142,36 @@ namespace Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> DeletePost(
             int id,
-            [FromQuery] int userId,
-            [FromQuery] bool isAdmin = false)
+            [FromQuery] int userId)
         {
-            if (userId <= 0)
+            var callerId = _currentUser.ResolveUserId(userId);
+            if (callerId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
-            var (success, message) =
-                await _postService.DeletePost(id, userId, isAdmin);
+            var (status, message) =
+                await _postService.DeletePost(id, callerId.Value, _currentUser.IsAdmin);
 
-            if (!success)
-                return BadRequest(new { message });
+            if (status != PostActionStatus.Ok)
+                return Refused(status, message);
 
             return Ok(new { message });
         }
 
         [HttpPost("{id}/like")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> ToggleLike(
             int id,
             [FromBody] LikeDto model)
         {
-            if (model.UserId <= 0)
+            var userId = _currentUser.ResolveUserId(model.UserId);
+            if (userId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
             var (success, message, isLiked, likeCount) =
-                await _postService.ToggleLike(id, model.UserId);
+                await _postService.ToggleLike(id, userId.Value);
 
             if (!success)
                 return BadRequest(new { message });
@@ -174,18 +187,20 @@ namespace Controllers
         }
 
         [HttpPost("{id}/comments")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> AddComment(
             int id,
             [FromBody] AddCommentDto model)
         {
-            if (model.UserId <= 0)
+            var userId = _currentUser.ResolveUserId(model.UserId);
+            if (userId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
             if (string.IsNullOrWhiteSpace(model.Content))
                 return BadRequest(new { message = "Content is required" });
 
             var (success, message, commentId) =
-                await _postService.AddComment(id, model.UserId, model.Content);
+                await _postService.AddComment(id, userId.Value, model.Content);
 
             if (!success)
                 return BadRequest(new { message });
@@ -194,19 +209,20 @@ namespace Controllers
         }
 
         [HttpDelete("comments/{commentId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> DeleteComment(
             int commentId,
-            [FromQuery] int userId,
-            [FromQuery] bool isAdmin = false)
+            [FromQuery] int userId)
         {
-            if (userId <= 0)
+            var callerId = _currentUser.ResolveUserId(userId);
+            if (callerId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
-            var (success, message) =
-                await _postService.DeleteComment(commentId, userId, isAdmin);
+            var (status, message) =
+                await _postService.DeleteComment(commentId, callerId.Value, _currentUser.IsAdmin);
 
-            if (!success)
-                return BadRequest(new { message });
+            if (status != PostActionStatus.Ok)
+                return Refused(status, message);
 
             return Ok(new { message });
         }
@@ -259,11 +275,13 @@ namespace Controllers
         }
 
         [HttpPost("{id}/apply")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> ApplyToPost(
             int id,
             [FromBody] ApplyToPostDto model)
         {
-            if (model.ProgrammerId <= 0)
+            var programmerId = _currentUser.ResolveUserId(model.ProgrammerId);
+            if (programmerId is null or <= 0)
                 return BadRequest(new { message = "ProgrammerId is required" });
 
             if (string.IsNullOrWhiteSpace(model.Proposal))
@@ -272,7 +290,7 @@ namespace Controllers
             var (success, message, applicationId) =
                 await _postService.ApplyToPost(
                     id,
-                    model.ProgrammerId,
+                    programmerId.Value,
                     model.Proposal,
                     model.Price,
                     model.Duration);
@@ -283,32 +301,42 @@ namespace Controllers
             return Ok(new { message, applicationId });
         }
 
+        // Post owner only: applicants' emails are visible only to the post owner until M2.12 (D-6, KI-53).
         [HttpGet("{id}/applications")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetApplications(
             int id,
             [FromQuery] int requesterId)
         {
-            if (requesterId <= 0)
+            var callerId = _currentUser.ResolveUserId(requesterId);
+            if (callerId is null or <= 0)
                 return BadRequest(new { message = "requesterId is required" });
 
-            var applications = await _postService.GetPostApplications(id, requesterId);
+            var ownerId = await _postService.GetPostOwnerId(id);
+            if (ownerId != null && ownerId != callerId)
+                return AuthProblem.Forbidden(HttpContext, "You can only manage your own posts");
+
+            var applications = await _postService.GetPostApplications(id, callerId.Value);
             return Ok(new { applications });
         }
 
+        // The post owner, who must be a customer (D-11, design 8 #51).
         [HttpPost("{id}/applications/{applicationId}/accept")]
+        [Authorize(Policy = AuthPolicies.CustomerOrDevFallback)]
         public async Task<IActionResult> AcceptApplication(
             int id,
             int applicationId,
             [FromQuery] int requesterId)
         {
-            if (requesterId <= 0)
+            var callerId = _currentUser.ResolveUserId(requesterId);
+            if (callerId is null or <= 0)
                 return BadRequest(new { message = "requesterId is required" });
 
-            var (success, message) = await _postService.AcceptApplication(
-                id, applicationId, requesterId);
+            var (status, message) = await _postService.AcceptApplication(
+                id, applicationId, callerId.Value);
 
-            if (!success)
-                return BadRequest(new { message });
+            if (status != PostActionStatus.Ok)
+                return Refused(status, message);
 
             return Ok(new { message });
         }

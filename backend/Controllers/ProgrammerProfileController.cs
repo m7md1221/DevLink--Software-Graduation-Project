@@ -11,10 +11,12 @@ namespace Controllers
     public class ProgrammerProfileController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ICurrentUser _currentUser;
 
-        public ProgrammerProfileController(AppDbContext context)
+        public ProgrammerProfileController(AppDbContext context, ICurrentUser currentUser)
         {
             _context = context;
+            _currentUser = currentUser;
         }
 
         [HttpGet("{userId}")]
@@ -77,9 +79,12 @@ namespace Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> CreateProfile(
             [FromForm] CreateProgrammerProfileDto model)
         {
+            var userId = _currentUser.ResolveUserId(model.UserId) ?? 0;
+
             if (string.IsNullOrWhiteSpace(model.Nickname) ||
                 string.IsNullOrWhiteSpace(model.PhoneNumber) ||
                 string.IsNullOrWhiteSpace(model.Country) ||
@@ -94,7 +99,7 @@ namespace Controllers
             }
 
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == model.UserId);
+                .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
             {
@@ -113,7 +118,7 @@ namespace Controllers
             }
 
             var exists = await _context.ProgrammerProfiles
-                .AnyAsync(p => p.UserId == model.UserId);
+                .AnyAsync(p => p.UserId == userId);
 
             if (exists)
             {
@@ -220,7 +225,7 @@ namespace Controllers
 
             var profile = new ProgrammerProfile
             {
-                UserId = model.UserId,
+                UserId = userId,
                 Nickname = model.Nickname.Trim(),
                 PhoneNumber = model.PhoneNumber.Trim(),
                 Country = model.Country.Trim(),
@@ -253,10 +258,14 @@ namespace Controllers
         }
 
         [HttpPut("{userId}")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UpdateProfile(
             int userId,
             [FromForm] UpdateProgrammerProfileDto model)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -473,10 +482,14 @@ namespace Controllers
         // ============================================================
 
         [HttpPost("{userId}/cv")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UploadCV(
             int userId,
             IFormFile cv)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             if (cv == null || cv.Length == 0)
             {
                 return BadRequest(new
@@ -531,8 +544,12 @@ namespace Controllers
         }
 
         [HttpDelete("{userId}/cv")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> DeleteCV(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -570,10 +587,14 @@ namespace Controllers
         // ============================================================
 
         [HttpPost("{userId}/certificate")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UploadCertificate(
             int userId,
             IFormFile certificate)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             if (certificate == null || certificate.Length == 0)
             {
                 return BadRequest(new
@@ -636,8 +657,12 @@ namespace Controllers
         }
 
         [HttpDelete("{userId}/certificate")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> DeleteCertificate(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 

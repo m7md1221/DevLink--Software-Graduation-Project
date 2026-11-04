@@ -812,13 +812,13 @@ The current messages "This email is already registered" / "This email is not reg
 | 41 | POST `{id}/like` | Auth | any | from token | W | Social action (approved posts only) |
 | 42 | GET `{id}/comments` | Auth | any | — (approved posts; A/owner for others) | R (names) | Members only |
 | 43 | POST `{id}/comments` | Auth | any | from token | W | Social action (approved posts only) |
-| 44 | DELETE `comments/{commentId}` | Auth | any | Owner, or A | W | G3 fixed |
+| 44 | DELETE `comments/{commentId}` | Auth | any | Comment author, post owner, or A *(owner rule 2026-11-04, M2.7b)* | W | G3 fixed |
 | 45 | GET `image/{imageId}` | **Signed** | members (approved posts); A and post owner (others, 10-minute URL) | — | — (post content) | Q15 consistency; §5.2 |
 | 46 | GET `user/{userId}/avatar` | **Signed** | any member shown the record | — | R (photo) | Q15; §5.2 |
 | 47 | GET `search` | Auth | any | — | R; email returned and searchable **only for A** (Q3) | Discovery without exposing emails |
 | 48 | GET `profile/{userId}` | Auth | any | email + phone only for Self or A (Q3) | R | Member profile |
-| 49 | POST `{id}/apply` | Auth | P | `ProgrammerId` → from token | W | Applying |
-| 50 | GET `{id}/applications` | Auth | C (post owner), A | Post owner or A | R; applicant email shown to the owner **only** if the application is accepted **and** the programmer consented (Q16); A sees it | Owner reviews applicants |
+| 49 | POST `{id}/apply` | Auth | P | `ProgrammerId` → from token | W | Applying; approved customer-owned posts only (D-11) |
+| 50 | GET `{id}/applications` | Auth | C (post owner), A | Post owner or A | R; applicant email shown to the owner **only** if the application is accepted **and** the programmer consented (Q16); A sees it. *D-10: until M2.12 Admin gets 403 on this route* | Owner reviews applicants |
 | 51 | POST `{id}/applications/{applicationId}/accept` | Auth | C | Post owner | W | Owner decision |
 | 52 | GET `{id}/applications/count` | Auth | any | — | — | Counter |
 | 53 | GET `{id}/has-applied` | Auth | any | answers for the caller | — | `userId` → from token |

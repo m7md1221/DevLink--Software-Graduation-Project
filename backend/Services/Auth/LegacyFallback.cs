@@ -53,7 +53,14 @@ namespace Services.Auth
                 return false;
             }
 
-            _logger.LogWarning("Auth.DevFallbackUsed {Case} {Route}", fallbackCase, route);
+            // The policy and ICurrentUser both ask: one log line per request and case.
+            var logged = $"DevLink.DevFallbackLogged.{fallbackCase}";
+            if (!context.Items.ContainsKey(logged))
+            {
+                context.Items[logged] = true;
+                _logger.LogWarning("Auth.DevFallbackUsed {Case} {Route}", fallbackCase, route);
+            }
+
             return true;
         }
     }

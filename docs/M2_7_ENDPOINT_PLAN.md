@@ -1,6 +1,6 @@
 # M2.7 Endpoint Authorization Plan
 
-**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a implemented (uncommitted); 7b–7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
+**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a committed (`0981629`); M2.7b implemented (uncommitted); 7c–7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
 **Target rules** come from the approved design ([M2_AUTH_DESIGN.md §8](M2_AUTH_DESIGN.md), rows #1–#67). Where this plan needs a choice the design does not settle, it is listed in [§4 Decisions needed](#4-decisions-needed).
 
 **Legend**
@@ -89,8 +89,8 @@
 | 52 | GET | `user/{userId}/avatar` | Anon | Signed | signature | 8 screens (URL) | MEDIUM | M2.8 |
 | 53 | GET | `search` | **Anon — returns emails**, searchable by email | Auth; email only for Admin (Q3), `null` for others (D-5) | role | `customer_home_page`, `search_users_page`, `user_profile_page` | HIGH (email harvesting) | **7c** (shape: D-5) |
 | 54 | GET | `profile/{userId}` | **Anon — email + phone** | Auth; email/phone only Self or Admin (Q3), `null` for others (D-5) | `{userId}` = `sub` or Admin | `user_profile_page` | HIGH | **7c** (shape: D-5) |
-| 55 | POST | `{id}/apply` | Anon, trusts body `ProgrammerId` | Role Programmer | from token | `apply_to_post_page` | MEDIUM-HIGH (apply as someone) | **7b** |
-| 56 | GET | `{id}/applications` | Anon, trusts `requesterId` — applicants' emails | Post owner (C) or Admin; applicant email visible **only to the post owner** until M2.12 (D-6, KI-53) | post `UserId` = `sub` | `post_applications_page` | HIGH | **7b** (owner); projection **7c** (D-6) |
+| 55 | POST | `{id}/apply` | Anon, trusts body `ProgrammerId` | Role Programmer; approved customer-owned posts only (D-11) | from token | `apply_to_post_page` | MEDIUM-HIGH (apply as someone) | **7b** |
+| 56 | GET | `{id}/applications` | Anon, trusts `requesterId` — applicants' emails | Post owner; Admin 403 until M2.12 (D-6, D-10, KI-53) | post `UserId` = `sub` | `post_applications_page` | HIGH | **7b** (owner); projection **7c** (D-6) |
 | 57 | POST | `{id}/applications/{applicationId}/accept` | **Anon, trusts `requesterId`** | Role C, post owner | post `UserId` = `sub` | `post_applications_page` | **HIGH** (accept for someone else) | **7b** |
 | 58 | GET | `{id}/applications/count` | Anon | Auth | — | — (unused) | LOW | **7d** |
 | 59 | GET | `{id}/has-applied` | Anon, trusts `userId` | Auth; answers for the caller | from token | `post_card` | LOW | **7d** |
@@ -113,7 +113,7 @@
 | 72 | GET | `my/{userId}/unread-count` | Anon | Role C/P (S), Self | `{userId}` = `sub` | `contact_support_page` | LOW | **7c** |
 | 73 | POST | `{id}/mark-reply-read` | Anon | Role C/P (S), Owner | message `UserId` = `sub` | `customer_support_messages_page` | LOW | **7b** |
 
-**Critical until their sub-phase ships:** #46 and #50 (`isAdmin=true` deletes anything) → M2.7b. **Closed by M2.7a:** #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
+**Closed:** by M2.7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); by M2.7b (uncommitted) #46 and #50 (`isAdmin=true` deletes anything). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
 
 **Counts:** 8 public (#1–#8) + 4 already token-protected (#9–#12) + 2 admin routes done in M2.5b (#18, #19) + 4 signed-image routes and 2 document routes (#33, #34) in M2.8 + **53 routes to change in M2.7** (7a: 18, 7b: 19, 7c: 9, 7d: 7).
 
@@ -178,7 +178,9 @@ Shared rules for every sub-phase:
 | D-3 | `ProgrammerProfile/{userId}/verify` and `/unverify` become Admin-only and stay (removal is a partner decision later: design §13 P-12). |
 | D-4 | `ProgrammerProfile/all` is Admin-only. |
 | D-5 | Email/phone hidden from other members as `null`. `search_users_page` and `user_profile_page` are checked at runtime in M2.7c; if either breaks, an empty string is used instead and reported. |
-| D-6 | The applicant's email stays visible **only to the post owner** (and Admin) until M2.12 — known issue KI-53. |
+| D-6 | The applicant's email stays visible **only to the post owner** until M2.12 — known issue KI-53. |
 | D-7 | Support form: Admin → 403; Customers and Programmers allowed. |
 | D-8 | Feed and user posts are members-only; no public feed. |
 | D-9 | Deletion of users with other records (KI-10) is out of M2.7. |
+| D-10 | `GET Posts/{id}/applications`: admins get 403 until M2.12. |
+| D-11 | Only customers publish projects that accept applications. Apply: approved posts whose owner is a Customer (a programmer-owned post is refused with 400). Accept: the post owner, who must be a Customer (design 8 #51 as written). |

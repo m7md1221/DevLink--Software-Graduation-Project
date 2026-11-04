@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
+using Services.Auth;
 
 namespace Controllers
 {
@@ -9,10 +11,12 @@ namespace Controllers
     public class CustomerProfileController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ICurrentUser _currentUser;
 
-        public CustomerProfileController(AppDbContext context)
+        public CustomerProfileController(AppDbContext context, ICurrentUser currentUser)
         {
             _context = context;
+            _currentUser = currentUser;
         }
 
         [HttpGet("{userId}")]
@@ -43,9 +47,12 @@ namespace Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = AuthPolicies.CustomerOrDevFallback)]
         public async Task<IActionResult> CreateProfile(
             [FromForm] CreateProfileDto model)
         {
+            var userId = _currentUser.ResolveUserId(model.UserId) ?? 0;
+
             if (string.IsNullOrWhiteSpace(model.Nickname) ||
                 string.IsNullOrWhiteSpace(model.Country) ||
                 string.IsNullOrWhiteSpace(model.City) ||
@@ -58,7 +65,7 @@ namespace Controllers
             }
 
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == model.UserId);
+                .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
             {
@@ -77,7 +84,7 @@ namespace Controllers
             }
 
             var exists = await _context.CustomerProfiles
-                .AnyAsync(p => p.UserId == model.UserId);
+                .AnyAsync(p => p.UserId == userId);
 
             if (exists)
             {
@@ -142,7 +149,7 @@ namespace Controllers
 
             var profile = new CustomerProfile
             {
-                UserId = model.UserId,
+                UserId = userId,
                 Nickname = model.Nickname.Trim(),
                 Country = model.Country.Trim(),
                 City = model.City.Trim(),
@@ -163,10 +170,14 @@ namespace Controllers
         }
 
         [HttpPut("{userId}")]
+        [Authorize(Policy = AuthPolicies.CustomerOrDevFallback)]
         public async Task<IActionResult> UpdateProfile(
             int userId,
             [FromForm] UpdateProfileDto model)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.CustomerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 

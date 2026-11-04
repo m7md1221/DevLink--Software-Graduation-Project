@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using DataBase;
 using Microsoft.AspNetCore.Mvc;
 using Services.Auth;
+using Services.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace Controllers
@@ -10,18 +11,48 @@ namespace Controllers
     [ApiController]
     public class SupportController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private const int MaxMessagesPerHour = 5;
+        private const int MaxMessagesPerDay = 20;
 
-        public SupportController(AppDbContext context)
+        private readonly AppDbContext _context;
+        private readonly ICurrentUser _currentUser;
+        private readonly SecurityEventFactory _events;
+
+        public SupportController(AppDbContext context, ICurrentUser currentUser, SecurityEventFactory events)
         {
             _context = context;
+            _currentUser = currentUser;
+            _events = events;
         }
 
+        // Customers and programmers (D-7). With a token, the sender comes from the account; client values are ignored (Q4).
         [HttpPost]
         [AllowSuspended]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
         public async Task<IActionResult> SendMessage(
             [FromBody] SupportMessageDto model)
         {
+            if (_currentUser.IsAuthenticated)
+            {
+                var account = await _context.Users.FindAsync(_currentUser.UserId);
+                if (account == null)
+                {
+                    return Unauthorized();
+                }
+
+                var nickname =
+                    await _context.CustomerProfiles.Where(p => p.UserId == account.Id).Select(p => p.Nickname).FirstOrDefaultAsync() ??
+                    await _context.ProgrammerProfiles.Where(p => p.UserId == account.Id).Select(p => p.Nickname).FirstOrDefaultAsync();
+
+                model.UserId = account.Id;
+                model.Name = nickname ?? account.Email.Split('@')[0];
+                model.Email = account.Email;
+            }
+            else
+            {
+                model.UserId = _currentUser.ResolveUserId(model.UserId);
+            }
+
             if (string.IsNullOrWhiteSpace(model.Name) ||
                 string.IsNullOrWhiteSpace(model.Email) ||
                 string.IsNullOrWhiteSpace(model.Subject) ||
@@ -30,6 +61,14 @@ namespace Controllers
                 return BadRequest(new
                 {
                     message = "All fields are required"
+                });
+            }
+
+            if (model.Subject.Length > 200)
+            {
+                return BadRequest(new
+                {
+                    message = "Subject is too long (max 200 chars)"
                 });
             }
 
@@ -52,11 +91,23 @@ namespace Controllers
                 }
             }
 
+            // 5 per hour, 20 per day per account (design 8 #59).
+            if (model.UserId.HasValue && await LimitReachedAsync(model.UserId.Value))
+            {
+                _context.SecurityEvents.Add(_events.Create(HttpContext, SecurityEventTypes.RateLimited, SecurityEventOutcome.Blocked,
+                    DateTime.UtcNow, model.UserId, reason: "api/Support"));
+                await _context.SaveChangesAsync();
+
+                Response.Headers.RetryAfter = "3600";
+                return AuthProblem.Result(HttpContext, StatusCodes.Status429TooManyRequests, AuthErrorCodes.RateLimited,
+                    "You have sent too many messages. Please try again later.");
+            }
+
             var msg = new SupportMessage
             {
                 UserId = model.UserId,
-                Name = model.Name.Trim(),
-                Email = model.Email.Trim().ToLower(),
+                Name = model.Name!.Trim(),
+                Email = model.Email!.Trim().ToLower(),
                 Subject = model.Subject.Trim(),
                 Message = model.Message.Trim(),
                 Status = "New",
@@ -71,6 +122,17 @@ namespace Controllers
                 message = "Your message has been sent. We'll get back to you soon.",
                 ticketId = msg.Id
             });
+        }
+
+        private async Task<bool> LimitReachedAsync(int userId)
+        {
+            var now = DateTime.UtcNow;
+            var hourAgo = now.AddHours(-1);
+            var dayAgo = now.AddDays(-1);
+            var recent = _context.SupportMessages.Where(m => m.UserId == userId);
+
+            return await recent.CountAsync(m => m.CreatedAt > hourAgo) >= MaxMessagesPerHour ||
+                   await recent.CountAsync(m => m.CreatedAt > dayAgo) >= MaxMessagesPerDay;
         }
 
         [HttpGet("all")]
@@ -293,6 +355,7 @@ namespace Controllers
 
         [HttpPost("{id}/mark-reply-read")]
         [AllowSuspended]
+        [Authorize(Policy = AuthPolicies.NonAdminResourceOrDevFallback)]
         public async Task<IActionResult> MarkReplyRead(int id)
         {
             var msg = await _context.SupportMessages
@@ -300,6 +363,10 @@ namespace Controllers
 
             if (msg == null)
                 return NotFound(new { message = "Message not found" });
+
+            // Only the sender. A tokenless request gets here only through the development fallback.
+            if (_currentUser.IsAuthenticated && msg.UserId != _currentUser.UserId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own messages");
 
             msg.CustomerReadReplyAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -311,8 +378,8 @@ namespace Controllers
     public class SupportMessageDto
     {
         public int? UserId { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
+        public string? Name { get; set; }
+        public string? Email { get; set; }
         public string Subject { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
     }
