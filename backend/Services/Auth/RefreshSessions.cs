@@ -66,10 +66,22 @@ namespace Services.Auth
         public static readonly TimeSpan CustomerIdleLifetime = TimeSpan.FromDays(7);
         public static readonly TimeSpan AdminIdleLifetime = TimeSpan.FromHours(8);
 
+        // Reuse alert limits (§6.5, Q12; owner rule 2026-11-04: at most one per session family per hour).
+        public static readonly TimeSpan AlertWindowPerSession = TimeSpan.FromHours(1);
+        public static readonly TimeSpan AlertWindowPerUser = TimeSpan.FromHours(24);
+        public const int MaxAlertsPerUser = 3;
+
+        public const string ReuseAlertSubject = "Security notice for your DevLink account";
+        public const string ReuseAlertBody =
+            "We signed you out of one DevLink session because of unusual activity with your sign-in. " +
+            "If you recently signed in on another device or had a connection problem, you can ignore this message. " +
+            "Otherwise, sign in and change your password.\n\nDevLink Team";
+
         private readonly AppDbContext _db;
         private readonly TokenService _tokens;
         private readonly SessionStateCache _sessionCache;
         private readonly SecurityEventFactory _events;
+        private readonly EmailQueue _emails;
         private readonly TimeProvider _time;
         private readonly ILogger _logger;
 
@@ -78,6 +90,7 @@ namespace Services.Auth
             TokenService tokens,
             SessionStateCache sessionCache,
             SecurityEventFactory events,
+            EmailQueue emails,
             TimeProvider time,
             ILoggerFactory loggers)
         {
@@ -85,6 +98,7 @@ namespace Services.Auth
             _tokens = tokens;
             _sessionCache = sessionCache;
             _events = events;
+            _emails = emails;
             _time = time;
             _logger = loggers.CreateLogger("DevLink.Security");
         }
@@ -200,7 +214,38 @@ namespace Services.Auth
             _sessionCache.Invalidate(session.UserId);
             _logger.LogWarning("Auth.RefreshTokenReuse user {UserId} session {SessionId} rotatedAgoSeconds {RotatedAgo}",
                 session.UserId, session.Id, rotatedAgo);
+
+            await QueueReuseAlertAsync(session, http, clientType, now, cancellationToken);
             return new RefreshResult(RefreshOutcome.ReuseDetected);
+        }
+
+        // Generic security notice to the account owner (§6.5). Runs after the revocation committed and never affects it.
+        // The email holds no token, IP, device, time detail or session id. Limits are counted from SecurityEvents.
+        private async Task QueueReuseAlertAsync(AuthSession session, HttpContext http, string clientType, DateTime now, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var sinceSession = now - AlertWindowPerSession;
+                var sinceUser = now - AlertWindowPerUser;
+                var alerts = _db.SecurityEvents.Where(e => e.EventType == SecurityEventTypes.ReuseAlertQueued && e.Outcome == SecurityEventOutcome.Success);
+                var limited = await alerts.AnyAsync(e => e.SessionId == session.Id && e.OccurredAt > sinceSession, cancellationToken) ||
+                              await alerts.CountAsync(e => e.UserId == session.UserId && e.OccurredAt > sinceUser, cancellationToken) >= MaxAlertsPerUser;
+
+                var email = await _db.Users.Where(u => u.Id == session.UserId).Select(u => u.Email).SingleOrDefaultAsync(cancellationToken);
+                var outcome = limited || email == null
+                    ? SecurityEventOutcome.Blocked
+                    : _emails.Enqueue(email, ReuseAlertSubject, ReuseAlertBody) ? SecurityEventOutcome.Success : SecurityEventOutcome.Failure;
+
+                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.ReuseAlertQueued, outcome, now, session.UserId, session.Id,
+                    reason: limited ? "AlertLimit" : email == null ? "NoAccount" : outcome == SecurityEventOutcome.Failure ? "QueueFull" : null,
+                    clientType: clientType));
+                await _db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Auth.ReuseAlert user {UserId} outcome {Outcome}", session.UserId, outcome);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError("Auth.ReuseAlertFailed {FailureType}", ex.GetType().Name);
+            }
         }
 
         // Ends the given sessions and revokes their active tokens (rotated rows keep their status for forensics).

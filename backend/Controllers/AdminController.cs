@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
 using Services;
+using Services.Auth;
+using Services.Security;
 
 namespace Controllers
 {
@@ -72,12 +75,46 @@ namespace Controllers
         public async Task<IActionResult> DeleteUser(int id)
         {
             if (await IsAdminAsync(id))
+            {
+                await _adminService.AuditBlockedDeleteAsync(id, HttpContext, CallerUserId());
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
+            }
 
-            var (success, message) = await _adminService.DeleteUser(id);
+            var (success, message) = await _adminService.DeleteUser(id, HttpContext, CallerUserId());
             if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
+
+        // ============================================================
+        // SUSPENSION (M2.5b) — new routes, Admin token required from day one
+        // ============================================================
+        [HttpPost("users/{id}/suspend")]
+        [Authorize(Policy = AuthPolicies.AdminOnly)]
+        public async Task<IActionResult> SuspendUser(int id, [FromBody] SuspendUserDto model)
+        {
+            var (status, message) = await _adminService.SuspendUser(id, model.Reason, HttpContext, CallerUserId()!.Value);
+            return AdminResult(status, message);
+        }
+
+        [HttpPost("users/{id}/unsuspend")]
+        [Authorize(Policy = AuthPolicies.AdminOnly)]
+        public async Task<IActionResult> UnsuspendUser(int id)
+        {
+            var (status, message) = await _adminService.UnsuspendUser(id, HttpContext, CallerUserId()!.Value);
+            return AdminResult(status, message);
+        }
+
+        // The token subject when a valid access token was sent (always, on AdminOnly routes).
+        private int? CallerUserId() =>
+            User.Identity?.IsAuthenticated == true && int.TryParse(User.Identity.Name, out var id) ? id : null;
+
+        private IActionResult AdminResult(AdminActionStatus status, string message) => status switch
+        {
+            AdminActionStatus.Ok => Ok(new { message }),
+            AdminActionStatus.NotFound => NotFound(new { message }),
+            AdminActionStatus.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { message }),
+            _ => BadRequest(new { message })
+        };
 
         // ============================================================
         // PROGRAMMER VERIFICATION
@@ -148,5 +185,10 @@ namespace Controllers
         public string? Email { get; set; }
         public string? Password { get; set; }
         public string? UserType { get; set; }
+    }
+
+    public class SuspendUserDto
+    {
+        public string? Reason { get; set; }
     }
 }

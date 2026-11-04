@@ -330,8 +330,8 @@ COMMIT → new access token (current SecurityStamp, sid = ses.Id) + Set-Cookie (
 | Logout everywhere (`logout-all`) | rotated | all (`LogoutAll`) | signed out | signed out on their next request |
 | Password change (current password required) | rotated | all **except current** (`PasswordChanged`); the current session gets a new token | stays signed in | signed out on their next request |
 | Password reset (code + proof token) | rotated | all (`PasswordReset`) | signs in with the new password | signed out |
-| Suspension (admin) | – | none (restricted mode, §7.4) | next request → restricted | restricted |
-| Unsuspension | – | none | full access on the next request | full access |
+| Suspension (admin) | rotated | all (`Suspended`) | signed out; a new sign-in is restricted (§7.4) | signed out *(owner change 2026-11-04, M2.5b: was "none, restricted on the next request")* |
+| Unsuspension | – | none | sessions opened while suspended get full access on their next request (cache cleared) | same |
 | Admin "sign out everywhere" (`revoke-sessions`) | rotated | all (`AdminRevoked`) | signed out | signed out |
 | Role change / admin password or email change | rotated | all (`RoleChanged`/`AdminChanged`) | signs in again → new role | signed out |
 | Refresh-token reuse | – | that session (`ReuseDetected`) | that device signed out | unaffected |
@@ -673,7 +673,7 @@ The current messages "This email is already registered" / "This email is not reg
 
 ### 6.5 Refresh-token reuse alert (Q12)
 - After a reuse revocation commits, an alert is queued on the background email queue. It never delays or affects the revocation.
-- **Rate limit:** at most one alert per session, and at most 3 per user per 24 h (counted from `SecurityEvents`). Extra detections are still audited, just not emailed.
+- **Rate limit:** at most one alert per session family per hour (owner rule 2026-11-04), and at most 3 per user per 24 h (counted from `SecurityEvents`, event `Auth.ReuseAlertQueued`). Extra detections are still audited, just not emailed.
 - **Content (generic, no sensitive details):**
   > Subject: Security notice for your DevLink account
   > We signed you out of one DevLink session because of unusual activity with your sign-in. If you recently signed in on another device or had a connection problem, you can ignore this message. Otherwise, sign in and change your password.

@@ -38,7 +38,9 @@ namespace Services.Auth
             services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
                 .Configure<JwtKeyRing, IOptions<JwtOptions>>(Configure);
 
-            services.AddAuthorization();
+            // Named policies (§7.1). Only new endpoints use them before M2.7; existing endpoints stay anonymous until then.
+            services.AddAuthorization(options =>
+                options.AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Admin")));
 
             return services;
         }
@@ -148,6 +150,11 @@ namespace Services.Auth
 
         private static ILogger SecurityLog(HttpContext context) =>
             context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DevLink.Security");
+    }
+
+    public static class AuthPolicies
+    {
+        public const string AdminOnly = "AdminOnly";
     }
 
     public static class AuthErrorCodes

@@ -1,16 +1,29 @@
+using System.Text.Json;
 using DataBase;
 using Microsoft.EntityFrameworkCore;
 using Services.Auth;
+using Services.Security;
 
 namespace Services
 {
+    public enum AdminActionStatus
+    {
+        Ok,
+        BadRequest,
+        NotFound,
+        Forbidden
+    }
+
     public class AdminService
     {
+        public const int MaxSuspendedReasonLength = 500;
+
         private readonly AppDbContext _context;
         private readonly IEmailSender _emailService;
         private readonly PasswordService _passwordService;
         private readonly RefreshSessionService _sessions;
         private readonly SessionStateCache _sessionCache;
+        private readonly SecurityEventFactory _events;
         private readonly TimeProvider _time;
 
         public AdminService(
@@ -19,6 +32,7 @@ namespace Services
             PasswordService passwordService,
             RefreshSessionService sessions,
             SessionStateCache sessionCache,
+            SecurityEventFactory events,
             TimeProvider time)
         {
             _context = context;
@@ -26,6 +40,7 @@ namespace Services
             _passwordService = passwordService;
             _sessions = sessions;
             _sessionCache = sessionCache;
+            _events = events;
             _time = time;
         }
 
@@ -230,13 +245,15 @@ namespace Services
             return (true, "User updated successfully");
         }
 
-        public async Task<(bool success, string message)> DeleteUser(int id)
+        // actorUserId: the caller's token subject, or null — this route stays anonymous until M2.7.
+        public async Task<(bool success, string message)> DeleteUser(int id, HttpContext http, int? actorUserId)
         {
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null)
             {
+                await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Failure, actorUserId, id, "NotFound");
                 return (false, "User not found");
             }
 
@@ -247,14 +264,159 @@ namespace Services
 
                 if (adminCount <= 1)
                 {
+                    await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Blocked, actorUserId, id, "LastAdmin");
                     return (false, "Cannot delete the last admin");
                 }
             }
 
-            _context.Users.Remove(user);
+            var now = _time.GetUtcNow().UtcDateTime;
+            await using (var transaction = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    // KI-39: AuthSessions/RefreshTokens reference Users with NO ACTION, so they are revoked and
+                    // removed first, in the same transaction as the delete. SecurityEvents have no FK and stay.
+                    var ended = await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == id), AuthSessionStatus.Revoked,
+                        "UserDeleted", now, CancellationToken.None);
+                    var sessionIds = _context.AuthSessions.Where(s => s.UserId == id).Select(s => s.Id);
+                    await _context.RefreshTokens.Where(t => sessionIds.Contains(t.SessionId)).ExecuteDeleteAsync();
+                    await _context.AuthSessions.Where(s => s.UserId == id).ExecuteDeleteAsync();
+
+                    _context.Users.Remove(user);
+                    await _context.SaveChangesAsync();
+
+                    _context.SecurityEvents.Add(AdminEvent(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Success, actorUserId, id,
+                        "Deleted", new { sessionsEnded = ended }));
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    // The delete is refused by other references (KI-10): nothing was removed. Audit, then keep the existing behaviour.
+                    await transaction.RollbackAsync();
+                    _context.ChangeTracker.Clear();
+                    await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Failure, actorUserId, id, "DeleteFailed");
+                    throw;
+                }
+            }
+
+            _sessionCache.Invalidate(id);
+            return (true, "User deleted successfully");
+        }
+
+        // ============================================================
+        // SUSPENSION (M2.5b; §7.4). Owner rule 2026-11-04: suspending also rotates the
+        // stamp and revokes every session, so existing tokens get 401 at once; the user
+        // can sign in again, but only into restricted mode. Admins can't be suspended.
+        // ============================================================
+
+        public async Task<(AdminActionStatus status, string message)> SuspendUser(int id, string? reason, HttpContext http, int actorUserId)
+        {
+            const string type = SecurityEventTypes.AdminUserSuspended;
+            if (id == actorUserId)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Blocked, actorUserId, id, "Self");
+                return (AdminActionStatus.Forbidden, "You cannot suspend your own account");
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+            if (user == null)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Failure, actorUserId, id, "NotFound");
+                return (AdminActionStatus.NotFound, "User not found");
+            }
+
+            if (user.UserType == "Admin")
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Blocked, actorUserId, id, "AdminTarget");
+                return (AdminActionStatus.Forbidden, "Admin accounts cannot be suspended");
+            }
+
+            reason = reason?.Trim();
+            if (string.IsNullOrEmpty(reason) || reason.Length > MaxSuspendedReasonLength)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Failure, actorUserId, id, "InvalidReason");
+                return (AdminActionStatus.BadRequest, $"A reason of 1 to {MaxSuspendedReasonLength} characters is required");
+            }
+
+            if (user.Status == UserStatus.Suspended)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Success, actorUserId, id, "AlreadySuspended");
+                return (AdminActionStatus.Ok, "User is already suspended");
+            }
+
+            var now = _time.GetUtcNow().UtcDateTime;
+            user.Status = UserStatus.Suspended;
+            user.SuspendedReason = reason;
+            user.SuspendedAt = now;
+            user.SecurityStamp = User.NewSecurityStamp();
+
+            await using (var transaction = await _context.Database.BeginTransactionAsync())
+            {
+                await _context.SaveChangesAsync();
+                var ended = await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == id), AuthSessionStatus.Revoked,
+                    "Suspended", now, CancellationToken.None);
+                // The reason text is written by the admin and may hold personal data: it stays on the user row only.
+                _context.SecurityEvents.Add(AdminEvent(http, type, SecurityEventOutcome.Success, actorUserId, id, "Suspended", new { sessionsEnded = ended }));
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+
+            _sessionCache.Invalidate(id);
+            return (AdminActionStatus.Ok, "User suspended successfully");
+        }
+
+        public async Task<(AdminActionStatus status, string message)> UnsuspendUser(int id, HttpContext http, int actorUserId)
+        {
+            const string type = SecurityEventTypes.AdminUserUnsuspended;
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+            if (user == null)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Failure, actorUserId, id, "NotFound");
+                return (AdminActionStatus.NotFound, "User not found");
+            }
+
+            if (user.UserType == "Admin")
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Blocked, actorUserId, id, "AdminTarget");
+                return (AdminActionStatus.Forbidden, "Admin accounts cannot be suspended or unsuspended");
+            }
+
+            if (user.Status != UserStatus.Suspended)
+            {
+                await AuditAsync(http, type, SecurityEventOutcome.Success, actorUserId, id, "NotSuspended");
+                return (AdminActionStatus.Ok, "User is not suspended");
+            }
+
+            user.Status = UserStatus.Active;
+            user.SuspendedReason = null;
+            user.SuspendedAt = null;
+            _context.SecurityEvents.Add(AdminEvent(http, type, SecurityEventOutcome.Success, actorUserId, id, "Unsuspended", null));
             await _context.SaveChangesAsync();
 
-            return (true, "User deleted successfully");
+            // Sessions opened while suspended get full access on their next request.
+            _sessionCache.Invalidate(id);
+            return (AdminActionStatus.Ok, "User unsuspended successfully");
+        }
+
+        // The controller refuses to delete admin accounts (Q10) before reaching DeleteUser.
+        public Task AuditBlockedDeleteAsync(int id, HttpContext http, int? actorUserId) =>
+            AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Blocked, actorUserId, id, "AdminTarget");
+
+        private SecurityEvent AdminEvent(HttpContext http, string type, string outcome, int? actorUserId, int targetUserId, string result, object? extra)
+        {
+            var evt = _events.Create(http, type, outcome, _time.GetUtcNow().UtcDateTime, targetUserId);
+            evt.ActorUserId = actorUserId;
+            evt.TargetType = "User";
+            evt.TargetId = targetUserId.ToString();
+            evt.Details = JsonSerializer.Serialize(extra == null ? new { result } : (object)new { result, details = extra });
+            return evt;
+        }
+
+        private async Task AuditAsync(HttpContext http, string type, string outcome, int? actorUserId, int targetUserId, string result)
+        {
+            _context.SecurityEvents.Add(AdminEvent(http, type, outcome, actorUserId, targetUserId, result, null));
+            await _context.SaveChangesAsync();
         }
 
         // ============================================================
