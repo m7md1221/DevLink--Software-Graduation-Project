@@ -22,6 +22,10 @@ namespace Services.Auth
         // Same, for routes that only name a resource (no client id to act as): case TokenlessRequest.
         public const string MemberResourceOrDevFallback = "MemberResourceOrDevFallback";
         public const string NonAdminResourceOrDevFallback = "NonAdminResourceOrDevFallback";
+
+        // CV and certificate downloads: the app opens them as plain URLs, so a tokenless request can only
+        // pass on the development fallback (design 7.3 case 3). Who may read them is checked in the action.
+        public const string MemberFileOrDevFallback = "MemberFileOrDevFallback";
     }
 
     // ============================================================
@@ -84,9 +88,12 @@ namespace Services.Auth
             services.AddScoped<ICurrentUser, CurrentUser>();
             services.AddSingleton<IAuthorizationHandler, RoleOrDevFallbackHandler>();
 
-            // Only routes that carry these attributes are protected before M2.7d adds the fail-closed default.
             services.AddAuthorization(options =>
             {
+                // Deny by default (M2.7d): an action without an attribute needs a signed-in user and never
+                // takes the development fallback. A reflection test keeps every action explicit.
+                options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+
                 options.AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Admin"));
                 options.AddPolicy(AuthPolicies.AdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Admin")));
                 options.AddPolicy(AuthPolicies.MemberOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient)));
@@ -95,6 +102,7 @@ namespace Services.Auth
                 options.AddPolicy(AuthPolicies.ProgrammerOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient, "Programmer")));
                 options.AddPolicy(AuthPolicies.MemberResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest)));
                 options.AddPolicy(AuthPolicies.NonAdminResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Customer", "Programmer")));
+                options.AddPolicy(AuthPolicies.MemberFileOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.FileWithoutToken)));
             });
 
             return services;

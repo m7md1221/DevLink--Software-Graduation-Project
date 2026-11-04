@@ -1,121 +1,121 @@
 # M2.7 Endpoint Authorization Plan
 
-**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a committed (`0981629`); M2.7b committed (`43534f7`); M2.7c implemented (uncommitted); 7d not started. Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
+**Status:** planned 2026-11-04; **owner decisions D-1…D-9 recorded 2026-11-04 (§5)**; M2.7a committed (`0981629`); M2.7b committed (`43534f7`); M2.7c committed (`ff66214`); **M2.7d implemented (uncommitted): all 73 routes have an explicit rule and anything without one is refused.** Baseline: `feature/m1-foundation` @ `d63d793`; partner `main` unchanged at `2910d88`.
 **Target rules** come from the approved design ([M2_AUTH_DESIGN.md §8](M2_AUTH_DESIGN.md), rows #1–#67). Where this plan needs a choice the design does not settle, it is listed in [§4 Decisions needed](#4-decisions-needed).
 
 **Legend**
-- **Now:** today's behaviour. *Anon* = no sign-in needed. *Trusts* = identity taken from a client-supplied value (`userId`, `requesterId`, `ProgrammerId`, `isAdmin`, form `UserId`).
+- **Now:** behaviour before M2.7, kept for the record. *Anon* = no sign-in needed. *Trusts* = identity taken from a client-supplied value (`userId`, `requesterId`, `ProgrammerId`, `isAdmin`, form `UserId`).
 - **Target:** *Public* = anonymous by design · *Auth* = signed-in member (any role) · *Owner* = the caller owns the resource · *Self* = route `{userId}` must be the caller · *Role X* · *Admin* · *Signed* = signed image URL (M2.8) · **(S)** = also for suspended users.
 - **Owner check:** how the server decides; "token" = `sub` claim via `ICurrentUser`, never a client value.
-- **Risk now:** **CRITICAL** = account takeover, destructive action or admin power without sign-in · **HIGH** = personal data or moderation bypass · MEDIUM · LOW.
-- **Phase:** the M2.7 sub-phase that fixes it (§2), or the milestone that already did / will.
+- **Risk now** (before M2.7): **CRITICAL** = account takeover, destructive action or admin power without sign-in · **HIGH** = personal data or moderation bypass · MEDIUM · LOW.
+- **Phase:** the sub-phase or milestone that did it, and what still follows.
 
 ## 1. Endpoint table (73 routes, 7 controllers)
 
 ### AuthController — `/api/Auth` (all `[AllowSuspended]`)
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 1 | POST | `login` | Anon; rate limit, lockout | Public | own credentials | `login_page` | — | done (M2.4a) |
-| 2 | POST | `google-login` | Anon; **auto-links by email** (KI-08) | Public | Google subject | `login_page` | HIGH (KI-08) | M2.9 |
-| 3 | POST | `send-code` | Anon; generic, limits | Public | — | sign-up screens | — | done (M2.5a) |
-| 4 | POST | `verify-code` | Anon; 5 attempts | Public | email + code | sign-up screens | — | done |
-| 5 | POST | `signup` | Anon; proof token (fallback case 2) | Public | proof token | `set_password_page` | — | done |
-| 6 | POST | `send-reset-code` | Anon; generic | Public | — | forgot-password screens | — | done |
-| 7 | POST | `verify-reset-code` | Anon; 5 attempts | Public | email + code | forgot-password screens | — | done |
-| 8 | POST | `reset-password` | Anon; proof token | Public | proof token | reset screen | — | done |
-| 9 | POST | `session/refresh` | cookie / body token + CSRF guard | Holder of a refresh token (S) | token row | — (M2.12) | — | done (M2.4b) |
-| 10 | POST | `session/logout` | same | same (S) | token row / `sid` | — (M2.12) | — | done |
-| 11 | POST | `logout-all` | Bearer | Auth (S), Self | token | — (M2.12) | — | done |
-| 12 | GET | `me` | Bearer | Auth (S), Self | token | — (M2.12) | — | done |
+| 1 | POST | `login` | Anon; rate limit, lockout | Public | own credentials | `login_page` | — | done (M2.4a); `[AllowAnonymous]` (7d) |
+| 2 | POST | `google-login` | Anon; **auto-links by email** (KI-08) | Public | Google subject | `login_page` | HIGH (KI-08) | done (M2.5a limits); `[AllowAnonymous]` (7d); linking fix KI-08 in M2.9 |
+| 3 | POST | `send-code` | Anon; generic, limits | Public | — | sign-up screens | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 4 | POST | `verify-code` | Anon; 5 attempts | Public | email + code | sign-up screens | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 5 | POST | `signup` | Anon; proof token (fallback case 2) | Public | proof token | `set_password_page` | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 6 | POST | `send-reset-code` | Anon; generic | Public | — | forgot-password screens | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 7 | POST | `verify-reset-code` | Anon; 5 attempts | Public | email + code | forgot-password screens | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 8 | POST | `reset-password` | Anon; proof token | Public | proof token | reset screen | — | done (M2.5a); `[AllowAnonymous]` (7d) |
+| 9 | POST | `session/refresh` | cookie / body token + CSRF guard | Holder of a refresh token (S) | token row | — (M2.12) | — | done (M2.4b); `[AllowAnonymous]` with its own guard (7d) |
+| 10 | POST | `session/logout` | same | same (S) | token row / `sid` | — (M2.12) | — | done (M2.4b); `[AllowAnonymous]` with its own guard (7d) |
+| 11 | POST | `logout-all` | Bearer | Auth (S), Self | token | — (M2.12) | — | done (M2.4a/b) |
+| 12 | GET | `me` | Bearer | Auth (S), Self | token | — (M2.12) | — | done (M2.4a/b) |
 
 ### AdminController — `/api/Admin`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 13 | GET | `users` | **Anon** — every non-admin user with email, phone, city | Admin | role from token | `admin_users_page` | **CRITICAL** (all personal data) | **7a** |
-| 14 | GET | `users/{id}` | **Anon** — email, role | Admin | role | — (unused) | HIGH | **7a** |
-| 15 | POST | `users` | **Anon** — creates Customer/Programmer accounts without email verification (Admin type → 403) | Admin | role | `admin_user_form_page`, `admin_add_admin_page` (gets 403, KI-34) | **CRITICAL** (account creation) | **7a** |
-| 16 | PUT | `users/{id}` | **Anon** — change any non-admin's **password / email / role** | Admin; target not an admin | role | `admin_user_form_page` | **CRITICAL** (account takeover) | **7a** |
-| 17 | DELETE | `users/{id}` | **Anon** — delete any non-admin (sessions removed since M2.5b) | Admin; target not an admin | role | `admin_users_page` | **CRITICAL** (destructive) | **7a** |
-| 18 | POST | `users/{id}/suspend` | Admin token (M2.5b) | Admin; target not an admin, not self | role | — (M2.12) | — | done |
-| 19 | POST | `users/{id}/unsuspend` | Admin token (M2.5b) | Admin | role | — (M2.12) | — | done |
-| 20 | GET | `programmers` | **Anon** — emails, phones, LinkedIn, document names | Admin | role | `admin_verifications_page` | HIGH | **7a** |
-| 21 | POST | `programmers/{userId}/verify` | **Anon** — anyone can verify anyone (+ email) | Admin | role | `admin_verification_details_page` | HIGH (trust badge) | **7a** |
-| 22 | POST | `programmers/{userId}/unverify` | **Anon** | Admin | role | `admin_verification_details_page` | HIGH | **7a** |
-| 23 | GET | `statistics` | **Anon** — aggregate counts | Admin | role | `admin_statistics_page` | LOW | **7a** |
+| 13 | GET | `users` | **Anon** — every non-admin user with email, phone, city | Admin | role from token | `admin_users_page` | **CRITICAL** (all personal data) | done (7a) |
+| 14 | GET | `users/{id}` | **Anon** — email, role | Admin | role | — (unused) | HIGH | done (7a) |
+| 15 | POST | `users` | **Anon** — creates Customer/Programmer accounts without email verification (Admin type → 403) | Admin | role | `admin_user_form_page`, `admin_add_admin_page` (gets 403, KI-34) | **CRITICAL** (account creation) | done (7a) |
+| 16 | PUT | `users/{id}` | **Anon** — change any non-admin's **password / email / role** | Admin; target not an admin | role | `admin_user_form_page` | **CRITICAL** (account takeover) | done (7a) |
+| 17 | DELETE | `users/{id}` | **Anon** — delete any non-admin (sessions removed since M2.5b) | Admin; target not an admin | role | `admin_users_page` | **CRITICAL** (destructive) | done (7a) |
+| 18 | POST | `users/{id}/suspend` | Admin token (M2.5b) | Admin; target not an admin, not self | role | — (M2.12) | — | done (M2.5b) |
+| 19 | POST | `users/{id}/unsuspend` | Admin token (M2.5b) | Admin | role | — (M2.12) | — | done (M2.5b) |
+| 20 | GET | `programmers` | **Anon** — emails, phones, LinkedIn, document names | Admin | role | `admin_verifications_page` | HIGH | done (7a) |
+| 21 | POST | `programmers/{userId}/verify` | **Anon** — anyone can verify anyone (+ email) | Admin | role | `admin_verification_details_page` | HIGH (trust badge) | done (7a) |
+| 22 | POST | `programmers/{userId}/unverify` | **Anon** | Admin | role | `admin_verification_details_page` | HIGH | done (7a) |
+| 23 | GET | `statistics` | **Anon** — aggregate counts | Admin | role | `admin_statistics_page` | LOW | done (7a) |
 
 ### CustomerProfileController — `/api/CustomerProfile`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 24 | GET | `{userId}` | **Anon** — phone, country, city | Self or Admin | route `{userId}` = `sub`, or role Admin | `dashboard_placeholder_page` | HIGH (phone) | **7c** |
-| 25 | POST | (create) | **Anon, trusts form `UserId`** | Role Customer, Self | `UserId` → from token | `customer_profile_setup_page` | HIGH (write someone else's profile) | **7b** |
-| 26 | PUT | `{userId}` | **Anon** — edit anyone's profile/photo | Role Customer, Self | `{userId}` = `sub` | — (unused today) | HIGH | **7b** |
-| 27 | GET | `{userId}/image` | Anon | Signed (members) | signature | `dashboard_placeholder_page` (URL) | MEDIUM (photo enumeration) | M2.8 |
+| 24 | GET | `{userId}` | **Anon** — phone, country, city | Self or Admin | route `{userId}` = `sub`, or role Admin | `dashboard_placeholder_page` | HIGH (phone) | done (7c) |
+| 25 | POST | (create) | **Anon, trusts form `UserId`** | Role Customer, Self | `UserId` → from token | `customer_profile_setup_page` | HIGH (write someone else's profile) | done (7b) |
+| 26 | PUT | `{userId}` | **Anon** — edit anyone's profile/photo | Role Customer, Self | `{userId}` = `sub` | — (unused today) | HIGH | done (7b) |
+| 27 | GET | `{userId}/image` | Anon | Signed (members) | signature | `dashboard_placeholder_page` (URL) | MEDIUM (photo enumeration) | `[AllowAnonymous]` (7d); signed URLs in M2.8 |
 
 ### ProgrammerProfileController — `/api/ProgrammerProfile`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 28 | GET | `{userId}` | **Anon** — phone, city, file names | Auth; Self/Admin → full, others → member projection | `{userId}` = `sub` or Admin | `programmer_dashboard_page` | HIGH (phone) | **7c** |
-| 29 | GET | `all` | Anon — member fields | **Admin** (D-4) | role | — (unused) | MEDIUM | **7d** |
-| 30 | POST | (create) | **Anon, trusts form `UserId`** | Role Programmer, Self | from token | `programmer_profile_setup_page` | HIGH | **7b** |
-| 31 | PUT | `{userId}` | **Anon** — edit anyone's profile | Role Programmer, Self | `{userId}` = `sub` | — (unused today) | HIGH | **7b** |
-| 32 | GET | `{userId}/image` | Anon | Signed | signature | dashboard, admin verification pages (URL) | MEDIUM | M2.8 |
-| 33 | GET | `{userId}/cv` | **Anon** — the CV file | P self, Admin, Customer with an application from this programmer | as listed | dashboard, `admin_verification_details_page` (`launchUrl`) | **HIGH** (private document) | M2.8 (link tokens); fallback case 3 |
-| 34 | GET | `{userId}/certificate` | **Anon** | same as #33 | same | same | **HIGH** | M2.8 |
-| 35 | POST | `{userId}/cv` | **Anon** — replace anyone's CV | Role Programmer, Self | `{userId}` = `sub` | `programmer_dashboard_page` | HIGH | **7b** |
-| 36 | DELETE | `{userId}/cv` | **Anon** | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | **7b** |
-| 37 | POST | `{userId}/certificate` | **Anon** (resets verification) | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | **7b** |
-| 38 | DELETE | `{userId}/certificate` | **Anon** | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | **7b** |
-| 39 | POST | `{userId}/verify` | **Anon — self-verification** (KI-05) | Admin (kept, D-3) | role | — (unused) | **CRITICAL** (KI-05) | **7a** |
-| 40 | POST | `{userId}/unverify` | **Anon** | Admin (kept, D-3) | role | — (unused) | HIGH | **7a** |
+| 28 | GET | `{userId}` | **Anon** — phone, city, file names | Auth; Self/Admin → full, others → member projection | `{userId}` = `sub` or Admin | `programmer_dashboard_page` | HIGH (phone) | done (7c) |
+| 29 | GET | `all` | Anon — member fields | **Admin** (D-4) | role | — (unused) | MEDIUM | done (7d) |
+| 30 | POST | (create) | **Anon, trusts form `UserId`** | Role Programmer, Self | from token | `programmer_profile_setup_page` | HIGH | done (7b) |
+| 31 | PUT | `{userId}` | **Anon** — edit anyone's profile | Role Programmer, Self | `{userId}` = `sub` | — (unused today) | HIGH | done (7b) |
+| 32 | GET | `{userId}/image` | Anon | Signed | signature | dashboard, admin verification pages (URL) | MEDIUM | `[AllowAnonymous]` (7d); signed URLs in M2.8 |
+| 33 | GET | `{userId}/cv` | **Anon** — the CV file | P self, Admin, Customer with an application from this programmer (7d) | as listed | dashboard, `admin_verification_details_page` (`launchUrl`) | **HIGH** (private document) | done (7d); link tokens in M2.8 |
+| 34 | GET | `{userId}/certificate` | **Anon** | same as #33 | same | same | **HIGH** | done (7d); link tokens in M2.8 |
+| 35 | POST | `{userId}/cv` | **Anon** — replace anyone's CV | Role Programmer, Self | `{userId}` = `sub` | `programmer_dashboard_page` | HIGH | done (7b) |
+| 36 | DELETE | `{userId}/cv` | **Anon** | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | done (7b) |
+| 37 | POST | `{userId}/certificate` | **Anon** (resets verification) | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | done (7b) |
+| 38 | DELETE | `{userId}/certificate` | **Anon** | Role Programmer, Self | same | `programmer_dashboard_page` | HIGH | done (7b) |
+| 39 | POST | `{userId}/verify` | **Anon — self-verification** (KI-05) | Admin (kept, D-3) | role | — (unused) | **CRITICAL** (KI-05) | done (7a) |
+| 40 | POST | `{userId}/unverify` | **Anon** | Admin (kept, D-3) | role | — (unused) | HIGH | done (7a) |
 
 ### NotificationsController — `/api/Notifications`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 41 | GET | `{userId}` | **Anon** — anyone's notifications (KI-27) | Auth, Self | `{userId}` = `sub` | `notification_bell` | HIGH | **7c** |
-| 42 | POST | `{id}/read` | **Anon** — mark anyone's as read | Auth, Owner | notification `UserId` = `sub` | `notification_bell` | MEDIUM | **7b** |
+| 41 | GET | `{userId}` | **Anon** — anyone's notifications (KI-27) | Auth, Self | `{userId}` = `sub` | `notification_bell` | HIGH | done (7c) |
+| 42 | POST | `{id}/read` | **Anon** — mark anyone's as read | Auth, Owner | notification `UserId` = `sub` | `notification_bell` | MEDIUM | done (7b) |
 
 ### PostsController — `/api/Posts`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 43 | GET | `feed` | Anon, **trusts `userId`** (like state) | Auth | `userId` → from token | `customer_home_page` | MEDIUM | **7d** |
-| 44 | GET | `user/{userId}` | Anon, trusts `currentUserId` | Auth | `currentUserId` → from token | `user_profile_page` | MEDIUM | **7d** |
-| 45 | POST | (create) | **Anon, trusts form `UserId`** — post as anyone | Role C/P | from token | `create_post_page` | HIGH (impersonation) | **7b** |
-| 46 | DELETE | `{id}` | **Anon, trusts `userId` + `isAdmin`** — `isAdmin=true` deletes any post | Auth; Owner or Admin; `isAdmin` ignored | post `UserId` = `sub`, or role Admin | `post_card` (never sends `isAdmin=true`) | **CRITICAL** (destructive) | **7b** |
-| 47 | POST | `{id}/like` | Anon, trusts body `UserId` | Auth | from token | `post_card` | MEDIUM | **7b** |
-| 48 | GET | `{id}/comments` | Anon | Auth (approved posts; owner/Admin for others) | post status + owner | `comments_sheet` | LOW | **7d** |
-| 49 | POST | `{id}/comments` | Anon, trusts body `UserId` — comment as anyone | Auth | from token | `comments_sheet` | MEDIUM-HIGH (impersonation) | **7b** |
-| 50 | DELETE | `comments/{commentId}` | **Anon, trusts `userId` + `isAdmin`** | Auth; Owner or Admin | comment `UserId` = `sub`, or Admin | `comments_sheet` | **CRITICAL** (destructive) | **7b** |
-| 51 | GET | `image/{imageId}` | Anon | Signed | signature | `post_card`, `admin_posts_page` (URL) | MEDIUM | M2.8 |
-| 52 | GET | `user/{userId}/avatar` | Anon | Signed | signature | 8 screens (URL) | MEDIUM | M2.8 |
-| 53 | GET | `search` | **Anon — returns emails**, searchable by email | Auth; email only for Admin (Q3), `null` for others (D-5) | role | `customer_home_page`, `search_users_page`, `user_profile_page` | HIGH (email harvesting) | **7c** (shape: D-5) |
-| 54 | GET | `profile/{userId}` | **Anon — email + phone** | Auth; email/phone only Self or Admin (Q3), `null` for others (D-5) | `{userId}` = `sub` or Admin | `user_profile_page` | HIGH | **7c** (shape: D-5) |
-| 55 | POST | `{id}/apply` | Anon, trusts body `ProgrammerId` | Role Programmer; approved customer-owned posts only (D-11) | from token | `apply_to_post_page` | MEDIUM-HIGH (apply as someone) | **7b** |
-| 56 | GET | `{id}/applications` | Anon, trusts `requesterId` — applicants' emails | Post owner; Admin 403 until M2.12 (D-6, D-10, KI-53) | post `UserId` = `sub` | `post_applications_page` | HIGH | **7b** (owner); projection **7c** (D-6) |
-| 57 | POST | `{id}/applications/{applicationId}/accept` | **Anon, trusts `requesterId`** | Role C, post owner | post `UserId` = `sub` | `post_applications_page` | **HIGH** (accept for someone else) | **7b** |
-| 58 | GET | `{id}/applications/count` | Anon | Auth | — | — (unused) | LOW | **7d** |
-| 59 | GET | `{id}/has-applied` | Anon, trusts `userId` | Auth; answers for the caller | from token | `post_card` | LOW | **7d** |
-| 60 | GET | `pending` | **Anon** — moderation queue | Admin | role | `admin_posts_page` | HIGH | **7a** |
-| 61 | POST | `{id}/approve` | **Anon** — anyone publishes | Admin | role | `admin_posts_page` | **CRITICAL** (moderation bypass) | **7a** |
-| 62 | POST | `{id}/reject` | **Anon** (+ email to author) | Admin | role | `admin_posts_page` | **CRITICAL** | **7a** |
-| 63 | GET | `weather/{userId}` | **Anon** — reveals a user's city (KI-29) | Auth; Self only | `{userId}` = `sub` | `customer_home_page` | MEDIUM | **7c** |
-| 64 | GET | `weather-location` | Anon — open proxy to Open-Meteo/Nominatim | Auth | — | `customer_home_page` | LOW-MEDIUM (abuse) | **7d** |
+| 43 | GET | `feed` | Anon, **trusts `userId`** (like state) | Auth | `userId` → from token | `customer_home_page` | MEDIUM | done (7d) |
+| 44 | GET | `user/{userId}` | Anon, trusts `currentUserId` | Auth | `currentUserId` → from token | `user_profile_page` | MEDIUM | done (7d) |
+| 45 | POST | (create) | **Anon, trusts form `UserId`** — post as anyone | Role C/P | from token | `create_post_page` | HIGH (impersonation) | done (7b) |
+| 46 | DELETE | `{id}` | **Anon, trusts `userId` + `isAdmin`** — `isAdmin=true` deletes any post | Auth; Owner or Admin; `isAdmin` ignored | post `UserId` = `sub`, or role Admin | `post_card` (never sends `isAdmin=true`) | **CRITICAL** (destructive) | done (7b) |
+| 47 | POST | `{id}/like` | Anon, trusts body `UserId` | Auth | from token | `post_card` | MEDIUM | done (7b) |
+| 48 | GET | `{id}/comments` | Anon | Auth (approved posts; owner/Admin for others) | post status + owner | `comments_sheet` | LOW | done (7d) |
+| 49 | POST | `{id}/comments` | Anon, trusts body `UserId` — comment as anyone | Auth | from token | `comments_sheet` | MEDIUM-HIGH (impersonation) | done (7b) |
+| 50 | DELETE | `comments/{commentId}` | **Anon, trusts `userId` + `isAdmin`** | Auth; Owner or Admin | comment `UserId` = `sub`, or Admin | `comments_sheet` | **CRITICAL** (destructive) | done (7b) |
+| 51 | GET | `image/{imageId}` | Anon | Signed | signature | `post_card`, `admin_posts_page` (URL) | MEDIUM | `[AllowAnonymous]` (7d); signed URLs in M2.8 |
+| 52 | GET | `user/{userId}/avatar` | Anon | Signed | signature | 8 screens (URL) | MEDIUM | `[AllowAnonymous]` (7d); signed URLs in M2.8 |
+| 53 | GET | `search` | **Anon — returns emails**, searchable by email | Auth; email only for Admin (Q3), `null` for others (D-5) | role | `customer_home_page`, `search_users_page`, `user_profile_page` | HIGH (email harvesting) | done (7c) |
+| 54 | GET | `profile/{userId}` | **Anon — email + phone** | Auth; email/phone only Self or Admin (Q3), `null` for others (D-5) | `{userId}` = `sub` or Admin | `user_profile_page` | HIGH | done (7c) |
+| 55 | POST | `{id}/apply` | Anon, trusts body `ProgrammerId` | Role Programmer; approved customer-owned posts only (D-11) | from token | `apply_to_post_page` | MEDIUM-HIGH (apply as someone) | done (7b) |
+| 56 | GET | `{id}/applications` | Anon, trusts `requesterId` — applicants' emails | Post owner; Admin 403 until M2.12 (D-6, D-10, KI-53) | post `UserId` = `sub` | `post_applications_page` | HIGH | done (7b owner check; D-6, D-10 verified in 7c) |
+| 57 | POST | `{id}/applications/{applicationId}/accept` | **Anon, trusts `requesterId`** | Role C, post owner | post `UserId` = `sub` | `post_applications_page` | **HIGH** (accept for someone else) | done (7b) |
+| 58 | GET | `{id}/applications/count` | Anon | Auth | — | — (unused) | LOW | done (7d) |
+| 59 | GET | `{id}/has-applied` | Anon, trusts `userId` | Auth; answers for the caller | from token | `post_card` | LOW | done (7d) |
+| 60 | GET | `pending` | **Anon** — moderation queue | Admin | role | `admin_posts_page` | HIGH | done (7a) |
+| 61 | POST | `{id}/approve` | **Anon** — anyone publishes | Admin | role | `admin_posts_page` | **CRITICAL** (moderation bypass) | done (7a) |
+| 62 | POST | `{id}/reject` | **Anon** (+ email to author) | Admin | role | `admin_posts_page` | **CRITICAL** | done (7a) |
+| 63 | GET | `weather/{userId}` | **Anon** — reveals a user's city (KI-29) | Auth; Self only | `{userId}` = `sub` | `customer_home_page` | MEDIUM | done (7c) |
+| 64 | GET | `weather-location` | Anon — open proxy to Open-Meteo/Nominatim | Auth | — | `customer_home_page` | LOW-MEDIUM (abuse) | done (7d) |
 
 ### SupportController — `/api/Support`
 | # | Method | Route | Now | Target | Owner check | Flutter caller | Risk now | Phase |
 |---|---|---|---|---|---|---|---|---|
-| 65 | POST | (send) | Anon, trusts body `UserId`, `Name`, `Email` | Role C/P (S); identity from the account; Admin → 403 | from token | `contact_support_page` | MEDIUM (spoofed sender) | **7b** |
-| 66 | GET | `all` | **Anon** — every ticket with names, emails, messages | Admin | role | `admin_support_page` | **CRITICAL** (personal data) | **7a** |
-| 67 | GET | `{id}` | **Anon** | Owner or Admin (S) | message `UserId` = `sub` | — (unused) | HIGH | **7c** |
-| 68 | POST | `{id}/reply` | **Anon** — reply as "admin" | Admin | role | `admin_support_page` | HIGH | **7a** |
-| 69 | POST | `{id}/read` | **Anon** | Admin | role | `admin_support_page` | LOW | **7a** |
-| 70 | DELETE | `{id}` | **Anon** — delete any ticket | Admin | role | `admin_support_page` | HIGH | **7a** |
-| 71 | GET | `my/{userId}` | **Anon** — anyone's tickets and replies | Role C/P (S), Self | `{userId}` = `sub` | `customer_support_messages_page` | HIGH | **7c** |
-| 72 | GET | `my/{userId}/unread-count` | Anon | Role C/P (S), Self | `{userId}` = `sub` | `contact_support_page` | LOW | **7c** |
-| 73 | POST | `{id}/mark-reply-read` | Anon | Role C/P (S), Owner | message `UserId` = `sub` | `customer_support_messages_page` | LOW | **7b** |
+| 65 | POST | (send) | Anon, trusts body `UserId`, `Name`, `Email` | Role C/P (S); identity from the account; Admin → 403 | from token | `contact_support_page` | MEDIUM (spoofed sender) | done (7b) |
+| 66 | GET | `all` | **Anon** — every ticket with names, emails, messages | Admin | role | `admin_support_page` | **CRITICAL** (personal data) | done (7a) |
+| 67 | GET | `{id}` | **Anon** | Owner or Admin (S) | message `UserId` = `sub` | — (unused) | HIGH | done (7c) |
+| 68 | POST | `{id}/reply` | **Anon** — reply as "admin" | Admin | role | `admin_support_page` | HIGH | done (7a) |
+| 69 | POST | `{id}/read` | **Anon** | Admin | role | `admin_support_page` | LOW | done (7a) |
+| 70 | DELETE | `{id}` | **Anon** — delete any ticket | Admin | role | `admin_support_page` | HIGH | done (7a) |
+| 71 | GET | `my/{userId}` | **Anon** — anyone's tickets and replies | Role C/P (S), Self | `{userId}` = `sub` | `customer_support_messages_page` | HIGH | done (7c) |
+| 72 | GET | `my/{userId}/unread-count` | Anon | Role C/P (S), Self | `{userId}` = `sub` | `contact_support_page` | LOW | done (7c) |
+| 73 | POST | `{id}/mark-reply-read` | Anon | Role C/P (S), Owner | message `UserId` = `sub` | `customer_support_messages_page` | LOW | done (7b) |
 
-**Closed:** by M2.7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); by M2.7b #46 and #50 (`isAdmin=true` deletes anything). Mitigation until M2.7 is complete: the API listens on `localhost` only (README warning).
+**Closed by M2.7:** 7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); 7b #46 and #50 (`isAdmin=true` deletes anything). The API is enforced by default; the unchanged app needs the development fallback until M2.12.
 
-**Counts:** 8 public (#1–#8) + 4 already token-protected (#9–#12) + 2 admin routes done in M2.5b (#18, #19) + 4 signed-image routes and 2 document routes (#33, #34) in M2.8 + **53 routes to change in M2.7** (7a: 18, 7b: 19, 7c: 9, 7d: 7).
+**Counts (after M2.7d):** 73 routes. `[AllowAnonymous]` on 14: the **12 public routes** (8 sign-in #1–#8, 4 image routes #27, #32, #51, #52 until M2.8) plus 2 with their own refresh-token and CSRF guard (#9, #10). The other 59 need a token: #11, #12, the 2 M2.5b routes, the 2 documents (#33, #34) and the 53 routes of 7a–7d. `T-7D-10` fails on any action without an explicit rule.
 
 ## 2. Proposed sub-phases (most dangerous first)
 
@@ -184,3 +184,4 @@ Shared rules for every sub-phase:
 | D-9 | Deletion of users with other records (KI-10) is out of M2.7. |
 | D-10 | `GET Posts/{id}/applications`: admins get 403 until M2.12. |
 | D-11 | Only customers publish projects that accept applications. Apply: approved posts whose owner is a Customer (a programmer-owned post is refused with 400). Accept: the post owner, who must be a Customer (design 8 #51 as written). |
+| D-12 | **Confirmed by the owner 2026-11-05.** 16 routes had no token rule; the 8 sign-in and 4 image routes are the 12 public routes. #9 and #10 stay reachable because they authenticate with the refresh token behind their own CSRF guard. #33 and #34 (CV, certificate) were not made public: design 8 #27 applies now (self, Admin, or a customer the programmer applied to), tokenless only on the fallback, case `FileWithoutToken`. |

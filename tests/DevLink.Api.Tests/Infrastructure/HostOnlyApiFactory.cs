@@ -102,6 +102,32 @@ namespace DevLink.Api.Tests.Infrastructure
         public string StartupFailure()
         {
             var exception = Assert.ThrowsAny<Exception>(() => CreateClient());
+            return FailureText(exception);
+        }
+
+        // Expected race (KI-57, same family as KI-40): Program's app.Run() disposes the refused host while
+        // WebApplicationFactory is still starting, so CreateClient() can throw ObjectDisposedException instead
+        // of the real reason. ApplicationStopping does not fire on a refused start, so the evidence here is the
+        // host's own "Hosting failed to start" log entry, which always carries the reason.
+        public string FailureText(Exception exception)
+        {
+            if (exception is not ObjectDisposedException)
+            {
+                return Describe(exception);
+            }
+
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < deadline)
+            {
+                var refused = Logs.Entries.FirstOrDefault(e => e.Level == LogLevel.Error && e.Message.Contains("Hosting failed to start"));
+                if (refused != null)
+                {
+                    return refused.Exception ?? refused.Message;
+                }
+
+                Thread.Sleep(25);
+            }
+
             return Describe(exception);
         }
 

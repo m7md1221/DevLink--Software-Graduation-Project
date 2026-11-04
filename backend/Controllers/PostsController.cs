@@ -24,6 +24,19 @@ namespace Controllers
             _currentUser = currentUser;
         }
 
+        // Generic error with a trace id (KI-29): the exception text can hold URLs and coordinates, so only its type is logged.
+        private ObjectResult WeatherFailed(Exception ex)
+        {
+            HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DevLink.Weather")
+                .LogError("Weather.Failed {FailureType}", ex.GetType().Name);
+
+            return StatusCode(500, new
+            {
+                message = "Failed to fetch weather",
+                traceId = System.Diagnostics.Activity.Current?.Id ?? HttpContext.TraceIdentifier
+            });
+        }
+
         // M2.7b: refusals keep today's 400 { message }; ownership refusals are 403 FORBIDDEN with the same message.
         private IActionResult Refused(PostActionStatus status, string message) =>
             status == PostActionStatus.Forbidden
@@ -70,27 +83,31 @@ namespace Controllers
         // FEED
         // ============================================================
         [HttpGet("feed")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetFeed(
             [FromQuery] int userId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            if (userId <= 0)
+            var callerId = _currentUser.ResolveUserId(userId);
+            if (callerId is null or <= 0)
                 return BadRequest(new { message = "userId is required" });
 
-            var posts = await _postService.GetFeed(userId, page, pageSize);
+            var posts = await _postService.GetFeed(callerId.Value, page, pageSize);
             return Ok(new { posts });
         }
 
         [HttpGet("user/{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetUserPosts(
             int userId,
             [FromQuery] int currentUserId)
         {
-            if (userId <= 0 || currentUserId <= 0)
+            var callerId = _currentUser.ResolveUserId(currentUserId);
+            if (userId <= 0 || callerId is null or <= 0)
                 return BadRequest(new { message = "Invalid user id" });
 
-            var posts = await _postService.GetPostsByUser(userId, currentUserId);
+            var posts = await _postService.GetPostsByUser(userId, callerId.Value);
             return Ok(new { posts });
         }
 
@@ -180,8 +197,12 @@ namespace Controllers
         }
 
         [HttpGet("{id}/comments")]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> GetComments(int id)
         {
+            if (!_currentUser.IsAdmin && !await _postService.CommentsVisibleTo(id, _currentUser.UserId))
+                return AuthProblem.Forbidden(HttpContext, "These comments are not available");
+
             var comments = await _postService.GetComments(id);
             return Ok(new { comments });
         }
@@ -227,7 +248,9 @@ namespace Controllers
             return Ok(new { message });
         }
 
+        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("image/{imageId}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetPostImage(int imageId)
         {
             var result = await _postService.GetPostImage(imageId);
@@ -239,7 +262,9 @@ namespace Controllers
             return File(result.data, result.contentType ?? "image/jpeg");
         }
 
+        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("user/{userId}/avatar")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetUserAvatar(int userId)
         {
             var result = await _postService.GetUserAvatar(userId);
@@ -345,6 +370,7 @@ namespace Controllers
         }
 
         [HttpGet("{id}/applications/count")]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> GetApplicationsCount(int id)
         {
             var count = await _postService.GetApplicationsCount(id);
@@ -352,11 +378,12 @@ namespace Controllers
         }
 
         [HttpGet("{id}/has-applied")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> HasUserApplied(
             int id,
             [FromQuery] int userId)
         {
-            var hasApplied = await _postService.HasUserApplied(id, userId);
+            var hasApplied = await _postService.HasUserApplied(id, _currentUser.ResolveUserId(userId) ?? 0);
             return Ok(new { hasApplied });
         }
 
@@ -517,13 +544,14 @@ namespace Controllers
                     longitude = lon
                 });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Failed to fetch weather" });
+                return WeatherFailed(ex);
             }
         }
 
         [HttpGet("weather-location")]
+        [Authorize(Policy = AuthPolicies.MemberResourceOrDevFallback)]
         public async Task<IActionResult> GetWeatherByLocation([FromQuery] double lat, [FromQuery] double lon)
         {
             try
@@ -560,7 +588,7 @@ namespace Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = $"Error: {ex.Message}" });
+                return WeatherFailed(ex);
             }
         }
 

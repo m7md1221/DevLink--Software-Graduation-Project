@@ -61,6 +61,7 @@ namespace Controllers
         // Refresh token by client mode (X-DevLink-Client): "web" → HttpOnly cookie (CSRF-guarded),
         // "mobile" → response body, no header (today's app) → none, exactly as in M2.4a.
         [HttpPost("login")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.Login)]
         public async Task<IActionResult> Login(
             [FromBody] LoginDto model,
@@ -123,6 +124,7 @@ namespace Controllers
 
         // Strict rotation (M2_AUTH_DESIGN §3.4). Web: refresh cookie + CSRF guard. Mobile: token in the body.
         [HttpPost("session/refresh")]
+        [AllowAnonymous]
         public async Task<IActionResult> RefreshSession(
             [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] RefreshSessionDto? model,
             CancellationToken cancellationToken)
@@ -169,6 +171,7 @@ namespace Controllers
 
         // Ends the current session. Web: cookie + CSRF guard; mobile: body token; no client header: the Bearer token's session.
         [HttpPost("session/logout")]
+        [AllowAnonymous]
         public async Task<IActionResult> Logout(
             [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] RefreshSessionDto? model,
             CancellationToken cancellationToken)
@@ -287,6 +290,7 @@ namespace Controllers
         // GOOGLE SIGN-IN
         // ============================================================
         [HttpPost("google-login")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.GoogleLogin)]
         public async Task<IActionResult> GoogleLogin(
             [FromBody] GoogleLoginDto model)
@@ -402,21 +406,25 @@ namespace Controllers
             "Your verification has expired or was already used. Please verify your email again.";
 
         [HttpPost("send-code")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.CodeSend)]
         public Task<IActionResult> SendCode([FromBody] SendCodeDto model, CancellationToken cancellationToken) =>
             RequestCodeAsync(model, OneTimeCodePurpose.Signup, cancellationToken);
 
         [HttpPost("send-reset-code")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.CodeSend)]
         public Task<IActionResult> SendResetCode([FromBody] SendCodeDto model, CancellationToken cancellationToken) =>
             RequestCodeAsync(model, OneTimeCodePurpose.Reset, cancellationToken);
 
         [HttpPost("verify-code")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.CodeVerify)]
         public Task<IActionResult> VerifyCode([FromBody] VerifyCodeDto model, CancellationToken cancellationToken) =>
             VerifyCodeAsync(model, OneTimeCodePurpose.Signup, cancellationToken);
 
         [HttpPost("verify-reset-code")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.CodeVerify)]
         public Task<IActionResult> VerifyResetCode([FromBody] VerifyCodeDto model, CancellationToken cancellationToken) =>
             VerifyCodeAsync(model, OneTimeCodePurpose.Reset, cancellationToken);
@@ -498,6 +506,7 @@ namespace Controllers
         }
 
         [HttpPost("signup")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.PasswordSet)]
         public async Task<IActionResult> SignUp(
             [FromBody] SignUpDto model,
@@ -572,6 +581,7 @@ namespace Controllers
 
         // On success: new password hash, new security stamp, every session revoked, lockout cleared (§3.6).
         [HttpPost("reset-password")]
+        [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.PasswordSet)]
         public async Task<IActionResult> ResetPassword(
             [FromBody] ResetPasswordDto model,

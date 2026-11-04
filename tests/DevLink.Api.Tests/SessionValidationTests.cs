@@ -150,26 +150,26 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public async Task T_SP_02_active_accounts_and_anonymous_calls_are_not_affected()
+        public async Task T_SP_02_active_accounts_are_not_affected_and_anonymous_calls_need_sign_in()
         {
             var (userId, token) = await SignedInAsync();
 
             Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", token)).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, "/__tests/auth/me", token)).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", null)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", null)).StatusCode);
         }
 
         [Fact]
-        public async Task T_REG_01_existing_anonymous_endpoints_ignore_invalid_or_revoked_tokens()
+        public async Task T_REG_01_member_routes_refuse_invalid_or_revoked_tokens()
         {
             var (userId, token) = await SignedInAsync();
             await _factory.WithDbAsync(async db =>
                 await db.AuthSessions.Where(s => s.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, AuthSessionStatus.Revoked)));
             Cache.Invalidate(userId);
 
-            // Endpoints get [Authorize] only in M2.7; until then a bad token simply means "anonymous".
-            Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", token)).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", "garbage.token.value")).StatusCode);
+            // Since M2.7d the feed needs a token, so a bad one is refused instead of meaning "anonymous".
+            Assert.Equal(HttpStatusCode.Unauthorized, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", token)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await SessionApiFactory.GetWithToken(_client, $"/api/Posts/feed?userId={userId}", "garbage.token.value")).StatusCode);
         }
     }
 }

@@ -70,11 +70,11 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public async Task Feed_without_userId_returns_400()
+        public async Task Feed_requires_sign_in()
         {
             var response = await _client.GetAsync("/api/Posts/feed");
 
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
     }
 }

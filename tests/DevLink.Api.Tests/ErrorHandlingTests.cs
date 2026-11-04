@@ -26,10 +26,12 @@ namespace DevLink.Api.Tests
 
     public class ErrorHandlingTests : IClassFixture<ThrowingEmailApiFactory>
     {
+        private readonly ThrowingEmailApiFactory _factory;
         private readonly HttpClient _client;
 
         public ErrorHandlingTests(ThrowingEmailApiFactory factory)
         {
+            _factory = factory;
             _client = factory.CreateClient();
         }
 
@@ -56,11 +58,13 @@ namespace DevLink.Api.Tests
         [Fact]
         public async Task Handled_validation_errors_keep_their_existing_shape()
         {
-            var response = await _client.GetAsync("/api/Posts/feed");
+            // Since M2.7d the feed needs a token, so this uses another handled refusal: liking a post that doesn't exist.
+            var caller = await AdminRoutes.AccountAsync(_factory, _client, "Customer");
+            var response = await WriteRoutes.SendAsync(_client, WriteRoutes.Json(HttpMethod.Post, "/api/Posts/999999/like", new { }), caller.Token);
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-            Assert.Equal("userId is required", body.GetProperty("message").GetString());
+            Assert.Equal("Post not found", body.GetProperty("message").GetString());
         }
     }
 }

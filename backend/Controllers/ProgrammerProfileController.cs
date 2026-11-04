@@ -59,7 +59,9 @@ namespace Controllers
             });
         }
 
+        // Admin only (D-4).
         [HttpGet("all")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)]
         public async Task<IActionResult> GetAllProgrammers()
         {
             var programmers = await _context.ProgrammerProfiles
@@ -403,7 +405,9 @@ namespace Controllers
             });
         }
 
+        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("{userId}/image")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetProfileImage(int userId)
         {
             var profile = await _context.ProgrammerProfiles
@@ -425,9 +429,26 @@ namespace Controllers
             );
         }
 
+        // Private documents (design 8 #27): the programmer, an admin, or a customer the programmer applied to.
+        private async Task<bool> CanReadDocumentsAsync(int programmerId)
+        {
+            if (!_currentUser.IsAuthenticated)
+            {
+                return true; // Only the development fallback gets here without a token.
+            }
+
+            return _currentUser.UserId == programmerId || _currentUser.IsAdmin ||
+                   (_currentUser.Role == "Customer" && await _context.PostApplications.AnyAsync(a =>
+                       a.ProgrammerId == programmerId && a.Post!.UserId == _currentUser.UserId));
+        }
+
         [HttpGet("{userId}/cv")]
+        [Authorize(Policy = AuthPolicies.MemberFileOrDevFallback)]
         public async Task<IActionResult> GetCV(int userId)
         {
+            if (!await CanReadDocumentsAsync(userId))
+                return AuthProblem.Forbidden(HttpContext, "You can't view this document");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -454,8 +475,12 @@ namespace Controllers
         }
 
         [HttpGet("{userId}/certificate")]
+        [Authorize(Policy = AuthPolicies.MemberFileOrDevFallback)]
         public async Task<IActionResult> GetCertificate(int userId)
         {
+            if (!await CanReadDocumentsAsync(userId))
+                return AuthProblem.Forbidden(HttpContext, "You can't view this document");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 

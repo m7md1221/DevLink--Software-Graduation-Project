@@ -21,6 +21,10 @@ namespace DevLink.Api.Tests.Infrastructure
         [Authorize(Roles = "Admin")]
         public IActionResult AdminOnly() => Ok();
 
+        // Deliberately no attribute: proves the fail-closed default (T-7D-11). Excluded from the reflection test, which scans the API assembly only.
+        [HttpGet("no-attribute")]
+        public IActionResult NoAttribute() => Ok();
+
         [HttpGet("ping")]
         [AllowAnonymous]
         public IActionResult Ping() => Ok(new { ok = true });

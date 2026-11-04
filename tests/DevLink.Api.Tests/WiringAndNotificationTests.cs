@@ -97,7 +97,7 @@ namespace DevLink.Api.Tests
         {
             var customerId = await CreateUserAsync("Customer");
 
-            var feed = await _client.GetAsync($"/api/Posts/feed?userId={customerId}");
+            var feed = await _clients[customerId].GetAsync($"/api/Posts/feed?userId={customerId}");
             var pending = await (await Admin()).GetAsync("/api/Posts/pending");
 
             Assert.Equal(HttpStatusCode.OK, feed.StatusCode);

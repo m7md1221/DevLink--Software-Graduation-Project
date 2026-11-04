@@ -118,6 +118,8 @@ cd frontend
 flutter pub get --enforce-lockfile   # Flutter 3.47.x; fails instead of rewriting pubspec.lock
 flutter run -d chrome --web-port 5200 --web-hostname localhost   # or -d edge; the port must match Cors:AllowedOrigins
 ```
+
+The Flutter app sends no access token until M2.12, so with the API's default settings it can only sign in. For local use, start the API with `Auth__EnforceAuthorization=false` (Development and loopback only; every use is logged). Never set it anywhere else.
 The web app calls the API at `http://localhost:5133` (Android emulator: `10.0.2.2:5133`, see `lib/api_config.dart`).
 Open it as `http://localhost:5200`, not by `127.0.0.1` or a LAN IP: other origins are rejected by CORS, and from M2
 sign-in also needs a secure context (`localhost` or HTTPS).

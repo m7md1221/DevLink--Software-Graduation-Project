@@ -267,7 +267,9 @@ namespace Controllers
             });
         }
 
+        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("{userId}/image")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetProfileImage(int userId)
         {
             var profile = await _context.CustomerProfiles

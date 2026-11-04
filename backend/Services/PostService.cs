@@ -20,6 +20,16 @@ namespace Services
             _context = context;
         }
 
+        // The name shown to other members: the profile nickname, never any part of the email (KI-58).
+        private async Task<string> SenderNameAsync(int userId)
+        {
+            var nickname =
+                await _context.CustomerProfiles.Where(p => p.UserId == userId).Select(p => p.Nickname).FirstOrDefaultAsync() ??
+                await _context.ProgrammerProfiles.Where(p => p.UserId == userId).Select(p => p.Nickname).FirstOrDefaultAsync();
+
+            return string.IsNullOrWhiteSpace(nickname) ? "A DevLink member" : nickname;
+        }
+
         private async Task CreateNotification(int userId, string title, string message, string type, int? referenceId = null)
         {
             if (userId <= 0) return;
@@ -229,14 +239,22 @@ namespace Services
 
             if (isLiked && post.UserId != userId)
             {
-                var liker = await _context.Users.FindAsync(userId);
-                var likerName = liker?.Email?.Split('@')[0] ?? "Someone";
+                var likerName = await SenderNameAsync(userId);
 
                 await CreateNotification(post.UserId, "New Like", $"{likerName} liked your post.", "like", postId);
             }
 
             var likeCount = await _context.PostLikes.CountAsync(l => l.PostId == postId);
             return (true, isLiked ? "Post liked" : "Post unliked", isLiked, likeCount);
+        }
+
+        // Approved posts: any member. Pending, rejected or deleted: only the post owner (admins are checked by the caller).
+        public async Task<bool> CommentsVisibleTo(int postId, int? callerId)
+        {
+            var post = await _context.Posts.Where(p => p.Id == postId)
+                .Select(p => new { p.UserId, p.Status, p.IsDeleted }).FirstOrDefaultAsync();
+
+            return post == null || (post.Status == "Approved" && !post.IsDeleted) || post.UserId == callerId;
         }
 
         public async Task<List<object>> GetComments(int postId)
@@ -290,8 +308,7 @@ namespace Services
 
             if (post.UserId != userId)
             {
-                var commenter = await _context.Users.FindAsync(userId);
-                var commenterName = commenter?.Email?.Split('@')[0] ?? "Someone";
+                var commenterName = await SenderNameAsync(userId);
 
                 await CreateNotification(post.UserId, "New Comment", $"{commenterName} commented on your post.", "comment", postId);
             }
