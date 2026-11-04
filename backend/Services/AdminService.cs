@@ -1,5 +1,6 @@
 using DataBase;
 using Microsoft.EntityFrameworkCore;
+using Services.Auth;
 
 namespace Services
 {
@@ -8,15 +9,24 @@ namespace Services
         private readonly AppDbContext _context;
         private readonly IEmailSender _emailService;
         private readonly PasswordService _passwordService;
+        private readonly RefreshSessionService _sessions;
+        private readonly SessionStateCache _sessionCache;
+        private readonly TimeProvider _time;
 
         public AdminService(
             AppDbContext context,
             IEmailSender emailService,
-            PasswordService passwordService)
+            PasswordService passwordService,
+            RefreshSessionService sessions,
+            SessionStateCache sessionCache,
+            TimeProvider time)
         {
             _context = context;
             _emailService = emailService;
             _passwordService = passwordService;
+            _sessions = sessions;
+            _sessionCache = sessionCache;
+            _time = time;
         }
 
         // ============================================================
@@ -121,7 +131,7 @@ namespace Services
                 return (false, "Invalid user type");
             }
 
-            var passwordError = _passwordService.ValidatePolicy(password);
+            var passwordError = _passwordService.ValidatePolicy(password, email);
 
             if (passwordError != null)
             {
@@ -170,7 +180,7 @@ namespace Services
 
             if (!string.IsNullOrWhiteSpace(password))
             {
-                var passwordError = _passwordService.ValidatePolicy(password);
+                var passwordError = _passwordService.ValidatePolicy(password, user.Email);
 
                 if (passwordError != null)
                 {
@@ -192,7 +202,30 @@ namespace Services
                 user.UserType = userType;
             }
 
+            // M2 (§3.6): a role, password or email change signs the user out everywhere —
+            // new security stamp, every session revoked — so a new sign-in carries the new role.
+            var roleChanged = _context.Entry(user).Property(u => u.UserType).IsModified;
+            var credentialsChanged = roleChanged ||
+                                     _context.Entry(user).Property(u => u.PasswordHash).IsModified ||
+                                     _context.Entry(user).Property(u => u.Email).IsModified;
+            if (credentialsChanged)
+            {
+                user.SecurityStamp = User.NewSecurityStamp();
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
             await _context.SaveChangesAsync();
+            if (credentialsChanged)
+            {
+                await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == user.Id), AuthSessionStatus.Revoked,
+                    roleChanged ? "RoleChanged" : "AdminChanged", _time.GetUtcNow().UtcDateTime, CancellationToken.None);
+            }
+
+            await transaction.CommitAsync();
+            if (credentialsChanged)
+            {
+                _sessionCache.Invalidate(user.Id);
+            }
 
             return (true, "User updated successfully");
         }

@@ -33,11 +33,12 @@ namespace DevLink.Api.Tests
             _client = factory.CreateClient();
         }
 
+        // Since M2.5a email is sent from a background queue, so a failing sender no longer fails the
+        // request; the unhandled exception now comes from a test-only route.
         [Fact]
         public async Task Unhandled_exception_returns_sanitized_problem_details()
         {
-            var response = await _client.PostAsJsonAsync("/api/Auth/send-code",
-                new { email = ApiTestHelpers.UniqueEmail("boom") });
+            var response = await _client.GetAsync("/__tests/auth/boom");
 
             Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
             Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);

@@ -221,17 +221,17 @@ namespace Services.Auth
             {
                 if (_unknownEmails.LockedFor(email, now) is { } unknownRetry)
                 {
-                    await RecordAsync(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, null, null, "UnknownEmail", clientType, cancellationToken);
+                    await RecordAsync(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, null, null, "UnknownEmail", clientType, email, cancellationToken);
                     return new LoginResult(LoginOutcome.LockedOut, RetryAfter: unknownRetry);
                 }
 
                 _passwords.Verify(DummyUser, _dummyHash!, password);
                 var lockedNow = _unknownEmails.RegisterFailure(email, now);
 
-                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, reason: "UnknownEmail", clientType: clientType));
+                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, reason: "UnknownEmail", clientType: clientType, email: email));
                 if (lockedNow)
                 {
-                    _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, reason: "UnknownEmail", clientType: clientType));
+                    _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, reason: "UnknownEmail", clientType: clientType, email: email));
                 }
 
                 await _db.SaveChangesAsync(cancellationToken);
@@ -242,7 +242,7 @@ namespace Services.Auth
             // ----- Locked account: the password is not checked -----
             if (user.LockoutEndAt > now)
             {
-                await RecordAsync(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, null, "Locked", clientType, cancellationToken);
+                await RecordAsync(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, null, "Locked", clientType, email, cancellationToken);
                 return new LoginResult(LoginOutcome.LockedOut, RetryAfter: user.LockoutEndAt.Value - now);
             }
 
@@ -274,10 +274,10 @@ namespace Services.Auth
                     .Select(u => u.LockoutEndAt)
                     .FirstAsync(cancellationToken) == lockUntil;
 
-                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, user.Id, reason: reason, clientType: clientType));
+                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, user.Id, reason: reason, clientType: clientType, email: email));
                 if (lockedNow)
                 {
-                    _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, reason: reason, clientType: clientType));
+                    _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, reason: reason, clientType: clientType, email: email));
                 }
 
                 await _db.SaveChangesAsync(cancellationToken);
@@ -307,7 +307,7 @@ namespace Services.Auth
             };
             _db.AuthSessions.Add(session);
             var refresh = issueRefreshToken ? _refreshSessions.AddToken(session, user.UserType, now, null, out _) : null;
-            _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginSucceeded, SecurityEventOutcome.Success, now, user.Id, session.Id, clientType: clientType));
+            _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginSucceeded, SecurityEventOutcome.Success, now, user.Id, session.Id, clientType: clientType, email: email));
 
             await _db.SaveChangesAsync(cancellationToken);
             _sessionCache.Invalidate(user.Id);
@@ -318,9 +318,9 @@ namespace Services.Auth
         }
 
         private async Task RecordAsync(HttpContext http, string type, string outcome, DateTime now, int? userId, Guid? sessionId,
-            string reason, string clientType, CancellationToken cancellationToken)
+            string reason, string clientType, string email, CancellationToken cancellationToken)
         {
-            _db.SecurityEvents.Add(_events.Create(http, type, outcome, now, userId, sessionId, reason, clientType));
+            _db.SecurityEvents.Add(_events.Create(http, type, outcome, now, userId, sessionId, reason, clientType, email));
             await _db.SaveChangesAsync(cancellationToken);
             _logger.LogWarning("{EventType} {Reason} user {UserId}", type, reason, userId);
         }
@@ -333,6 +333,11 @@ namespace Services.Auth
             services.AddSingleton<UnknownEmailLockouts>();
             services.AddSingleton<SecurityEventFactory>();
             services.AddScoped<LoginService>();
+            services.AddScoped<OneTimeCodeService>();
+            services.AddSingleton<IpFailureWindow>();
+            services.AddSingleton<LegacyFallback>();
+            services.AddSingleton<EmailQueue>();
+            services.AddHostedService<EmailQueueService>();
             services.AddScoped<RefreshSessionService>();
             services.AddSingleton<CookieSessionGuard>();
             services.AddHostedService<SessionCleanupService>();

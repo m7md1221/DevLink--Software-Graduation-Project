@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
 using Services;
@@ -15,8 +16,6 @@ namespace Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IEmailSender _emailService;
-        private readonly VerificationService _verificationService;
         private readonly GoogleAuthService _googleAuthService;
         private readonly PasswordService _passwordService;
         private readonly LoginService _loginService;
@@ -24,22 +23,26 @@ namespace Controllers
         private readonly CookieSessionGuard _cookieGuard;
         private readonly SecurityEventFactory _events;
         private readonly TimeProvider _time;
+        private readonly OneTimeCodeService _codes;
+        private readonly EmailQueue _emailQueue;
+        private readonly LegacyFallback _legacyFallback;
+        private readonly SessionStateCache _sessionCache;
 
         public AuthController(
             AppDbContext context,
-            IEmailSender emailService,
-            VerificationService verificationService,
             GoogleAuthService googleAuthService,
             PasswordService passwordService,
             LoginService loginService,
             RefreshSessionService refreshSessions,
             CookieSessionGuard cookieGuard,
             SecurityEventFactory events,
-            TimeProvider time)
+            TimeProvider time,
+            OneTimeCodeService codes,
+            EmailQueue emailQueue,
+            LegacyFallback legacyFallback,
+            SessionStateCache sessionCache)
         {
             _context = context;
-            _emailService = emailService;
-            _verificationService = verificationService;
             _googleAuthService = googleAuthService;
             _passwordService = passwordService;
             _loginService = loginService;
@@ -47,6 +50,10 @@ namespace Controllers
             _cookieGuard = cookieGuard;
             _events = events;
             _time = time;
+            _codes = codes;
+            _emailQueue = emailQueue;
+            _legacyFallback = legacyFallback;
+            _sessionCache = sessionCache;
         }
 
         // Response keeps every pre-M2.4a field (message, userId, userType, email, hasProfile,
@@ -54,6 +61,7 @@ namespace Controllers
         // Refresh token by client mode (X-DevLink-Client): "web" → HttpOnly cookie (CSRF-guarded),
         // "mobile" → response body, no header (today's app) → none, exactly as in M2.4a.
         [HttpPost("login")]
+        [EnableRateLimiting(RateLimitPolicies.Login)]
         public async Task<IActionResult> Login(
             [FromBody] LoginDto model,
             CancellationToken cancellationToken)
@@ -279,6 +287,7 @@ namespace Controllers
         // GOOGLE SIGN-IN
         // ============================================================
         [HttpPost("google-login")]
+        [EnableRateLimiting(RateLimitPolicies.GoogleLogin)]
         public async Task<IActionResult> GoogleLogin(
             [FromBody] GoogleLoginDto model)
         {
@@ -375,87 +384,124 @@ namespace Controllers
             });
         }
 
+        // ============================================================
+        // SIGN-UP AND PASSWORD-RESET CODES (M2.5a; M2_AUTH_DESIGN §6.2, Q6, Q7, C6)
+        // Responses never reveal whether an email has an account. Codes are
+        // emailed through the background queue (Development: console only).
+        // ============================================================
+
+        private const string SignupCodeSentMessage =
+            "If this email can be used for a new DevLink account, we've sent a 6-digit code to it. Check your inbox and spam folder — the code expires in 10 minutes.";
+        private const string ResetCodeSentMessage =
+            "If an account exists for this email, we've sent a 6-digit reset code. It expires in 10 minutes.";
+        private const string CodeInvalidMessage =
+            "That code is incorrect or has expired. Check the latest email or request a new code.";
+        private const string AttemptsExceededMessage =
+            "Too many incorrect attempts. Please request a new code.";
+        private const string VerificationRequiredMessage =
+            "Your verification has expired or was already used. Please verify your email again.";
+
         [HttpPost("send-code")]
-        public async Task<IActionResult> SendCode(
-            [FromBody] SendCodeDto model)
+        [EnableRateLimiting(RateLimitPolicies.CodeSend)]
+        public Task<IActionResult> SendCode([FromBody] SendCodeDto model, CancellationToken cancellationToken) =>
+            RequestCodeAsync(model, OneTimeCodePurpose.Signup, cancellationToken);
+
+        [HttpPost("send-reset-code")]
+        [EnableRateLimiting(RateLimitPolicies.CodeSend)]
+        public Task<IActionResult> SendResetCode([FromBody] SendCodeDto model, CancellationToken cancellationToken) =>
+            RequestCodeAsync(model, OneTimeCodePurpose.Reset, cancellationToken);
+
+        [HttpPost("verify-code")]
+        [EnableRateLimiting(RateLimitPolicies.CodeVerify)]
+        public Task<IActionResult> VerifyCode([FromBody] VerifyCodeDto model, CancellationToken cancellationToken) =>
+            VerifyCodeAsync(model, OneTimeCodePurpose.Signup, cancellationToken);
+
+        [HttpPost("verify-reset-code")]
+        [EnableRateLimiting(RateLimitPolicies.CodeVerify)]
+        public Task<IActionResult> VerifyResetCode([FromBody] VerifyCodeDto model, CancellationToken cancellationToken) =>
+            VerifyCodeAsync(model, OneTimeCodePurpose.Reset, cancellationToken);
+
+        private async Task<IActionResult> RequestCodeAsync(SendCodeDto model, string purpose, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(model.Email))
             {
-                return BadRequest(new
-                {
-                    message = "Email is required"
-                });
+                return BadRequest(new { message = "Email is required" });
             }
 
-            var email = model.Email.Trim().ToLower();
+            var email = SecurityKeys.NormalizeEmail(model.Email);
+            var hasAccount = await _context.Users.AnyAsync(u => u.Email == email, cancellationToken);
 
-            var emailExists = await _context.Users
-                .AnyAsync(u => u.Email == email);
-
-            if (emailExists)
+            // A code row is always created — for emails that won't receive it, it's a decoy, so attempts
+            // and limits behave the same for every email.
+            var result = await _codes.RequestAsync(email, purpose, HttpContext, cancellationToken);
+            if (result.Outcome == CodeRequestOutcome.RateLimited)
             {
-                return BadRequest(new
-                {
-                    message = "This email is already registered"
-                });
+                return TooManyRequests(result.RetryAfter!.Value);
             }
 
-            var code = _verificationService.CreateCode(email, "signup");
-
-            var sent = _emailService.SendEmail(
-                email,
-                "DevLink Email Verification",
-                $"Your DevLink verification code is: {code}"
-            );
-
-            if (!sent)
+            if (purpose == OneTimeCodePurpose.Signup)
             {
-                return StatusCode(500, new
+                if (hasAccount)
                 {
-                    message = "Failed to send verification email"
-                });
+                    _emailQueue.Enqueue(email, "DevLink sign-up attempt",
+                        "Someone tried to create a DevLink account with this email. If it was you, sign in or reset your password.");
+                }
+                else
+                {
+                    _emailQueue.Enqueue(email, "DevLink Email Verification",
+                        $"Your DevLink verification code is: {result.Code}\nIt expires in 10 minutes.");
+                }
+
+                return Ok(new { message = SignupCodeSentMessage, expiresInMinutes = 10 });
             }
 
-            return Ok(new
+            if (hasAccount)
             {
-                message = "Verification code sent",
-                expiresInMinutes = 5
-            });
+                _emailQueue.Enqueue(email, "DevLink Password Reset",
+                    $"Your DevLink password reset code is: {result.Code}\nIt expires in 10 minutes.");
+            }
+
+            return Ok(new { message = ResetCodeSentMessage, expiresInMinutes = 10 });
         }
 
-        [HttpPost("verify-code")]
-        public IActionResult VerifyCode(
-            [FromBody] VerifyCodeDto model)
+        private async Task<IActionResult> VerifyCodeAsync(VerifyCodeDto model, string purpose, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(model.Email) ||
-                string.IsNullOrWhiteSpace(model.Code))
+            if (string.IsNullOrWhiteSpace(model.Email) || string.IsNullOrWhiteSpace(model.Code))
             {
-                return BadRequest(new
-                {
-                    message = "Email and code are required"
-                });
+                return BadRequest(new { message = "Email and code are required" });
             }
 
-            var verified = _verificationService.VerifyCode(
-                model.Email, model.Code, "signup");
+            var result = await _codes.VerifyAsync(SecurityKeys.NormalizeEmail(model.Email), purpose, model.Code, HttpContext, cancellationToken);
 
-            if (!verified)
+            return result.Outcome switch
             {
-                return BadRequest(new
-                {
-                    message = "Invalid or expired verification code"
-                });
+                CodeVerifyOutcome.Verified when purpose == OneTimeCodePurpose.Signup =>
+                    Ok(new { message = "Email verified successfully", signupToken = result.ProofToken }),
+                CodeVerifyOutcome.Verified =>
+                    Ok(new { message = "Reset code verified", resetToken = result.ProofToken }),
+                CodeVerifyOutcome.RateLimited => TooManyRequests(result.RetryAfter!.Value),
+                CodeVerifyOutcome.AttemptsExceeded => AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.CodeAttemptsExceeded, AttemptsExceededMessage),
+                _ => AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.CodeInvalid, CodeInvalidMessage)
+            };
+        }
+
+        // The proof token from verify-code / verify-reset-code; without it, only the Development fallback (C1 case 2).
+        private async Task<bool> ConsumeProofAsync(string email, string purpose, string? proofToken, CancellationToken cancellationToken)
+        {
+            if (!string.IsNullOrWhiteSpace(proofToken))
+            {
+                return await _codes.ConsumeProofAsync(email, purpose, proofToken, cancellationToken);
             }
 
-            return Ok(new
-            {
-                message = "Email verified successfully"
-            });
+            return _legacyFallback.TryUse(HttpContext, LegacyFallbackCase.SignupResetWithoutProof) &&
+                   await _codes.ConsumeLatestProofWithoutTokenAsync(email, purpose, cancellationToken);
         }
 
         [HttpPost("signup")]
+        [EnableRateLimiting(RateLimitPolicies.PasswordSet)]
         public async Task<IActionResult> SignUp(
-            [FromBody] SignUpDto model)
+            [FromBody] SignUpDto model,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(model.Email) ||
                 string.IsNullOrWhiteSpace(model.Password) ||
@@ -476,29 +522,22 @@ namespace Controllers
                 });
             }
 
-            var passwordError = _passwordService.ValidatePolicy(model.Password);
+            var email = SecurityKeys.NormalizeEmail(model.Email);
 
+            // Checked before the proof is spent, so a weak password can be corrected without a new code.
+            var passwordError = _passwordService.ValidatePolicy(model.Password, email);
             if (passwordError != null)
             {
-                return BadRequest(new
-                {
-                    message = passwordError
-                });
+                return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.PasswordPolicy, passwordError);
             }
 
-            var email = model.Email.Trim().ToLower();
-
-            if (!_verificationService.IsEmailVerified(email))
+            if (!await ConsumeProofAsync(email, OneTimeCodePurpose.Signup, model.SignupToken, cancellationToken))
             {
-                return BadRequest(new
-                {
-                    message =
-                        "Email is not verified. Please verify your email first."
-                });
+                return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.VerificationRequired, VerificationRequiredMessage);
             }
 
             var emailExists = await _context.Users
-                .AnyAsync(u => u.Email == email);
+                .AnyAsync(u => u.Email == email, cancellationToken);
 
             if (emailExists)
             {
@@ -517,9 +556,11 @@ namespace Controllers
             user.PasswordHash = _passwordService.Hash(user, model.Password);
 
             _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
 
-            _verificationService.ConsumeVerifiedEmail(email);
+            _context.SecurityEvents.Add(_events.Create(HttpContext, SecurityEventTypes.AccountCreated, SecurityEventOutcome.Success,
+                _time.GetUtcNow().UtcDateTime, user.Id, reason: user.UserType, email: email));
+            await _context.SaveChangesAsync(cancellationToken);
 
             return Ok(new
             {
@@ -529,88 +570,12 @@ namespace Controllers
             });
         }
 
-        [HttpPost("send-reset-code")]
-        public async Task<IActionResult> SendResetCode(
-            [FromBody] SendCodeDto model)
-        {
-            if (string.IsNullOrWhiteSpace(model.Email))
-            {
-                return BadRequest(new
-                {
-                    message = "Email is required"
-                });
-            }
-
-            var email = model.Email.Trim().ToLower();
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
-
-            if (user == null)
-            {
-                return BadRequest(new
-                {
-                    message = "This email is not registered"
-                });
-            }
-
-            var code =
-                _verificationService.CreateCode(email, "reset");
-
-            var sent = _emailService.SendEmail(
-                email,
-                "DevLink Password Reset",
-                $"Your DevLink password reset code is: {code}"
-            );
-
-            if (!sent)
-            {
-                return StatusCode(500, new
-                {
-                    message = "Failed to send reset email"
-                });
-            }
-
-            return Ok(new
-            {
-                message = "Reset code sent",
-                expiresInMinutes = 5
-            });
-        }
-
-        [HttpPost("verify-reset-code")]
-        public IActionResult VerifyResetCode(
-            [FromBody] VerifyCodeDto model)
-        {
-            if (string.IsNullOrWhiteSpace(model.Email) ||
-                string.IsNullOrWhiteSpace(model.Code))
-            {
-                return BadRequest(new
-                {
-                    message = "Email and code are required"
-                });
-            }
-
-            var verified = _verificationService.VerifyCode(
-                model.Email, model.Code, "reset");
-
-            if (!verified)
-            {
-                return BadRequest(new
-                {
-                    message = "Invalid or expired reset code"
-                });
-            }
-
-            return Ok(new
-            {
-                message = "Reset code verified"
-            });
-        }
-
+        // On success: new password hash, new security stamp, every session revoked, lockout cleared (§3.6).
         [HttpPost("reset-password")]
+        [EnableRateLimiting(RateLimitPolicies.PasswordSet)]
         public async Task<IActionResult> ResetPassword(
-            [FromBody] ResetPasswordDto model)
+            [FromBody] ResetPasswordDto model,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(model.Email) ||
                 string.IsNullOrWhiteSpace(model.NewPassword))
@@ -621,47 +586,61 @@ namespace Controllers
                 });
             }
 
-            var passwordError = _passwordService.ValidatePolicy(model.NewPassword);
+            var email = SecurityKeys.NormalizeEmail(model.Email);
 
+            var passwordError = _passwordService.ValidatePolicy(model.NewPassword, email);
             if (passwordError != null)
             {
-                return BadRequest(new
-                {
-                    message = passwordError
-                });
+                return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.PasswordPolicy, passwordError);
             }
 
-            var email = model.Email.Trim().ToLower();
-
-            if (!_verificationService.IsEmailVerifiedForReset(email))
+            if (!await ConsumeProofAsync(email, OneTimeCodePurpose.Reset, model.ResetToken, cancellationToken))
             {
-                return BadRequest(new
-                {
-                    message =
-                        "Email is not verified. Please verify the reset code first."
-                });
+                return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.VerificationRequired, VerificationRequiredMessage);
             }
 
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
+                .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
             if (user == null)
             {
-                return BadRequest(new
-                {
-                    message = "User not found"
-                });
+                return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.VerificationRequired, VerificationRequiredMessage);
             }
 
-            user.PasswordHash = _passwordService.Hash(user, model.NewPassword);
-            await _context.SaveChangesAsync();
+            var now = _time.GetUtcNow().UtcDateTime;
+            await using (var transaction = await _context.Database.BeginTransactionAsync(cancellationToken))
+            {
+                user.PasswordHash = _passwordService.Hash(user, model.NewPassword);
+                user.SecurityStamp = DataBase.User.NewSecurityStamp();
+                user.FailedLoginCount = 0;
+                user.LockoutEndAt = null;
+                await _context.SaveChangesAsync(cancellationToken);
 
-            _verificationService.ConsumeVerifiedResetEmail(email);
+                await _refreshSessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == user.Id),
+                    AuthSessionStatus.Revoked, "PasswordReset", now, cancellationToken);
+
+                _context.SecurityEvents.Add(_events.Create(HttpContext, SecurityEventTypes.PasswordReset, SecurityEventOutcome.Success,
+                    now, user.Id, email: email));
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            _sessionCache.Invalidate(user.Id);
+            _emailQueue.Enqueue(email, "Your DevLink password was changed",
+                "Your DevLink password was just reset and you were signed out everywhere. If this wasn't you, reset your password again and contact support.");
 
             return Ok(new
             {
                 message = "Password reset successfully"
             });
+        }
+
+        private ObjectResult TooManyRequests(TimeSpan retryAfter)
+        {
+            Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+            var minutes = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalMinutes));
+            return AuthError(StatusCodes.Status429TooManyRequests, AuthErrorCodes.RateLimited,
+                $"Too many requests. Please wait {minutes} minute{(minutes == 1 ? "" : "s")} and try again.");
         }
     }
 
@@ -701,11 +680,17 @@ namespace Controllers
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string UserType { get; set; } = string.Empty;
+
+        // Proof token from verify-code (M2.5a). Optional only for the Development fallback.
+        public string? SignupToken { get; set; }
     }
 
     public class ResetPasswordDto
     {
         public string Email { get; set; } = string.Empty;
         public string NewPassword { get; set; } = string.Empty;
+
+        // Proof token from verify-reset-code (M2.5a). Optional only for the Development fallback.
+        public string? ResetToken { get; set; }
     }
 }

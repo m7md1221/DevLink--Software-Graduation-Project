@@ -24,5 +24,10 @@ namespace DevLink.Api.Tests.Infrastructure
         [HttpGet("ping")]
         [AllowAnonymous]
         public IActionResult Ping() => Ok(new { ok = true });
+
+        // An unhandled exception carrying text that must never reach the client.
+        [HttpGet("boom")]
+        [AllowAnonymous]
+        public IActionResult Boom() => throw new InvalidOperationException("Simulated failure: SELECT secret FROM somewhere");
     }
 }

@@ -94,6 +94,12 @@ namespace Services.Security
                 .ValidateOnStart();
             services.AddSingleton<IValidateOptions<DeploymentOptions>, DeploymentOptionsValidator>();
 
+            services.AddOptions<SecurityKeysOptions>()
+                .Bind(configuration.GetSection(SecurityKeysOptions.SectionName))
+                .ValidateOnStart();
+            services.AddSingleton<IValidateOptions<SecurityKeysOptions>, SecurityKeysOptionsValidator>();
+            services.AddSingleton<SecurityKeys>();
+
             services.AddDevLinkCors(configuration);
             services.AddDevLinkAuthEnforcement();
 

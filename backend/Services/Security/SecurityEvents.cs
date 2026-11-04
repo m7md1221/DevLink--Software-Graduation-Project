@@ -16,11 +16,16 @@ namespace Services.Security
         public const string CsrfRejected = "Auth.CsrfRejected";
         public const string Logout = "Auth.Logout";
         public const string LogoutAll = "Auth.LogoutAll";
+        public const string CodeRequested = "Auth.CodeRequested";
+        public const string CodeAttemptsExceeded = "Auth.CodeAttemptsExceeded";
+        public const string RateLimited = "Auth.RateLimited";
+        public const string PasswordReset = "Auth.PasswordReset";
+        public const string AccountCreated = "Auth.AccountCreated";
 
         // R3: the only events that may carry a (truncated) IP prefix.
         public static readonly IReadOnlySet<string> WithIpPrefix = new HashSet<string>
         {
-            LoginFailed, LockedOut, "Auth.RateLimited", CsrfRejected, "Auth.CodeAttemptsExceeded", RefreshTokenReuse
+            LoginFailed, LockedOut, RateLimited, CsrfRejected, CodeAttemptsExceeded, RefreshTokenReuse
         };
     }
 
@@ -57,8 +62,16 @@ namespace Services.Security
     }
 
     // Builds SecurityEvent rows from typed inputs only — callers cannot pass tokens, passwords, codes or emails (§6.4).
+    // An email, when given, is stored only as a 12-hex keyed hash (EmailKey) for correlation.
     public class SecurityEventFactory
     {
+        private readonly SecurityKeys _keys;
+
+        public SecurityEventFactory(SecurityKeys keys)
+        {
+            _keys = keys;
+        }
+
         public SecurityEvent Create(
             HttpContext context,
             string eventType,
@@ -67,7 +80,8 @@ namespace Services.Security
             int? userId = null,
             Guid? sessionId = null,
             string? reason = null,
-            string? clientType = null)
+            string? clientType = null,
+            string? email = null)
         {
             return new SecurityEvent
             {
@@ -77,6 +91,7 @@ namespace Services.Security
                 UserId = userId,
                 SessionId = sessionId,
                 ClientType = clientType,
+                EmailKey = string.IsNullOrWhiteSpace(email) ? null : _keys.LogEmailKey(SecurityKeys.NormalizeEmail(email)),
                 IpPrefix = SecurityEventTypes.WithIpPrefix.Contains(eventType)
                     ? IpPrefix.From(context.Connection.RemoteIpAddress)
                     : null,

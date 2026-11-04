@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -35,13 +36,27 @@ namespace DevLink.Api.Tests.Infrastructure
 
         public CapturingLoggerProvider Logs { get; } = new();
 
+        // Hooks for specialised hosts (rate limits, development fallback).
+        protected virtual string RemoteIp => ClientIp;
+
+        protected virtual string? Environment => null;
+
+        protected virtual IDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
+
         private sealed class FixedRemoteIp : IStartupFilter
         {
+            private readonly IPAddress _ip;
+
+            public FixedRemoteIp(IPAddress ip)
+            {
+                _ip = ip;
+            }
+
             public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
             {
                 app.Use((context, nextMiddleware) =>
                 {
-                    context.Connection.RemoteIpAddress = IPAddress.Parse(ClientIp);
+                    context.Connection.RemoteIpAddress = _ip;
                     return nextMiddleware(context);
                 });
                 next(app);
@@ -51,12 +66,18 @@ namespace DevLink.Api.Tests.Infrastructure
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
+            if (Environment != null)
+            {
+                builder.UseEnvironment(Environment);
+            }
+
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(ExtraSettings));
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(Time);
                 services.AddSingleton<ILoggerProvider>(Logs);
-                services.AddTransient<IStartupFilter, FixedRemoteIp>();
+                services.AddTransient<IStartupFilter>(_ => new FixedRemoteIp(IPAddress.Parse(RemoteIp)));
             });
         }
 

@@ -112,13 +112,10 @@ namespace DevLink.Api.Tests
             var email = ApiTestHelpers.UniqueEmail("reset");
             await ApiTestHelpers.RegisterAsync(_client, _factory.Emails, email, "Secret123", "Customer");
 
-            await _client.PostAsJsonAsync("/api/Auth/send-reset-code", new { email });
-            var code = _factory.Emails.LatestCodeFor(email);
-            var verify = await _client.PostAsJsonAsync("/api/Auth/verify-reset-code", new { email, code });
-            Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
+            var resetToken = await ApiTestHelpers.VerifyResetAsync(_client, _factory.Emails, email);
 
             var reset = await _client.PostAsJsonAsync("/api/Auth/reset-password",
-                new { email, newPassword = "NewSecret456" });
+                new { email, newPassword = "NewSecret456", resetToken });
             Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
 
             Assert.True(PasswordService.IsIdentityHash(await StoredPasswordAsync(email)));
@@ -189,11 +186,11 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public void Minimum_length_defaults_to_6_and_is_configurable()
+        public void Minimum_length_defaults_to_8_and_is_configurable()
         {
-            Assert.Null(CreateService().ValidatePolicy("abcdef"));
-            Assert.NotNull(CreateService().ValidatePolicy("abcde"));
-            Assert.NotNull(CreateService(10).ValidatePolicy("abcdefghi"));
+            Assert.Null(CreateService().ValidatePolicy("kq7#mzpw"));
+            Assert.NotNull(CreateService().ValidatePolicy("kq7#mzp"));
+            Assert.NotNull(CreateService(10).ValidatePolicy("kq7#mzpwx"));
         }
     }
 }

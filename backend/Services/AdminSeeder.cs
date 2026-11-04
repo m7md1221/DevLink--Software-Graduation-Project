@@ -54,7 +54,7 @@ namespace Services
         {
             email = email.Trim().ToLower();
 
-            var passwordError = passwordService.ValidatePolicy(password);
+            var passwordError = passwordService.ValidatePolicy(password, email);
 
             if (passwordError != null)
             {

@@ -162,6 +162,11 @@ namespace Services.Auth
         public const string InvalidCredentials = "INVALID_CREDENTIALS";
         public const string AccountLocked = "ACCOUNT_LOCKED";
         public const string ServiceUnavailable = "SERVICE_UNAVAILABLE";
+        public const string RateLimited = "RATE_LIMITED";
+        public const string CodeInvalid = "CODE_INVALID";
+        public const string CodeAttemptsExceeded = "CODE_ATTEMPTS_EXCEEDED";
+        public const string VerificationRequired = "VERIFICATION_REQUIRED";
+        public const string PasswordPolicy = "PASSWORD_POLICY";
     }
 
     // ProblemDetails-shaped 401/403 bodies. Keeps "message" because the Flutter app reads data['message'] (§3.5).

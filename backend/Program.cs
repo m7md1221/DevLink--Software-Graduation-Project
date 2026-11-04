@@ -60,6 +60,7 @@ builder.Services.AddScoped<PostService>();
 builder.Services.AddDevLinkSecurityFoundation(builder.Configuration);
 builder.Services.AddDevLinkJwtAuthentication(builder.Configuration);
 builder.Services.AddDevLinkLogin();
+builder.Services.AddDevLinkRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -88,6 +89,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors(CorsSetup.PolicyName);
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseDevLinkSuspendedAccountGate();

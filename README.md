@@ -77,6 +77,13 @@ Stop / start later with `docker stop devlink-sql` / `docker start devlink-sql`.
    byte-order mark when piping, which `dotnet user-secrets` rejects — use Git Bash.) Don't run
    `dotnet user-secrets list` in a shared or recorded terminal (it prints values). A missing key, a key shorter than
    64 bytes or the placeholder from `appsettings.example.json` stops the API at start-up with a clear message.
+   **Code HMAC key (required)** — protects sign-up/reset codes and email hashes; generated the same way, also in
+   Git Bash from the repository root:
+   ```bash
+   k=$(openssl rand -base64 64 | tr -d '\r\n')
+   printf '{"Security:CodeHmacKey":"%s"}' "$k" | dotnet user-secrets set --project backend > /dev/null; echo "exit: ${PIPESTATUS[1]}"; unset k
+   ```
+   A missing key, one shorter than 32 bytes or the placeholder stops the API at start-up.
 6. **Allowed web origins (required)** — the API accepts browser calls only from the exact origins in
    `Cors:AllowedOrigins` (no wildcards; `https` outside Development). The template allows `http://localhost:5200`,
    so run the web app on that port (section 6). If your existing `backend/appsettings.json` predates this setting,

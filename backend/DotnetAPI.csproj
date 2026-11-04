@@ -20,4 +20,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" /> <!-- إصدار متوافق مع .NET 9 للـ Swagger -->
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Common-password blocklist (data, not a package): see Resources/common-passwords-10k.ATTRIBUTION.txt -->
+    <EmbeddedResource Include="Resources\common-passwords-10k.txt" LogicalName="DevLink.CommonPasswords10k.txt" />
+  </ItemGroup>
+
 </Project>

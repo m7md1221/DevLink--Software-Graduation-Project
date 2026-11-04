@@ -45,3 +45,6 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# Local tool settings
+.vs/

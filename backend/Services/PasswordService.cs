@@ -22,14 +22,22 @@ namespace Services
     {
         private readonly PasswordHasher<User> _hasher = new();
 
+        public const string TooCommonMessage = "This password is too common or too easy to guess. Please choose a different one.";
+
+        // SecLists 10k most common passwords (embedded data file; see Resources/*.ATTRIBUTION.txt). Case-insensitive.
+        private static readonly Lazy<HashSet<string>> CommonPasswords = new(LoadCommonPasswords);
+
         public PasswordService(IConfiguration configuration)
         {
-            MinLength = configuration.GetValue("Auth:MinPasswordLength", 6);
+            MinLength = configuration.GetValue("Auth:MinPasswordLength", 8);
         }
 
         public int MinLength { get; }
 
-        public string? ValidatePolicy(string password)
+        public static int CommonPasswordCount => CommonPasswords.Value.Count;
+
+        // Policy for NEW or CHANGED passwords only (P1, C7) — never applied at login, so legacy accounts still sign in.
+        public string? ValidatePolicy(string password, string? email = null)
         {
             if (string.IsNullOrEmpty(password) || password.Length < MinLength)
             {
@@ -41,7 +49,42 @@ namespace Services
                 return "Password must be at most 128 characters";
             }
 
+            var candidate = password.Trim();
+            if (CommonPasswords.Value.Contains(candidate))
+            {
+                return TooCommonMessage;
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                var normalized = email.Trim();
+                var localPart = normalized.Split('@')[0];
+                if (string.Equals(candidate, normalized, StringComparison.OrdinalIgnoreCase) ||
+                    (localPart.Length > 0 && string.Equals(candidate, localPart, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return TooCommonMessage;
+                }
+            }
+
             return null;
+        }
+
+        private static HashSet<string> LoadCommonPasswords()
+        {
+            using var stream = typeof(PasswordService).Assembly.GetManifestResourceStream("DevLink.CommonPasswords10k.txt")
+                ?? throw new InvalidOperationException("The embedded common-password list is missing.");
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (reader.ReadLine() is { } line)
+            {
+                if (line.Trim() is { Length: > 0 } entry)
+                {
+                    set.Add(entry);
+                }
+            }
+
+            return set;
         }
 
         public string Hash(User user, string password)
