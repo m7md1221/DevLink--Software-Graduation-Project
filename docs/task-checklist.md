@@ -62,5 +62,23 @@ Design: [M2_AUTH_DESIGN.md](M2_AUTH_DESIGN.md) revision 3, **approved 2026-11-03
 | M2.13 | Remove the migration switch and fallbacks | — | todo | — |
 | M2.14 | E2E per role, two-tab check | Admin email for `seed-admin` | todo | — |
 
+## UI redesign — Mukhatat / Blueprint
+Spec: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). Plan and file lists: [design/IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md). Decisions: UI-1 to UI-7 in the [decision log](decision-log.md). **Implemented together with M2.12, screen by screen, after M2.8–M2.11.**
+
+**Rules:** no logic changes; the partner does not edit the screens being redesigned; before each screen, check for new partner commits and stop if any touch the same files; money, numbers, ranges, dates, emails and code are always isolated as LTR inside RTL text.
+
+| ID | Task | Needs | Status |
+|---|---|---|---|
+| UI-D | Research, 3 directions, mockups, design system, plan | Owner and partner approval | **done** (approved 2026-11-05) |
+| UI-1 | Foundation: tokens, theme, bundled fonts, localization, contrast test; add `flutter_localizations` and `intl` here, not before | M2.8–M2.11 done; partner commit check | todo |
+| UI-2 | Shared `DL` widgets with golden tests | UI-1 | todo |
+| UI-3 | Batch 1: welcome and shared widgets | With M2.12 F6; partner commit check per screen | todo |
+| UI-4 | Batch 2: account forms | With M2.12 F7–F9, F11, F18; partner commit check per screen | todo |
+| UI-5 | Batch 3: customer screens, including KI-60 / P-13 | With M2.12 F10, F15, F17; partner commit check per screen | todo |
+| UI-6 | Batch 4: programmer screens | With M2.12 F10, F16; partner commit check per screen | todo |
+| UI-7 | Batch 5: admin screens | With M2.12 F10, F15, F16, F18; P-7 for Add administrator; partner commit check per screen | todo |
+| UI-8 | Arabic copy: draft, then owner and partner review in one table | Each batch adds its strings | todo |
+| UI-9 | Language switch and final accessibility pass | UI-3 to UI-8; owner decides when Arabic is shown | todo |
+
 ## Stage 4 — MVP slice (after M2)
 Structured project fields in posts → moderation with visible feedback → programmer access/apply → accept → delivery against criteria → reviews. **Not started**: protected write workflows require M2 first.
