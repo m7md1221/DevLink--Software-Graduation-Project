@@ -195,9 +195,9 @@ namespace DevLink.Api.Tests
         [InlineData("/api/Posts/user/999999/avatar")]
         [InlineData("/api/CustomerProfile/999999/image")]
         [InlineData("/api/ProgrammerProfile/999999/image")]
-        public async Task T_7D_09_image_routes_stay_reachable_without_a_token_until_M2_8(string path)
+        public async Task T_7D_09_image_routes_are_no_longer_reachable_without_a_signature_or_a_token(string path)
         {
-            Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync(path)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync(path)).StatusCode);
         }
 
         // ---------------- deny by default ----------------
@@ -276,17 +276,15 @@ namespace DevLink.Api.Tests
     // Reflection over the API assembly: no action may rely on a missing attribute.
     public class DenyByDefaultTests
     {
-        // The 8 sign-in routes and the 4 image routes (anonymous until M2.8).
+        // The 8 sign-in routes. The 4 image routes left this list in M2.8 (signed URLs, design 5.2).
         private static readonly string[] PublicRoutes =
         {
             "AuthController.Login", "AuthController.GoogleLogin", "AuthController.SendCode", "AuthController.SendResetCode",
-            "AuthController.VerifyCode", "AuthController.VerifyResetCode", "AuthController.SignUp", "AuthController.ResetPassword",
-            "CustomerProfileController.GetProfileImage", "ProgrammerProfileController.GetProfileImage",
-            "PostsController.GetPostImage", "PostsController.GetUserAvatar"
+            "AuthController.VerifyCode", "AuthController.VerifyResetCode", "AuthController.SignUp", "AuthController.ResetPassword"
         };
 
-        // No access token by design: they authenticate with the refresh token behind their own CSRF guard.
-        private static readonly string[] OwnGuardRoutes = { "AuthController.RefreshSession", "AuthController.Logout" };
+        // No access token by design: the refresh token behind its own CSRF guard, or a single-use download link plus its binding cookie.
+        private static readonly string[] OwnGuardRoutes = { "AuthController.RefreshSession", "AuthController.Logout", "FilesController.Download" };
 
         private static IEnumerable<MethodInfo> Actions() =>
             typeof(Program).Assembly.GetTypes()
@@ -307,7 +305,7 @@ namespace DevLink.Api.Tests
                 .ToList();
 
             Assert.Empty(missing);
-            Assert.Equal(73, Actions().Count());
+            Assert.Equal(76, Actions().Count());
         }
 
         [Fact]
@@ -316,7 +314,7 @@ namespace DevLink.Api.Tests
             var anonymous = Actions().Where(m => m.GetCustomAttribute<AllowAnonymousAttribute>() != null).Select(NameOf).OrderBy(n => n);
 
             Assert.Equal(PublicRoutes.Concat(OwnGuardRoutes).OrderBy(n => n), anonymous);
-            Assert.Equal(12, PublicRoutes.Length);
+            Assert.Equal(8, PublicRoutes.Length);
         }
 
         [Fact]

@@ -504,6 +504,8 @@ Not two hosts under a public-suffix domain such as `*.azurewebsites.net`. HSTS a
 - **Analytics:** the token appears only in the API URL, never in a Flutter route or page URL. DevLink has no third-party analytics; any added later must exclude `/api/**`.
 - **Browser history:** a single-use, 60-second link in history is harmless.
 
+**Verified in M2.8 (2026-11-05):** `window.open` from the app origin in Chromium sent the cookie and the file downloaded, so the fallback below is not needed.
+
 **To verify early in M2.8:** that `launchUrl` on web (`window.open` in a new tab) sends the `SameSite=Strict` binding cookie. If a browser doesn't send it, the web client switches to the direct Bearer route and saves the bytes with the **existing** `file_saver` dependency (no new package). That fallback needs no URL token at all.
 
 ### 5.2 Images (Q15)
@@ -1117,7 +1119,7 @@ Everything your partner needs to know or approve for M2, in the order it will ma
 | P-4 | **Removal of the "newest 5" notification deletion** (N1) | Agree before M2.10 changes `PostService.CreateNotification` and `NotificationsController` — their code. The bell keeps showing 5 (default `limit`); older notifications are kept instead of deleted; paging via `limit`/`before`. The old test `Current_behaviour_only_the_newest_five_notifications_are_kept` is replaced. Cleanup policy R4 decided later with them | Before M2.10 | M2.10 |
 | P-5 | **Other backend changes in their code** | Agree: feed/comment/profile responses gain `avatarUrl` / `images[].url` (M2.8); feed, weather and support endpoints require sign-in (M2.7); weather errors no longer return `ex.Message` | Before M2.7/M2.8 | M2.7, M2.8 |
 | P-6 | **Flutter review — F1–F18 (§9)**, including **`admin/admin_user_form_page.dart`** (lines 472, 480: password minimum 6 → 8) and the rest of **F18** (`set_password_page.dart:405`, `reset_password_page.dart:362`) | Review and approve each file's change before M2.12 is merged; especially login/sign-up/reset texts (F7–F9), logout (F10), app start (F5), the browser message (F6), the new suspension screen (F11) and the image-URL lines in feed/comments/admin pages (F14–F15) | Before M2.12 | M2.12 |
-| P-7 | **"Add admin" screen** (`admin/admin_add_admin_page.dart` → `ApiService.createAdmin`) | Be aware: since M1 the API returns **403** for creating admins (Q10, seed-admin only), so this screen can't succeed. Decide later whether to hide it or replace it with an explanation (no change in M2 without their approval) — KI-34 | Information now | — |
+| P-7 | **"Add admin" screen** (`admin/admin_add_admin_page.dart` → `ApiService.createAdmin`) | **Decided by the owner 2026-11-05 (UI-9):** the screen is hidden and replaced by a short message that administrators are created via the CLI, in the M2.12/redesign track. Since M1 the API returns **403** for creating admins (Q10, seed-admin only), so the screen can't succeed today (KI-34) | Be aware; changed in M2.12/redesign | — |
 | P-8 | **Product decisions** | R5 (programmer support entry point), R6 (consent checkbox location), confirm Q14 matches their intent (their code already resets verification) | Before the MVP | — |
 | P-9 | **Google client id** | `Google:ClientIds` in user-secrets for Google sign-in tests | Before M2.14 | Google part of M2.14 |
 | P-10 | **Gmail App Password** | The account owner revokes the leaked password (M1-01); it must never be reused | As soon as possible | Real email delivery |

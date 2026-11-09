@@ -1,4 +1,5 @@
 using Services.Auth;
+using Services.Files;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
@@ -129,16 +130,14 @@ namespace Controllers
 
                 foreach (var file in model.Images)
                 {
-                    if (file.Length > 5 * 1024 * 1024)
+                    if (file.Length > UploadValidator.MaxPostImageBytes)
                         return BadRequest(new { message = "Each image must be less than 5MB" });
 
-                    var ct = NormalizeImageType(file.ContentType, file.FileName);
-                    if (ct == null)
+                    var image = await UploadValidator.ReadImageAsync(file);
+                    if (image == null)
                         return BadRequest(new { message = "Only JPG, PNG, WEBP images are allowed" });
 
-                    using var ms = new MemoryStream();
-                    await file.CopyToAsync(ms);
-                    images.Add((ms.ToArray(), ct));
+                    images.Add((image.Value.Data, image.Value.ContentType));
                 }
             }
 
@@ -248,32 +247,22 @@ namespace Controllers
             return Ok(new { message });
         }
 
-        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("image/{imageId}")]
-        [AllowAnonymous]
+        [Authorize(Policy = AuthPolicies.SignedImageOrMember)]
         public async Task<IActionResult> GetPostImage(int imageId)
         {
-            var result = await _postService.GetPostImage(imageId);
+            // Past the policy without a signature or a token: only the development fallback.
+            var signedOrFallback = HttpContext.Items.ContainsKey(SignedImageHandler.VerifiedItem) || !_currentUser.IsAuthenticated;
+            var data = await _postService.GetPostImage(imageId, signedOrFallback, _currentUser.UserId, _currentUser.IsAdmin);
 
-            if (result.data == null)
-                return NotFound(new { message = "Image not found" });
-
-            Response.Headers.Append("Cache-Control", "public, max-age=86400");
-            return File(result.data, result.contentType ?? "image/jpeg");
+            return ImageResponse.From(this, data, "Image not found");
         }
 
-        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
         [HttpGet("user/{userId}/avatar")]
-        [AllowAnonymous]
+        [Authorize(Policy = AuthPolicies.SignedImageOrMember)]
         public async Task<IActionResult> GetUserAvatar(int userId)
         {
-            var result = await _postService.GetUserAvatar(userId);
-
-            if (result.data == null)
-                return NotFound(new { message = "No avatar found" });
-
-            Response.Headers.Append("Cache-Control", "public, max-age=3600");
-            return File(result.data, result.contentType ?? "image/jpeg");
+            return ImageResponse.From(this, await _postService.GetUserAvatar(userId), "No avatar found");
         }
 
         [HttpGet("search")]
@@ -590,35 +579,6 @@ namespace Controllers
             {
                 return WeatherFailed(ex);
             }
-        }
-
-        private static string? NormalizeImageType(
-            string contentType,
-            string fileName)
-        {
-            var ct = contentType.ToLower();
-            var fn = fileName.ToLower();
-
-            var allowed = new[]
-            {
-                "image/jpeg",
-                "image/jpg",
-                "image/png",
-                "image/webp",
-                "application/octet-stream"
-            };
-
-            if (!allowed.Contains(ct))
-                return null;
-
-            if (ct == "application/octet-stream")
-            {
-                if (fn.EndsWith(".png")) return "image/png";
-                if (fn.EndsWith(".webp")) return "image/webp";
-                return "image/jpeg";
-            }
-
-            return ct;
         }
     }
 

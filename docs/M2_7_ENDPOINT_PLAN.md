@@ -115,6 +115,8 @@
 
 **Closed by M2.7:** 7a #13, #15, #16, #17 (admin user management), #39 (self-verification), #61 and #62 (moderation), #66 (support inbox); 7b #46 and #50 (`isAdmin=true` deletes anything). The API is enforced by default; the unchanged app needs the development fallback until M2.12.
 
+**Counts (after M2.8):** 76 routes, adding `cv/link`, `certificate/link` and `Files/download`. `[AllowAnonymous]` on 11: the 8 sign-in routes (#1–#8) plus 3 with their own credential (#9, #10, `Files/download`). The 4 image routes use the `SignedImageOrMember` policy.
+
 **Counts (after M2.7d):** 73 routes. `[AllowAnonymous]` on 14: the **12 public routes** (8 sign-in #1–#8, 4 image routes #27, #32, #51, #52 until M2.8) plus 2 with their own refresh-token and CSRF guard (#9, #10). The other 59 need a token: #11, #12, the 2 M2.5b routes, the 2 documents (#33, #34) and the 53 routes of 7a–7d. `T-7D-10` fails on any action without an explicit rule.
 
 ## 2. Proposed sub-phases (most dangerous first)

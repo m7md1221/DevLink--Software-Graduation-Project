@@ -1,6 +1,7 @@
 using DataBase;
 using DataBase.Models;
 using Microsoft.EntityFrameworkCore;
+using Services.Files;
 
 namespace Services
 {
@@ -14,10 +15,12 @@ namespace Services
     public class PostService
     {
         private readonly AppDbContext _context;
+        private readonly MediaUrls _media;
 
-        public PostService(AppDbContext context)
+        public PostService(AppDbContext context, MediaUrls media)
         {
             _context = context;
+            _media = media;
         }
 
         // The name shown to other members: the profile nickname, never any part of the email (KI-58).
@@ -90,7 +93,8 @@ namespace Services
                     id = post.Id,
                     userId = post.UserId,
                     authorName = author.Value.nickname,
-                    authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
+                    authorImage = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
+                    avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     authorType = author.Value.userType,
                     content = post.Content,
                     createdAt = post.CreatedAt,
@@ -102,7 +106,7 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
-                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
+                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
             }
 
@@ -133,7 +137,8 @@ namespace Services
                     id = post.Id,
                     userId = post.UserId,
                     authorName = author.Value.nickname,
-                    authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
+                    authorImage = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
+                    avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     authorType = author.Value.userType,
                     content = post.Content,
                     createdAt = post.CreatedAt,
@@ -144,7 +149,7 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
-                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
+                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
             }
 
@@ -277,7 +282,8 @@ namespace Services
                     postId = c.PostId,
                     userId = c.UserId,
                     authorName = author.Value.nickname,
-                    authorImage = author.Value.hasImage ? $"/api/Posts/user/{c.UserId}/avatar" : null,
+                    authorImage = author.Value.hasImage ? _media.AvatarUrl(c.UserId) : null,
+                    avatarUrl = author.Value.hasImage ? _media.AvatarUrl(c.UserId) : null,
                     authorType = author.Value.userType,
                     content = c.Content,
                     createdAt = c.CreatedAt
@@ -332,33 +338,45 @@ namespace Services
             return (PostActionStatus.Ok, "Comment deleted successfully");
         }
 
-        public async Task<(byte[]? data, string? contentType)> GetPostImage(int imageId)
+        // Deleted posts and suspended or deleted authors: never. Otherwise approved posts for anyone who got here; pending and
+        // rejected ones need a signed URL (issued only to their owner and admins), or a token of the owner or an admin.
+        public async Task<byte[]?> GetPostImage(int imageId, bool signedOrFallback, int? callerId, bool callerIsAdmin)
         {
-            var img = await _context.PostImages.FirstOrDefaultAsync(i => i.Id == imageId);
-            if (img == null) return (null, null);
+            var image = await _context.PostImages.AsNoTracking()
+                .Where(i => i.Id == imageId && !i.Post!.IsDeleted)
+                .Select(i => new
+                {
+                    i.ImageData,
+                    i.Post!.Status,
+                    i.Post.UserId,
+                    AuthorActive = _context.Users.Any(u => u.Id == i.Post.UserId && u.Status == UserStatus.Active)
+                })
+                .FirstOrDefaultAsync();
 
-            return (img.ImageData, img.ContentType);
+            if (image == null || !image.AuthorActive)
+            {
+                return null;
+            }
+
+            return image.Status == "Approved" || signedOrFallback || callerIsAdmin || image.UserId == callerId
+                ? image.ImageData
+                : null;
         }
 
-        public async Task<(byte[]? data, string? contentType)> GetUserAvatar(int userId)
+        // Only for an active account (design 5.2).
+        public async Task<byte[]?> GetUserAvatar(int userId)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            if (user == null) return (null, null);
+            var user = await _context.Users.AsNoTracking()
+                .Where(u => u.Id == userId && u.Status == UserStatus.Active)
+                .Select(u => u.UserType)
+                .FirstOrDefaultAsync();
 
-            if (user.UserType == "Customer")
+            return user switch
             {
-                var p = await _context.CustomerProfiles.FirstOrDefaultAsync(cp => cp.UserId == userId);
-                if (p?.ProfileImage == null) return (null, null);
-                return (p.ProfileImage, p.ImageContentType ?? "image/jpeg");
-            }
-            else if (user.UserType == "Programmer")
-            {
-                var p = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == userId);
-                if (p?.ProfileImage == null) return (null, null);
-                return (p.ProfileImage, p.ImageContentType ?? "image/jpeg");
-            }
-
-            return (null, null);
+                "Customer" => await _context.CustomerProfiles.AsNoTracking().Where(p => p.UserId == userId).Select(p => p.ProfileImage).FirstOrDefaultAsync(),
+                "Programmer" => await _context.ProgrammerProfiles.AsNoTracking().Where(p => p.UserId == userId).Select(p => p.ProfileImage).FirstOrDefaultAsync(),
+                _ => null
+            };
         }
 
         // Emails are returned and searchable only for admins (Q3); others get email = null, key kept (D-5).
@@ -404,7 +422,7 @@ namespace Services
                         userType = user.UserType,
                         specialty = specialty,
                         hasImage = hasImage,
-                        avatarUrl = hasImage ? $"/api/Posts/user/{user.Id}/avatar" : null
+                        avatarUrl = hasImage ? _media.AvatarUrl(user.Id) : null
                     });
                 }
             }
@@ -435,7 +453,7 @@ namespace Services
                     city = p.City,
                     phoneNumber = includeContact ? p.PhoneNumber : null,
                     hasImage = p.ProfileImage != null,
-                    avatarUrl = p.ProfileImage != null ? $"/api/Posts/user/{user.Id}/avatar" : null,
+                    avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(user.Id) : null,
                     postCount = postCount,
                     createdAt = p.CreatedAt
                 };
@@ -460,7 +478,7 @@ namespace Services
                     rating = p.Rating,
                     isVerified = p.IsVerified,
                     hasImage = p.ProfileImage != null,
-                    avatarUrl = p.ProfileImage != null ? $"/api/Posts/user/{user.Id}/avatar" : null,
+                    avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(user.Id) : null,
                     postCount = postCount,
                     createdAt = p.CreatedAt
                 };
@@ -550,7 +568,7 @@ namespace Services
                     programmerRating = programmer?.Rating ?? 0,
                     programmerIsVerified = programmer?.IsVerified ?? false,
                     programmerHasImage = programmer?.ProfileImage != null,
-                    programmerAvatarUrl = programmer?.ProfileImage != null ? $"/api/Posts/user/{app.ProgrammerId}/avatar" : null,
+                    programmerAvatarUrl = programmer?.ProfileImage != null ? _media.AvatarUrl(app.ProgrammerId) : null,
                     email = user?.Email ?? "",
                     proposal = app.Proposal,
                     price = app.Price,
@@ -625,11 +643,12 @@ namespace Services
                     userId = post.UserId,
                     authorName = author.Value.nickname,
                     authorType = author.Value.userType,
-                    authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
+                    authorImage = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
+                    avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     content = post.Content,
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
-                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
+                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
             }
 

@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
+using Services;
 using Services.Auth;
+using Services.Files;
 
 namespace Controllers
 {
@@ -12,11 +14,15 @@ namespace Controllers
     {
         private readonly AppDbContext _context;
         private readonly ICurrentUser _currentUser;
+        private readonly MediaUrls _media;
+        private readonly PostService _posts;
 
-        public CustomerProfileController(AppDbContext context, ICurrentUser currentUser)
+        public CustomerProfileController(AppDbContext context, ICurrentUser currentUser, MediaUrls media, PostService posts)
         {
             _context = context;
             _currentUser = currentUser;
+            _media = media;
+            _posts = posts;
         }
 
         // Holds the phone number: the customer themself or an admin (design 8 #18).
@@ -47,6 +53,7 @@ namespace Controllers
                 city = profile.City,
                 phoneNumber = profile.PhoneNumber,
                 hasImage = profile.ProfileImage != null,
+                avatarUrl = profile.ProfileImage != null ? _media.AvatarUrl(profile.UserId) : null,
                 createdAt = profile.CreatedAt
             });
         }
@@ -105,7 +112,7 @@ namespace Controllers
             if (model.ProfileImage != null &&
                 model.ProfileImage.Length > 0)
             {
-                if (model.ProfileImage.Length > 2 * 1024 * 1024)
+                if (model.ProfileImage.Length > UploadValidator.MaxAvatarBytes)
                 {
                     return BadRequest(new
                     {
@@ -113,19 +120,8 @@ namespace Controllers
                     });
                 }
 
-                var allowed = new[]
-                {
-                    "image/jpeg",
-                    "image/jpg",
-                    "image/png",
-                    "image/webp",
-                    "application/octet-stream"
-                };
-
-                contentType = model.ProfileImage.ContentType
-                    .ToLower();
-
-                if (!allowed.Contains(contentType))
+                var image = await UploadValidator.ReadImageAsync(model.ProfileImage);
+                if (image == null)
                 {
                     return BadRequest(new
                     {
@@ -134,22 +130,8 @@ namespace Controllers
                     });
                 }
 
-                if (contentType == "application/octet-stream")
-                {
-                    var fileName = model.ProfileImage.FileName
-                        .ToLower();
-
-                    if (fileName.EndsWith(".png"))
-                        contentType = "image/png";
-                    else if (fileName.EndsWith(".webp"))
-                        contentType = "image/webp";
-                    else
-                        contentType = "image/jpeg";
-                }
-
-                using var ms = new MemoryStream();
-                await model.ProfileImage.CopyToAsync(ms);
-                imageBytes = ms.ToArray();
+                imageBytes = image.Value.Data;
+                contentType = image.Value.ContentType;
             }
 
             var profile = new CustomerProfile
@@ -209,7 +191,7 @@ namespace Controllers
             if (model.ProfileImage != null &&
                 model.ProfileImage.Length > 0)
             {
-                if (model.ProfileImage.Length > 2 * 1024 * 1024)
+                if (model.ProfileImage.Length > UploadValidator.MaxAvatarBytes)
                 {
                     return BadRequest(new
                     {
@@ -217,19 +199,8 @@ namespace Controllers
                     });
                 }
 
-                var allowed = new[]
-                {
-                    "image/jpeg",
-                    "image/jpg",
-                    "image/png",
-                    "image/webp",
-                    "application/octet-stream"
-                };
-
-                var contentType = model.ProfileImage.ContentType
-                    .ToLower();
-
-                if (!allowed.Contains(contentType))
+                var image = await UploadValidator.ReadImageAsync(model.ProfileImage);
+                if (image == null)
                 {
                     return BadRequest(new
                     {
@@ -238,23 +209,8 @@ namespace Controllers
                     });
                 }
 
-                if (contentType == "application/octet-stream")
-                {
-                    var fileName = model.ProfileImage.FileName
-                        .ToLower();
-
-                    if (fileName.EndsWith(".png"))
-                        contentType = "image/png";
-                    else if (fileName.EndsWith(".webp"))
-                        contentType = "image/webp";
-                    else
-                        contentType = "image/jpeg";
-                }
-
-                using var ms = new MemoryStream();
-                await model.ProfileImage.CopyToAsync(ms);
-                profile.ProfileImage = ms.ToArray();
-                profile.ImageContentType = contentType;
+                profile.ProfileImage = image.Value.Data;
+                profile.ImageContentType = image.Value.ContentType;
             }
 
             profile.UpdatedAt = DateTime.UtcNow;
@@ -267,26 +223,14 @@ namespace Controllers
             });
         }
 
-        // Anonymous only until M2.8 replaces client-built URLs with signed ones (design 5.2).
+        // Only the customer's image; a signed URL for any avatar names the user, not the route (design 5.2).
         [HttpGet("{userId}/image")]
-        [AllowAnonymous]
+        [Authorize(Policy = AuthPolicies.SignedImageOrMember)]
         public async Task<IActionResult> GetProfileImage(int userId)
         {
-            var profile = await _context.CustomerProfiles
-                .FirstOrDefaultAsync(p => p.UserId == userId);
+            var isCustomer = await _context.CustomerProfiles.AnyAsync(p => p.UserId == userId);
 
-            if (profile?.ProfileImage == null)
-            {
-                return NotFound(new
-                {
-                    message = "No image found"
-                });
-            }
-
-            return File(
-                profile.ProfileImage,
-                profile.ImageContentType ?? "image/jpeg"
-            );
+            return ImageResponse.From(this, isCustomer ? await _posts.GetUserAvatar(userId) : null, "No image found");
         }
     }
 

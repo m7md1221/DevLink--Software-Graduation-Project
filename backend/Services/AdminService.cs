@@ -2,6 +2,7 @@ using System.Text.Json;
 using DataBase;
 using Microsoft.EntityFrameworkCore;
 using Services.Auth;
+using Services.Files;
 using Services.Security;
 
 namespace Services
@@ -25,8 +26,10 @@ namespace Services
         private readonly SessionStateCache _sessionCache;
         private readonly SecurityEventFactory _events;
         private readonly TimeProvider _time;
+        private readonly MediaUrls _media;
 
         public AdminService(
+            MediaUrls media,
             AppDbContext context,
             IEmailSender emailService,
             PasswordService passwordService,
@@ -35,6 +38,7 @@ namespace Services
             SecurityEventFactory events,
             TimeProvider time)
         {
+            _media = media;
             _context = context;
             _emailService = emailService;
             _passwordService = passwordService;
@@ -74,7 +78,8 @@ namespace Services
                             phoneNumber = p.PhoneNumber,
                             country = p.Country,
                             city = p.City,
-                            hasImage = p.ProfileImage != null
+                            hasImage = p.ProfileImage != null,
+                            avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(p.UserId) : null
                         };
                     }
                 }
@@ -94,7 +99,8 @@ namespace Services
                             specialty = p.Specialty,
                             university = p.University,
                             isVerified = p.IsVerified,
-                            hasImage = p.ProfileImage != null
+                            hasImage = p.ProfileImage != null,
+                            avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(p.UserId) : null
                         };
                     }
                 }
@@ -450,6 +456,7 @@ namespace Services
                     isVerified = p.IsVerified,
                     rating = p.Rating,
                     hasImage = p.ProfileImage != null,
+                    avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(p.UserId) : null,
                     hasCV = p.CV != null,
                     hasCertificate = p.Certificate != null,
                     cvName = p.CVName,

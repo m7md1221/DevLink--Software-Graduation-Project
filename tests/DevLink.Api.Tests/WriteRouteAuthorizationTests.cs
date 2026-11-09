@@ -51,7 +51,7 @@ namespace DevLink.Api.Tests
         public static HttpRequestMessage File(string path, string field, string fileName)
         {
             var form = new MultipartFormDataContent();
-            form.Add(new ByteArrayContent(new byte[] { 1, 2, 3, 4 }), field, fileName);
+            form.Add(new ByteArrayContent(TestFiles.Pdf), field, fileName);
             return new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
         }
 
@@ -501,7 +501,7 @@ namespace DevLink.Api.Tests
         private static HttpRequestMessage FormWithCertificate(int userId)
         {
             var form = new MultipartFormDataContent();
-            form.Add(new ByteArrayContent(new byte[] { 1, 2, 3 }), "Certificate", "new.pdf");
+            form.Add(new ByteArrayContent(TestFiles.Pdf), "Certificate", "new.pdf");
             return new HttpRequestMessage(HttpMethod.Put, $"/api/ProgrammerProfile/{userId}") { Content = form };
         }
 

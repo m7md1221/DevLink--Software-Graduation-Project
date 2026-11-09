@@ -48,3 +48,6 @@ Thumbs.db
 
 # Local tool settings
 .vs/
+
+# Local secret-scan values (synthetic test passwords, never committed)
+tools/secret-scan.local.txt

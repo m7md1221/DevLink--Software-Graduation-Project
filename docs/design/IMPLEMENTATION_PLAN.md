@@ -22,8 +22,9 @@ Applies [DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md) to the Flutter app. Nothing here
 | `flutter_localizations` and `intl` | Approved, to be added only when implementation starts |
 | `device_preview` | Left as it is for now |
 | Arabic copy | Drafted during implementation; the owner and partner review it in one table before it ships |
-| P-7: hide or replace the Add administrator screen | **Open**, partner. Blocks that screen in batch 5 |
-| Show Arabic progressively or only when complete | **Open**, owner. Recommendation: keep the language switch hidden until every screen is translated |
+| P-7: Add administrator screen | Decided (UI-9): hidden and replaced by a short message that administrators are created via the CLI, in batch 5 |
+| UI language | Decided (UI-8): Arabic is the default. The language switch appears only when 100% of screens are translated |
+| When the default becomes Arabic | **Open**, owner. Recommendation: at the end of step 3, because an earlier switch shows untranslated screens as English text in an RTL layout |
 
 ## Step 1: Foundation
 
@@ -37,7 +38,7 @@ No screen is restyled by hand here, but every screen picks up the new theme, so 
 | new `frontend/l10n.yaml`, `frontend/lib/l10n/app_en.arb`, `app_ar.arb` | Translation set-up with status glossary only |
 | new `frontend/lib/theme/devlink_tokens.dart` | Colours, spacing, radius, type |
 | `frontend/lib/theme/app_theme.dart` | Explicit `ColorScheme`, `DevLinkColors` extension, component themes, locale-aware text theme |
-| `frontend/lib/main.dart` (partner, shared with F5) | Localization delegates, supported locales, remove `NoScrollbarBehavior`. The locale stays English until the language switch is approved. |
+| `frontend/lib/main.dart` (partner, shared with F5) | Localization delegates, supported locales, remove `NoScrollbarBehavior`. The locale stays English during step 1; the default becomes Arabic as decided in step 0. |
 | `frontend/web/index.html` | `lang` and `dir` |
 | new `frontend/test/design/tokens_contrast_test.dart` | Fails if any token pair in `contrast-report.md` drops below its minimum |
 
@@ -78,7 +79,7 @@ Paths are under `frontend/lib/`. F-numbers refer to M2.12. Every screen in this 
 | **2. Account forms** | `pages/Common/login_page.dart`, `signup_page.dart`, `verify_code_page.dart`, `set_password_page.dart`, `forgot_password_page.dart`, `reset_verify_page.dart`, `reset_password_page.dart`, and new `account_suspended_page.dart` | F7, F8, F9, F11, F18 | Merge with M2.12. Inputs force LTR where needed; paste allowed. |
 | **3. Customer** | `pages/Customer/customer_home_page.dart`, `widgets/post_card.dart`, `widgets/comments_sheet.dart`, `create_post_page.dart`, `apply_to_post_page.dart`, `post_applications_page.dart`, `search_users_page.dart`, `user_profile_page.dart`, `customer_profile_setup_page.dart`, `dashboard_placeholder_page.dart`, `contact_support_page.dart`, `customer_support_messages_page.dart` | F10, F15, F17 | Fix KI-60 here, see below. |
 | **4. Programmer** | `pages/Programmer/programmer_dashboard_page.dart`, `programmer_profile_setup_page.dart` | F10, F16 | The largest file, at 1559 lines. |
-| **5. Admin** | `pages/admin/admin_dashboard_page.dart`, `admin_users_page.dart`, `admin_user_form_page.dart`, `admin_add_admin_page.dart`, `admin_posts_page.dart`, `admin_verifications_page.dart`, `admin_verification_details_page.dart`, `admin_support_page.dart`, `admin_statistics_page.dart` | F10, F15, F16, F18 | Dense tables. Statistics keeps `fl_chart`, recoloured from tokens. Add administrator waits for P-7. |
+| **5. Admin** | `pages/admin/admin_dashboard_page.dart`, `admin_users_page.dart`, `admin_user_form_page.dart`, `admin_add_admin_page.dart`, `admin_posts_page.dart`, `admin_verifications_page.dart`, `admin_verification_details_page.dart`, `admin_support_page.dart`, `admin_statistics_page.dart` | F10, F15, F16, F18 | Dense tables. Statistics keeps `fl_chart`, recoloured from tokens. Add administrator is hidden and replaced by the CLI message (UI-9). |
 
 **For each screen:**
 
@@ -102,7 +103,7 @@ Paths are under `frontend/lib/`. F-numbers refer to M2.12. Every screen in this 
 
 ## Step 4: Language switch
 
-After every screen is translated and the owner and partner have reviewed the Arabic table:
+After 100% of screens are translated and the owner and partner have reviewed the Arabic table:
 
 - Add the switch to the top bar and account screen, and store the choice with `shared_preferences`.
 - Run golden tests at 360 px in both locales for all screens (spec §4.7).

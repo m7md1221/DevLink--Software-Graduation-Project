@@ -25,6 +25,7 @@ namespace Services.Security
         public const string AdminUserSuspended = "Admin.UserSuspended";
         public const string AdminUserUnsuspended = "Admin.UserUnsuspended";
         public const string AdminUserDeleted = "Admin.UserDeleted";
+        public const string FileDownloaded = "Files.Downloaded";
 
         // R3: the only events that may carry a (truncated) IP prefix.
         public static readonly IReadOnlySet<string> WithIpPrefix = new HashSet<string>

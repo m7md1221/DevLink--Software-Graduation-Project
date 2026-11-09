@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using DataBase;
 using Services;
 using Services.Auth;
+using Services.Files;
 using Services.Security;
 
 namespace Controllers
@@ -77,7 +78,7 @@ namespace Controllers
 
             var result = await _loginService.LoginAsync(
                 model.Email, model.Password, model.UserType, clientType,
-                issueRefreshToken: csrf.Mode != ClientMode.Legacy, HttpContext, cancellationToken);
+                issueRefreshToken: csrf.Mode != ClientMode.Legacy, HttpContext, cancellationToken, issueDownloadBinding: csrf.Mode == ClientMode.Web);
 
             if (result.Outcome == LoginOutcome.LockedOut)
             {
@@ -103,6 +104,7 @@ namespace Controllers
             if (result.RefreshToken != null && csrf.Mode == ClientMode.Web)
             {
                 RefreshCookie.Append(Response, result.RefreshToken, _time.GetUtcNow().UtcDateTime);
+                DownloadBindingCookie.Append(Response, result.DownloadBinding!, result.Session!.AbsoluteExpiresAt - _time.GetUtcNow().UtcDateTime);
             }
 
             return Ok(new
@@ -196,6 +198,7 @@ namespace Controllers
             if (csrf.Mode != ClientMode.Mobile)
             {
                 RefreshCookie.Delete(Response);
+                DownloadBindingCookie.Delete(Response);
             }
 
             return NoContent();
@@ -214,6 +217,7 @@ namespace Controllers
             var clientType = CookieSessionGuard.ModeOf(Request) == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
             await _refreshSessions.LogoutAllAsync(userId, HttpContext, clientType, cancellationToken);
             RefreshCookie.Delete(Response);
+            DownloadBindingCookie.Delete(Response);
             return NoContent();
         }
 
@@ -222,6 +226,7 @@ namespace Controllers
             if (mode == ClientMode.Web)
             {
                 RefreshCookie.Delete(Response);
+                DownloadBindingCookie.Delete(Response);
             }
 
             return AuthError(StatusCodes.Status401Unauthorized, errorCode, message);
@@ -242,7 +247,7 @@ namespace Controllers
         // The trusted source for the signed-in user's role and status (M2_AUTH_DESIGN §6.1).
         [HttpGet("me")]
         [Authorize]
-        public async Task<IActionResult> Me(CancellationToken cancellationToken)
+        public async Task<IActionResult> Me([FromServices] MediaUrls media, CancellationToken cancellationToken)
         {
             if (!int.TryParse(User.FindFirst("sub")?.Value, out var userId))
             {
@@ -256,12 +261,17 @@ namespace Controllers
                 return Unauthorized();
             }
 
+            var hasImage =
+                await _context.CustomerProfiles.AnyAsync(p => p.UserId == user.Id && p.ProfileImage != null, cancellationToken) ||
+                await _context.ProgrammerProfiles.AnyAsync(p => p.UserId == user.Id && p.ProfileImage != null, cancellationToken);
+
             return Ok(new
             {
                 userId = user.Id,
                 role = user.UserType,
                 email = user.Email,
                 status = user.Status,
+                avatarUrl = hasImage ? media.AvatarUrl(user.Id) : null,
                 suspendedReason = user.Status == UserStatus.Suspended ? user.SuspendedReason : null,
                 hasProfile = await _context.CustomerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken),
                 hasProgrammerProfile = await _context.ProgrammerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken)

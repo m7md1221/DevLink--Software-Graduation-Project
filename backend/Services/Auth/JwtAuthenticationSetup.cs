@@ -169,6 +169,7 @@ namespace Services.Auth
         public const string CodeAttemptsExceeded = "CODE_ATTEMPTS_EXCEEDED";
         public const string VerificationRequired = "VERIFICATION_REQUIRED";
         public const string PasswordPolicy = "PASSWORD_POLICY";
+        public const string LinkExpired = "LINK_EXPIRED";
     }
 
     // ProblemDetails-shaped 401/403 bodies. Keeps "message" because the Flutter app reads data['message'] (§3.5).

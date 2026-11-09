@@ -130,4 +130,4 @@ Computed with the WCAG formula.
 | KI-46 | Back arrow | Can land on a blank page. |
 | KI-59 | Member views | A null email leaves gaps, and the search hint still mentions email. |
 | KI-13 | Programmer dashboard | No feed for programmers. |
-| KI-34 / P-7 | Add administrator | The screen cannot succeed (API returns 403). Do not spend redesign effort on it until P-7 is decided. |
+| KI-34 / P-7 | Add administrator | The screen cannot succeed (API returns 403). Decided after this inventory (UI-9): hidden and replaced by a CLI message. Originally: do not spend redesign effort on it until P-7 is decided. |

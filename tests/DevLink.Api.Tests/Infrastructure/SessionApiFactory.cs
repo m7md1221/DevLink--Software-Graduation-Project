@@ -20,6 +20,8 @@ namespace DevLink.Api.Tests.Infrastructure
         public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow + _offset;
 
         public void Advance(TimeSpan by) => _offset += by;
+
+        public void Reset() => _offset = TimeSpan.Zero;
     }
 
     // ============================================================

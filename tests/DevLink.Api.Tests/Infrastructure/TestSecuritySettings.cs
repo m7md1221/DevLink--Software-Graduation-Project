@@ -20,6 +20,7 @@ namespace DevLink.Api.Tests.Infrastructure
                 ["Jwt:SigningKeys:0:Status"] = "Active",
                 ["Cors:AllowedOrigins:0"] = Origin,
                 ["Security:CodeHmacKey"] = NewSigningKey(32),
+                ["Security:MediaUrlKey"] = NewSigningKey(32),
 
                 // M2.5a limits are per client IP; the test server has one, so ordinary tests get
                 // effectively unlimited budgets. Rate-limit tests lower them explicitly.

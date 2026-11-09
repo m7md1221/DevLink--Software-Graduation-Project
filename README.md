@@ -84,6 +84,12 @@ Stop / start later with `docker stop devlink-sql` / `docker start devlink-sql`.
    printf '{"Security:CodeHmacKey":"%s"}' "$k" | dotnet user-secrets set --project backend > /dev/null; echo "exit: ${PIPESTATUS[1]}"; unset k
    ```
    A missing key, one shorter than 32 bytes or the placeholder stops the API at start-up.
+   **Media URL key (required)** — signs image URLs; generated the same way, separately from the other keys:
+   ```bash
+   k=$(openssl rand -base64 64 | tr -d '\r\n')
+   printf '{"Security:MediaUrlKey":"%s"}' "$k" | dotnet user-secrets set --project backend > /dev/null; echo "exit: ${PIPESTATUS[1]}"; unset k
+   ```
+   The same start-up checks apply.
 6. **Allowed web origins (required)** — the API accepts browser calls only from the exact origins in
    `Cors:AllowedOrigins` (no wildcards; `https` outside Development). The template allows `http://localhost:5200`,
    so run the web app on that port (section 6). If your existing `backend/appsettings.json` predates this setting,
@@ -125,6 +131,8 @@ Open it as `http://localhost:5200`, not by `127.0.0.1` or a LAN IP: other origin
 sign-in also needs a secure context (`localhost` or HTTPS).
 
 ### 7. Running the tests
+
+Before a push, scan for secrets: `powershell -File tools/secret-scan.ps1` checks the staged content, and `-Rev HEAD` checks a commit. It reads sensitive values at runtime and prints only file names and counts. Put synthetic test passwords in `tools/secret-scan.local.txt` (gitignored, one per line); without that file the scan reports itself as incomplete.
 
 Tests that touch a database use a **separate, disposable SQL Server** — never the `DevLink` database. Each test
 class creates a database named `DevLinkTest_<guid>` and drops it afterwards.

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DataBase;
 using Microsoft.EntityFrameworkCore;
+using Services.Files;
 using Services.Security;
 
 namespace Services.Auth
@@ -21,7 +22,8 @@ namespace Services.Auth
         AuthSession? Session = null,
         AccessToken? Token = null,
         TimeSpan? RetryAfter = null,
-        IssuedRefreshToken? RefreshToken = null);
+        IssuedRefreshToken? RefreshToken = null,
+        string? DownloadBinding = null);
 
     // ============================================================
     // Same lockout behaviour for emails that have no account, kept in
@@ -194,10 +196,10 @@ namespace Services.Auth
         }
 
         public async Task<LoginResult> LoginAsync(
-            string email, string password, string userType, string clientType, bool issueRefreshToken, HttpContext http, CancellationToken cancellationToken)
+            string email, string password, string userType, string clientType, bool issueRefreshToken, HttpContext http, CancellationToken cancellationToken, bool issueDownloadBinding = false)
         {
             var stopwatch = Stopwatch.StartNew();
-            var result = await LoginCoreAsync(email, password, userType, clientType, issueRefreshToken, http, cancellationToken);
+            var result = await LoginCoreAsync(email, password, userType, clientType, issueRefreshToken, issueDownloadBinding, http, cancellationToken);
 
             if (result.Outcome != LoginOutcome.Success && stopwatch.Elapsed < _minimumFailureDuration)
             {
@@ -208,7 +210,7 @@ namespace Services.Auth
         }
 
         private async Task<LoginResult> LoginCoreAsync(
-            string rawEmail, string password, string userType, string clientType, bool issueRefreshToken, HttpContext http, CancellationToken cancellationToken)
+            string rawEmail, string password, string userType, string clientType, bool issueRefreshToken, bool issueDownloadBinding, HttpContext http, CancellationToken cancellationToken)
         {
             var email = (rawEmail ?? string.Empty).Trim().ToLowerInvariant();
             password ??= string.Empty;
@@ -295,6 +297,9 @@ namespace Services.Auth
             user.LockoutEndAt = null;
             user.LastLoginAt = now;
 
+            // Web sessions only: mobile uses the direct Bearer route and never holds this cookie (§5.1).
+            var downloadBinding = issueDownloadBinding ? DownloadBindingCookie.NewValue() : null;
+
             var session = new AuthSession
             {
                 Id = Guid.NewGuid(),
@@ -303,7 +308,8 @@ namespace Services.Auth
                 Status = AuthSessionStatus.Active,
                 CreatedAt = now,
                 LastRefreshedAt = now,
-                AbsoluteExpiresAt = now + (user.UserType == "Admin" ? AdminSessionLifetime : CustomerSessionLifetime)
+                AbsoluteExpiresAt = now + (user.UserType == "Admin" ? AdminSessionLifetime : CustomerSessionLifetime),
+                DownloadBindingHash = downloadBinding == null ? null : DownloadBindingCookie.Hash(downloadBinding)
             };
             _db.AuthSessions.Add(session);
             var refresh = issueRefreshToken ? _refreshSessions.AddToken(session, user.UserType, now, null, out _) : null;
@@ -314,7 +320,7 @@ namespace Services.Auth
 
             var token = _tokens.CreateAccessToken(new AccessTokenRequest(user.Id, user.UserType, user.SecurityStamp, session.Id));
             _logger.LogInformation("Auth.LoginSucceeded user {UserId} client {ClientType} status {Status}", user.Id, clientType, user.Status);
-            return new LoginResult(LoginOutcome.Success, user, session, token, RefreshToken: refresh);
+            return new LoginResult(LoginOutcome.Success, user, session, token, RefreshToken: refresh, DownloadBinding: downloadBinding);
         }
 
         private async Task RecordAsync(HttpContext http, string type, string outcome, DateTime now, int? userId, Guid? sessionId,

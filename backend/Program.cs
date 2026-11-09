@@ -2,6 +2,7 @@ using DataBase;
 using Microsoft.EntityFrameworkCore;
 using Services;
 using Services.Auth;
+using Services.Files;
 using Services.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,7 @@ builder.Services.AddScoped<PostService>();
 builder.Services.AddDevLinkSecurityFoundation(builder.Configuration);
 builder.Services.AddDevLinkJwtAuthentication(builder.Configuration);
 builder.Services.AddDevLinkLogin();
+builder.Services.AddDevLinkFiles();
 builder.Services.AddDevLinkRateLimiting(builder.Configuration);
 
 var app = builder.Build();

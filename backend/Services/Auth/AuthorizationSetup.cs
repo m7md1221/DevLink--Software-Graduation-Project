@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Services.Files;
 
 namespace Services.Auth
 {
@@ -26,6 +27,10 @@ namespace Services.Auth
         // CV and certificate downloads: the app opens them as plain URLs, so a tokenless request can only
         // pass on the development fallback (design 7.3 case 3). Who may read them is checked in the action.
         public const string MemberFileOrDevFallback = "MemberFileOrDevFallback";
+
+        // Images: a signed URL or an access token; a tokenless, unsigned request only on the development
+        // fallback (design 7.3 case 4). No image route is anonymous (design 5.2).
+        public const string SignedImageOrMember = "SignedImageOrMember";
     }
 
     // ============================================================
@@ -87,6 +92,8 @@ namespace Services.Auth
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUser, CurrentUser>();
             services.AddSingleton<IAuthorizationHandler, RoleOrDevFallbackHandler>();
+            services.AddSingleton<IAuthorizationHandler, SignedImageHandler>();
+            services.AddSingleton<IAuthorizationMiddlewareResultHandler, SignedImageResultHandler>();
 
             services.AddAuthorization(options =>
             {
@@ -103,6 +110,7 @@ namespace Services.Auth
                 options.AddPolicy(AuthPolicies.MemberResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest)));
                 options.AddPolicy(AuthPolicies.NonAdminResourceOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Customer", "Programmer")));
                 options.AddPolicy(AuthPolicies.MemberFileOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.FileWithoutToken)));
+                options.AddPolicy(AuthPolicies.SignedImageOrMember, policy => policy.AddRequirements(new SignedImageRequirement()));
             });
 
             return services;

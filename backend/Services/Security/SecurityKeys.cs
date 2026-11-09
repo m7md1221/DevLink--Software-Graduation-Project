@@ -13,38 +13,47 @@ namespace Services.Security
 
         // HMAC key for one-time codes, proof tokens and email keys (M2.5a). User-secrets / environment only.
         public string CodeHmacKey { get; set; } = "";
+
+        // HMAC key for signed image URLs (M2.8). Separate from the other keys; none is derived from another.
+        public string MediaUrlKey { get; set; } = "";
     }
 
     public class SecurityKeysOptionsValidator : IValidateOptions<SecurityKeysOptions>
     {
-        private const string Help = "Generate it as described in README.md (\"Code HMAC key\").";
-
         public ValidateOptionsResult Validate(string? name, SecurityKeysOptions options)
         {
-            var key = options.CodeHmacKey?.Trim() ?? "";
+            return Check("Security:CodeHmacKey", options.CodeHmacKey, "Code HMAC key") ??
+                   Check("Security:MediaUrlKey", options.MediaUrlKey, "Media URL key") ??
+                   ValidateOptionsResult.Success;
+        }
+
+        private static ValidateOptionsResult? Check(string setting, string? value, string readmeSection)
+        {
+            var help = $"Generate it as described in README.md (\"{readmeSection}\").";
+            var key = value?.Trim() ?? "";
             if (key.Length == 0)
             {
-                return ValidateOptionsResult.Fail($"Security:CodeHmacKey is not configured. {Help}");
+                return ValidateOptionsResult.Fail($"{setting} is not configured. {help}");
             }
 
             if (key == SecurityKeysOptions.KeyPlaceholder)
             {
-                return ValidateOptionsResult.Fail($"Security:CodeHmacKey still contains the placeholder from appsettings.example.json. {Help}");
+                return ValidateOptionsResult.Fail($"{setting} still contains the placeholder from appsettings.example.json. {help}");
             }
 
             var buffer = new byte[key.Length];
             if (!Convert.TryFromBase64String(key, buffer, out var length))
             {
-                return ValidateOptionsResult.Fail($"Security:CodeHmacKey is not valid base64. {Help}");
+                return ValidateOptionsResult.Fail($"{setting} is not valid base64. {help}");
             }
 
             if (length < SecurityKeysOptions.MinKeyBytes)
             {
                 return ValidateOptionsResult.Fail(
-                    $"Security:CodeHmacKey is too short: {length} bytes, at least {SecurityKeysOptions.MinKeyBytes} bytes are required. {Help}");
+                    $"{setting} is too short: {length} bytes, at least {SecurityKeysOptions.MinKeyBytes} bytes are required. {help}");
             }
 
-            return ValidateOptionsResult.Success;
+            return null;
         }
     }
 
