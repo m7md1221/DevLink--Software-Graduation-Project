@@ -57,7 +57,7 @@ Design: [M2_AUTH_DESIGN.md](M2_AUTH_DESIGN.md) revision 3, **approved 2026-11-03
 | M2.8 | Download links, signed image URLs, upload validation | `git ls-remote` check; partner informed (P-5) | **done** (committed 2026-11-10): T-DL-01…11, T-IM-*, T-UP-*, T-SW-08/09, T-KEY-02; spike passed | M2-05 (part) |
 | M2.9 | Google: server-side ID-token validation, subject matching, 409 instead of auto-linking, `google-link`, Admin excluded | `git ls-remote` check | **implemented, not committed** (2026-11-10): T-GG-01…17 | — |
 | M2.10 | Notification retention (N1) + paging + unread count + R4 cleanup | Partner informed (owner, 2026-11-10); `git ls-remote` check | **implemented, not committed** (2026-11-10): T-NR-01…10 | — |
-| M2.11 | Full backend security + regression suite | — | todo | M2-07 |
+| M2.11 | Full backend security + regression suite: audit and report | — | **done, not committed** (2026-11-10): `docs/TEST_REPORT.md`; 645 tests pass; T-SP-04, T-AU-04 added; KI-67 | M2-07 |
 | M2.12 | Flutter integration (F1–F18) | **Partner review** | todo (Flutter 3.47.9 ready) | M2-02 |
 | M2.13 | Remove the migration switch and fallbacks | — | todo | — |
 | M2.14 | E2E per role, two-tab check | Admin email for `seed-admin` | todo | — |
