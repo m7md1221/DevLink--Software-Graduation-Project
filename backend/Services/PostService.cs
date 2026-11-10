@@ -51,17 +51,8 @@ namespace Services
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
-            var userNotifications = await _context.Notifications
-                .Where(n => n.UserId == userId)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-
-            if (userNotifications.Count > 5)
-            {
-                var toDelete = userNotifications.Skip(5).ToList();
-                _context.Notifications.RemoveRange(toDelete);
-                await _context.SaveChangesAsync();
-            }
+            // N1 (M2.10): every notification is kept. Old ones are removed only by the retention
+            // rules of the cleanup service (Notifications:ReadRetentionDays / UnreadRetentionDays).
         }
 
         public async Task<List<object>> GetFeed(int currentUserId, int page = 1, int pageSize = 20)

@@ -137,25 +137,7 @@ namespace DevLink.Api.Tests
             Assert.True(after.EnumerateArray().Single().GetProperty("isRead").GetBoolean());
         }
 
-        // Characterizes CURRENT behaviour only: PostService keeps the newest five
-        // notifications per user and deletes older ones. Whether to keep a full
-        // history is an open product decision (docs/decision-log.md, N1).
-        [Fact]
-        public async Task Current_behaviour_only_the_newest_five_notifications_are_kept()
-        {
-            var authorId = await CreateUserAsync("Customer");
-            var commenterId = await CreateUserAsync("Programmer");
-            var postId = await CreatePostAsync(authorId);
-
-            for (var i = 0; i < 7; i++)
-            {
-                var comment = await _clients[commenterId].PostAsJsonAsync($"/api/Posts/{postId}/comments",
-                    new { content = $"Comment {i}" });
-                Assert.Equal(HttpStatusCode.OK, comment.StatusCode);
-            }
-
-            await _factory.WithDbAsync(async db =>
-                Assert.Equal(5, await db.Notifications.CountAsync(n => n.UserId == authorId)));
-        }
+        // The former "only the newest five are kept" characterization test was replaced by T-NR-01 in
+        // NotificationTests.cs when M2.10 removed that deletion (N1).
     }
 }

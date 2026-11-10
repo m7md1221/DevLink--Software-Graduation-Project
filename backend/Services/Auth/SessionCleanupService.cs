@@ -4,7 +4,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Services.Auth
 {
     public sealed record CleanupSummary(
-        int SessionsExpired, int SessionsDeleted, int TokensDeleted, int IpPrefixesErased, int EventsDeleted, int CodesDeleted);
+        int SessionsExpired, int SessionsDeleted, int TokensDeleted, int IpPrefixesErased, int EventsDeleted, int CodesDeleted,
+        int ReadNotificationsDeleted = 0, int UnreadNotificationsDeleted = 0);
+
+    // Notification retention (M2.10, decision R4): read notifications are deleted 180 days after they were
+    // created, unread ones after 365, so nothing a user hasn't seen disappears quickly. 0 turns a rule off.
+    public class NotificationRetentionOptions
+    {
+        public const string SectionName = "Notifications";
+
+        public int ReadRetentionDays { get; set; } = 180;
+
+        public int UnreadRetentionDays { get; set; } = 365;
+    }
 
     // ============================================================
     // Periodic cleanup (M2.4b; M2_AUTH_DESIGN §3.3, §3.4, §6.4, R3):
@@ -13,7 +25,8 @@ namespace Services.Auth
     //  - deletes ended sessions and their tokens 30 days after they ended
     //    (never rows of a live session, so reuse stays detectable);
     //  - erases SecurityEvents.IpPrefix after 14 days and deletes events after 90 days (KI-42);
-    //  - deletes one-time codes 24 h after expiry.
+    //  - deletes one-time codes 24 h after expiry;
+    //  - deletes notifications past their retention (M2.10).
     // Every foreign key is NO ACTION, so tokens are deleted before their sessions.
     // ============================================================
     public class SessionCleanupService : BackgroundService
@@ -31,6 +44,7 @@ namespace Services.Auth
         private readonly TimeProvider _time;
         private readonly ILogger _logger;
         private readonly TimeSpan _interval;
+        private readonly NotificationRetentionOptions _notifications = new();
 
         public SessionCleanupService(IServiceScopeFactory scopes, TimeProvider time, ILoggerFactory loggers, IConfiguration configuration)
         {
@@ -38,6 +52,7 @@ namespace Services.Auth
             _time = time;
             _logger = loggers.CreateLogger("DevLink.Security");
             _interval = TimeSpan.FromMinutes(Math.Max(1, configuration.GetValue("Auth:CleanupIntervalMinutes", 60)));
+            configuration.GetSection(NotificationRetentionOptions.SectionName).Bind(_notifications);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -107,7 +122,19 @@ namespace Services.Auth
                 .Where(c => c.ExpiresAt < now - CodeRetention)
                 .ExecuteDeleteAsync(cancellationToken);
 
-            var summary = new CleanupSummary(expired, sessionsDeleted, tokensDeleted, ipErased, eventsDeleted, codesDeleted);
+            // 5. Notifications (M2.10): read and unread have separate limits; a value of 0 or less keeps them.
+            var readDeleted = _notifications.ReadRetentionDays > 0
+                ? await db.Notifications
+                    .Where(n => n.IsRead && n.CreatedAt < now.AddDays(-_notifications.ReadRetentionDays))
+                    .ExecuteDeleteAsync(cancellationToken)
+                : 0;
+            var unreadDeleted = _notifications.UnreadRetentionDays > 0
+                ? await db.Notifications
+                    .Where(n => !n.IsRead && n.CreatedAt < now.AddDays(-_notifications.UnreadRetentionDays))
+                    .ExecuteDeleteAsync(cancellationToken)
+                : 0;
+
+            var summary = new CleanupSummary(expired, sessionsDeleted, tokensDeleted, ipErased, eventsDeleted, codesDeleted, readDeleted, unreadDeleted);
             _logger.LogInformation("Auth.Cleanup {Summary}", summary);
             return summary;
         }

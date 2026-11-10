@@ -305,7 +305,7 @@ namespace DevLink.Api.Tests
                 .ToList();
 
             Assert.Empty(missing);
-            Assert.Equal(77, Actions().Count());
+            Assert.Equal(78, Actions().Count());
         }
 
         [Fact]
