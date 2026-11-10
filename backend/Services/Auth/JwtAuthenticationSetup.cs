@@ -170,6 +170,10 @@ namespace Services.Auth
         public const string VerificationRequired = "VERIFICATION_REQUIRED";
         public const string PasswordPolicy = "PASSWORD_POLICY";
         public const string LinkExpired = "LINK_EXPIRED";
+        public const string AccountLinkRequired = "ACCOUNT_LINK_REQUIRED";
+        public const string GoogleTokenInvalid = "GOOGLE_TOKEN_INVALID";
+        public const string GoogleEmailMismatch = "GOOGLE_EMAIL_MISMATCH";
+        public const string GoogleAlreadyLinked = "GOOGLE_ALREADY_LINKED";
     }
 
     // ProblemDetails-shaped 401/403 bodies. Keeps "message" because the Flutter app reads data['message'] (§3.5).

@@ -56,7 +56,7 @@ Stop / start later with `docker stop devlink-sql` / `docker start devlink-sql`.
 2. In `backend/appsettings.json` set `ConnectionStrings:DefaultConnection`, for Docker:
    `Server=127.0.0.1,1433;Database=DevLink;User ID=sa;Password=<your password>;TrustServerCertificate=True`
    Use **`127.0.0.1`**, not `localhost`: on Windows `localhost` resolves to IPv6 first and the container only listens on IPv4.
-3. Set `Google:ClientId` (the web client ID used by `frontend/web/index.html`).
+3. Set `Google:ClientId` (the web client ID used by `frontend/web/index.html`). More client IDs (for example Android) go in `Google:ClientIds`. Without any, Google sign-in answers 503 and password sign-in still works.
 4. **SMTP (optional)** — keep credentials in user-secrets, never in files that are committed:
    ```powershell
    cd backend

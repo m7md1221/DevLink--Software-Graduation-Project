@@ -26,6 +26,9 @@ namespace Services.Security
         public const string AdminUserUnsuspended = "Admin.UserUnsuspended";
         public const string AdminUserDeleted = "Admin.UserDeleted";
         public const string FileDownloaded = "Files.Downloaded";
+        public const string GoogleLogin = "Auth.GoogleLogin";
+        public const string GoogleLinkRequired = "Auth.GoogleLinkRequired";
+        public const string GoogleLinked = "Auth.GoogleLinked";
 
         // R3: the only events that may carry a (truncated) IP prefix.
         public static readonly IReadOnlySet<string> WithIpPrefix = new HashSet<string>

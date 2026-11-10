@@ -615,6 +615,7 @@ Index `(EmailKey, Purpose, CreatedAt)`.
 The current messages "This email is already registered" / "This email is not registered" disappear — a partner-visible text change (§9).
 
 ### 6.3 Google Sign-In and account linking (Q11, Q13)
+- **Implemented in M2.9 (2026-11-10)** with Microsoft.IdentityModel and Google's OpenID metadata instead of `GoogleJsonWebSignature`, so the same checks run against keys the tests control. Linking also requires the current password (see the decision log).
 - **Validation:** `GoogleJsonWebSignature.ValidateAsync` checks signature, `iss`, `exp`, and `Audience` = `Google:ClientIds`. The server also requires `email_verified == true` and a non-empty `sub`. Failures → 401, logged without the token. `IGoogleTokenValidator` allows a test fake.
 - **Matching is by `GoogleSubject` only:**
   1. Subject known → sign in as that user (normal lockout checks; suspended → restricted session).

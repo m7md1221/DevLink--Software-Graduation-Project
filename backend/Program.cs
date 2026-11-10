@@ -47,7 +47,7 @@ builder.Services.AddScoped<IEmailSender, EmailService>();
 builder.Services.AddSingleton<VerificationService>();
 builder.Services.AddSingleton<PasswordService>();
 builder.Services.AddScoped<AdminService>();
-builder.Services.AddScoped<GoogleAuthService>();
+builder.Services.AddDevLinkGoogle();
 
 // ===== NEW: Social Feature =====
 builder.Services.AddScoped<PostService>();

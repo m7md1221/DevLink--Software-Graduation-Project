@@ -17,7 +17,7 @@ namespace Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly GoogleAuthService _googleAuthService;
+        private readonly GoogleSignInService _google;
         private readonly PasswordService _passwordService;
         private readonly LoginService _loginService;
         private readonly RefreshSessionService _refreshSessions;
@@ -31,7 +31,7 @@ namespace Controllers
 
         public AuthController(
             AppDbContext context,
-            GoogleAuthService googleAuthService,
+            GoogleSignInService google,
             PasswordService passwordService,
             LoginService loginService,
             RefreshSessionService refreshSessions,
@@ -44,7 +44,7 @@ namespace Controllers
             SessionStateCache sessionCache)
         {
             _context = context;
-            _googleAuthService = googleAuthService;
+            _google = google;
             _passwordService = passwordService;
             _loginService = loginService;
             _refreshSessions = refreshSessions;
@@ -297,14 +297,27 @@ namespace Controllers
         }
 
         // ============================================================
-        // GOOGLE SIGN-IN
+        // GOOGLE SIGN-IN (M2.9; M2_AUTH_DESIGN §6.3, Q11, Q13)
+        // The ID token is validated on the server; the account is found by
+        // GoogleSubject only. An email that already has an account is never
+        // linked automatically. Same session flow and cookies as login.
         // ============================================================
+        public const string LinkRequiredMessage =
+            "An account with this email already exists. Sign in with your password, then connect Google from your account. Forgot your password? Reset it first.";
+
         [HttpPost("google-login")]
         [AllowAnonymous]
         [EnableRateLimiting(RateLimitPolicies.GoogleLogin)]
         public async Task<IActionResult> GoogleLogin(
-            [FromBody] GoogleLoginDto model)
+            [FromBody] GoogleLoginDto model,
+            CancellationToken cancellationToken)
         {
+            var csrf = _cookieGuard.Check(Request);
+            if (!csrf.Allowed)
+            {
+                return await CsrfRejectedAsync(csrf, cancellationToken);
+            }
+
             if (string.IsNullOrWhiteSpace(model.IdToken) ||
                 string.IsNullOrWhiteSpace(model.UserType))
             {
@@ -323,79 +336,127 @@ namespace Controllers
                 });
             }
 
-            var googleUser = await _googleAuthService
-                .VerifyIdToken(model.IdToken);
+            var clientType = csrf.Mode == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+            var result = await _google.SignInAsync(
+                model.IdToken, model.UserType, signUp: model.Mode != "login", clientType,
+                issueRefreshToken: csrf.Mode != ClientMode.Legacy, issueDownloadBinding: csrf.Mode == ClientMode.Web,
+                HttpContext, cancellationToken);
 
-            if (googleUser == null)
+            switch (result.Outcome)
             {
-                return Unauthorized(new
-                {
-                    message = "Invalid Google token"
-                });
+                case GoogleSignInOutcome.Success:
+                    break;
+                case GoogleSignInOutcome.Unavailable:
+                    return AuthError(StatusCodes.Status503ServiceUnavailable, AuthErrorCodes.ServiceUnavailable,
+                        "Google sign-in isn't available right now. Please sign in with your email and password.");
+                case GoogleSignInOutcome.LinkRequired:
+                    return AuthError(StatusCodes.Status409Conflict, AuthErrorCodes.AccountLinkRequired, LinkRequiredMessage);
+                case GoogleSignInOutcome.SignUpRequired:
+                    return BadRequest(new
+                    {
+                        message = "No account found with this email. Please sign up first.",
+                        requiresSignUp = true
+                    });
+                case GoogleSignInOutcome.AdminRefused:
+                    return AuthError(StatusCodes.Status403Forbidden, AuthErrorCodes.Forbidden, "Admins sign in with email and password.");
+                case GoogleSignInOutcome.LockedOut:
+                    Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(result.RetryAfter!.Value.TotalSeconds)).ToString();
+                    return AuthError(StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked,
+                        "Too many failed sign-in attempts. Try again in 15 minutes or reset your password.");
+                case GoogleSignInOutcome.WrongPortal:
+                    return AuthError(StatusCodes.Status401Unauthorized, AuthErrorCodes.InvalidCredentials,
+                        "We couldn't sign you in with this Google account here. Check that you chose the right account type.");
+                default:
+                    return AuthError(StatusCodes.Status401Unauthorized, AuthErrorCodes.InvalidCredentials,
+                        "We couldn't verify your Google sign-in. Please try again.");
             }
 
-            var email = googleUser.Email.Trim().ToLower();
+            var login = result.Login!;
+            var user = login.User!;
 
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
-
-            // ===== مستخدم موجود =====
-            if (existingUser != null)
+            if (login.RefreshToken != null && csrf.Mode == ClientMode.Web)
             {
-                var hasCustomerProfile = await _context.CustomerProfiles
-                    .AnyAsync(p => p.UserId == existingUser.Id);
-
-                var hasProgrammerProfile = await _context.ProgrammerProfiles
-                    .AnyAsync(p => p.UserId == existingUser.Id);
-
-                return Ok(new
-                {
-                    message = "Login successful",
-                    isNewUser = false,
-                    userId = existingUser.Id,
-                    userType = existingUser.UserType,
-                    email = existingUser.Email,
-                    hasProfile = hasCustomerProfile,
-                    hasProgrammerProfile = hasProgrammerProfile
-                });
+                RefreshCookie.Append(Response, login.RefreshToken, _time.GetUtcNow().UtcDateTime);
+                DownloadBindingCookie.Append(Response, login.DownloadBinding!, login.Session!.AbsoluteExpiresAt - _time.GetUtcNow().UtcDateTime);
             }
 
-            // ===== مستخدم جديد =====
-            // ✅ إذا جاء من Login، نرفض (بدو يسجل أولاً)
-            if (model.Mode == "login")
-            {
-                return BadRequest(new
-                {
-                    message = "No account found with this email. Please sign up first.",
-                    requiresSignUp = true
-                });
-            }
-
-            // ✅ إذا جاء من SignUp، ننشئ الحساب
-            var newUser = new User
-            {
-                Email = email,
-                UserType = model.UserType
-            };
-
-            // Google accounts get an unusable random password (hashed, never shown).
-            newUser.PasswordHash = _passwordService.Hash(
-                newUser,
-                Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
-
-            _context.Users.Add(newUser);
-            await _context.SaveChangesAsync();
-
+            // Every field the unchanged app reads, plus the same token fields as login.
             return Ok(new
             {
-                message = "Account created successfully",
-                isNewUser = true,
-                userId = newUser.Id,
-                userType = newUser.UserType,
-                email = newUser.Email,
-                hasProfile = false,
-                hasProgrammerProfile = false
+                message = result.IsNewUser ? "Account created successfully" : "Login successful",
+                isNewUser = result.IsNewUser,
+                userId = user.Id,
+                userType = user.UserType,
+                email = user.Email,
+                hasProfile = await _context.CustomerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken),
+                hasProgrammerProfile = await _context.ProgrammerProfiles.AnyAsync(p => p.UserId == user.Id, cancellationToken),
+                accessToken = login.Token!.Token,
+                accessTokenExpiresAt = login.Token.ExpiresAtUtc,
+                role = user.UserType,
+                status = user.Status,
+                refreshTokenExpiresAt = login.RefreshToken?.ExpiresAt,
+                refreshToken = csrf.Mode == ClientMode.Mobile ? login.RefreshToken?.RawToken : null
             });
+        }
+
+        // Connects Google to the signed-in account (Q11): the current password again, a Google email equal to the
+        // account email, and a subject no other account holds. Other sessions end; this one gets a new access token.
+        [HttpPost("google-link")]
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.GoogleLogin)]
+        public async Task<IActionResult> GoogleLink(
+            [FromBody] GoogleLinkDto model,
+            CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var userId) ||
+                !Guid.TryParse(User.FindFirst(AuthClaims.SessionId)?.Value, out var sessionId))
+            {
+                return Unauthorized();
+            }
+
+            if (string.IsNullOrWhiteSpace(model.IdToken) || string.IsNullOrEmpty(model.CurrentPassword))
+            {
+                return BadRequest(new { message = "idToken and currentPassword are required" });
+            }
+
+            var clientType = CookieSessionGuard.ModeOf(Request) == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+            var result = await _google.LinkAsync(userId, sessionId, model.IdToken, model.CurrentPassword, clientType, HttpContext, cancellationToken);
+
+            switch (result.Outcome)
+            {
+                case GoogleLinkOutcome.Success:
+                    return Ok(new
+                    {
+                        message = "Google sign-in is now connected. Your other sessions were signed out.",
+                        accessToken = result.Token!.Token,
+                        accessTokenExpiresAt = result.Token.ExpiresAtUtc
+                    });
+                case GoogleLinkOutcome.AlreadyLinked:
+                    return Ok(new { message = "Google sign-in is already connected." });
+                case GoogleLinkOutcome.AdminRefused:
+                    return AuthError(StatusCodes.Status403Forbidden, AuthErrorCodes.Forbidden, "Admins sign in with email and password.");
+                case GoogleLinkOutcome.WrongPassword:
+                    return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.InvalidCredentials, "Your current password is incorrect.");
+                case GoogleLinkOutcome.LockedOut:
+                    Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(result.RetryAfter!.Value.TotalSeconds)).ToString();
+                    return AuthError(StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked,
+                        "Too many failed attempts. Try again in 15 minutes or reset your password.");
+                case GoogleLinkOutcome.Unavailable:
+                    return AuthError(StatusCodes.Status503ServiceUnavailable, AuthErrorCodes.ServiceUnavailable,
+                        "Google sign-in isn't available right now. Please try again later.");
+                case GoogleLinkOutcome.EmailMismatch:
+                    return AuthError(StatusCodes.Status409Conflict, AuthErrorCodes.GoogleEmailMismatch,
+                        "This Google account uses a different email address than your DevLink account.");
+                case GoogleLinkOutcome.SubjectInUse:
+                case GoogleLinkOutcome.AccountHasOtherGoogle:
+                    return AuthError(StatusCodes.Status409Conflict, AuthErrorCodes.GoogleAlreadyLinked,
+                        "This Google account can't be connected. It may already be connected to a DevLink account.");
+                case GoogleLinkOutcome.NotFound:
+                    return Unauthorized();
+                default:
+                    return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.GoogleTokenInvalid,
+                        "We couldn't verify your Google sign-in. Please try again.");
+            }
         }
 
         // ============================================================
@@ -682,6 +743,12 @@ namespace Controllers
         public string IdToken { get; set; } = string.Empty;
         public string UserType { get; set; } = string.Empty;
         public string Mode { get; set; } = "signup"; // signup / login
+    }
+
+    public class GoogleLinkDto
+    {
+        public string IdToken { get; set; } = string.Empty;
+        public string CurrentPassword { get; set; } = string.Empty;
     }
 
     public class SendCodeDto

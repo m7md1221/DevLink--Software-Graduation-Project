@@ -260,30 +260,7 @@ namespace Services.Auth
             // ----- Wrong password or wrong portal: one generic failure -----
             if (check == PasswordCheckResult.Failed || !portalMatches)
             {
-                var reason = check == PasswordCheckResult.Failed ? "WrongPassword" : "WrongPortal";
-                var lockUntil = now + LockoutDuration;
-
-                // Atomic: concurrent failures can't lose increments. The 5th failure locks and resets the counter.
-                await _db.Users
-                    .Where(u => u.Id == user.Id)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(u => u.LockoutEndAt, u => u.FailedLoginCount + 1 >= MaxFailedAttempts ? lockUntil : u.LockoutEndAt)
-                        .SetProperty(u => u.FailedLoginCount, u => u.FailedLoginCount + 1 >= MaxFailedAttempts ? 0 : u.FailedLoginCount + 1),
-                        cancellationToken);
-
-                var lockedNow = await _db.Users.AsNoTracking()
-                    .Where(u => u.Id == user.Id)
-                    .Select(u => u.LockoutEndAt)
-                    .FirstAsync(cancellationToken) == lockUntil;
-
-                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, user.Id, reason: reason, clientType: clientType, email: email));
-                if (lockedNow)
-                {
-                    _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, reason: reason, clientType: clientType, email: email));
-                }
-
-                await _db.SaveChangesAsync(cancellationToken);
-                _logger.LogWarning("Auth.LoginFailed {Reason} user {UserId} locked {Locked}", reason, user.Id, lockedNow);
+                await RecordPasswordFailureAsync(user, check == PasswordCheckResult.Failed ? "WrongPassword" : "WrongPortal", clientType, http, cancellationToken);
                 return new LoginResult(LoginOutcome.InvalidCredentials);
             }
 
@@ -292,6 +269,47 @@ namespace Services.Auth
             {
                 user.PasswordHash = _passwords.Hash(user, password);
             }
+
+            return await StartSessionAsync(user, clientType, issueRefreshToken, issueDownloadBinding, SecurityEventTypes.LoginSucceeded, http, cancellationToken);
+        }
+
+        // A wrong password counts toward the account lockout: the 5th failure locks for 15 minutes (atomic, so
+        // concurrent failures can't lose increments). Used by password login and by the Google link check.
+        public async Task<bool> RecordPasswordFailureAsync(User user, string reason, string clientType, HttpContext http, CancellationToken cancellationToken)
+        {
+            var now = _time.GetUtcNow().UtcDateTime;
+            var lockUntil = now + LockoutDuration;
+
+            await _db.Users
+                .Where(u => u.Id == user.Id)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(u => u.LockoutEndAt, u => u.FailedLoginCount + 1 >= MaxFailedAttempts ? lockUntil : u.LockoutEndAt)
+                    .SetProperty(u => u.FailedLoginCount, u => u.FailedLoginCount + 1 >= MaxFailedAttempts ? 0 : u.FailedLoginCount + 1),
+                    cancellationToken);
+
+            var lockedNow = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == user.Id)
+                .Select(u => u.LockoutEndAt)
+                .FirstAsync(cancellationToken) == lockUntil;
+
+            _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginFailed, SecurityEventOutcome.Failure, now, user.Id, reason: reason, clientType: clientType, email: user.Email));
+            if (lockedNow)
+            {
+                _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LockedOut, SecurityEventOutcome.Blocked, now, user.Id, reason: reason, clientType: clientType, email: user.Email));
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogWarning("Auth.LoginFailed {Reason} user {UserId} locked {Locked}", reason, user.Id, lockedNow);
+            return lockedNow;
+        }
+
+        // The one way a session starts, whatever proved the identity (password, Google): a session family,
+        // a 15-minute access token, and a refresh token and download binding when the client asks for them.
+        public async Task<LoginResult> StartSessionAsync(
+            User user, string clientType, bool issueRefreshToken, bool issueDownloadBinding, string eventType, HttpContext http, CancellationToken cancellationToken)
+        {
+            var now = _time.GetUtcNow().UtcDateTime;
+            var email = user.Email;
 
             user.FailedLoginCount = 0;
             user.LockoutEndAt = null;
@@ -313,13 +331,13 @@ namespace Services.Auth
             };
             _db.AuthSessions.Add(session);
             var refresh = issueRefreshToken ? _refreshSessions.AddToken(session, user.UserType, now, null, out _) : null;
-            _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.LoginSucceeded, SecurityEventOutcome.Success, now, user.Id, session.Id, clientType: clientType, email: email));
+            _db.SecurityEvents.Add(_events.Create(http, eventType, SecurityEventOutcome.Success, now, user.Id, session.Id, clientType: clientType, email: email));
 
             await _db.SaveChangesAsync(cancellationToken);
             _sessionCache.Invalidate(user.Id);
 
             var token = _tokens.CreateAccessToken(new AccessTokenRequest(user.Id, user.UserType, user.SecurityStamp, session.Id));
-            _logger.LogInformation("Auth.LoginSucceeded user {UserId} client {ClientType} status {Status}", user.Id, clientType, user.Status);
+            _logger.LogInformation("{EventType} user {UserId} client {ClientType} status {Status}", eventType, user.Id, clientType, user.Status);
             return new LoginResult(LoginOutcome.Success, user, session, token, RefreshToken: refresh, DownloadBinding: downloadBinding);
         }
 
