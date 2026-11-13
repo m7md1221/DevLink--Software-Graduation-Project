@@ -57,6 +57,12 @@ namespace DataBase
                     .IsUnique()
                     .HasFilter("[GoogleSubject] IS NOT NULL")
                     .HasDatabaseName("IX_Users_GoogleSubject");
+
+                // Existing rows get 1: accounts made before M2.11b are treated as having a password.
+                // ValueGeneratedNever: EF always sends the value, so false is never replaced by the default.
+                user.Property(u => u.HasPassword)
+                    .HasDefaultValue(true)
+                    .ValueGeneratedNever();
             });
 
             // ----- AuthSessions -----

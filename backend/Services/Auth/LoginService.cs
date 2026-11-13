@@ -357,10 +357,12 @@ namespace Services.Auth
             services.AddSingleton<UnknownEmailLockouts>();
             services.AddSingleton<SecurityEventFactory>();
             services.AddScoped<LoginService>();
+            services.AddScoped<PasswordChangeService>();
             services.AddScoped<OneTimeCodeService>();
             services.AddSingleton<IpFailureWindow>();
             services.AddSingleton<LegacyFallback>();
-            services.AddSingleton<EmailQueue>();
+            services.AddSingleton(sp => new EmailQueue(EmailQueue.DefaultCapacity,
+                sp.GetRequiredService<ILoggerFactory>().CreateLogger("DevLink.Email")));
             services.AddHostedService<EmailQueueService>();
             services.AddScoped<RefreshSessionService>();
             services.AddSingleton<CookieSessionGuard>();

@@ -39,6 +39,10 @@ namespace DataBase
 
         public DateTime? LastLoginAt { get; set; }
 
+        // M2.11b (migration AddUserHasPassword): false for accounts created with Google, whose stored hash is of
+        // a random value nobody knows. Reset-password and change-password set it to true.
+        public bool HasPassword { get; set; } = true;
+
         public static string NewSecurityStamp() =>
             Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
 

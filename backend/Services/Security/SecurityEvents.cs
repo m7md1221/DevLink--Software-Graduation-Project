@@ -20,6 +20,7 @@ namespace Services.Security
         public const string CodeAttemptsExceeded = "Auth.CodeAttemptsExceeded";
         public const string RateLimited = "Auth.RateLimited";
         public const string PasswordReset = "Auth.PasswordReset";
+        public const string PasswordChanged = "Auth.PasswordChanged";
         public const string AccountCreated = "Auth.AccountCreated";
         public const string ReuseAlertQueued = "Auth.ReuseAlertQueued";
         public const string AdminUserSuspended = "Admin.UserSuspended";

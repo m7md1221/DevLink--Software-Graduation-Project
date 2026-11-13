@@ -773,6 +773,10 @@ namespace DotnetAPI.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
+                    b.Property<bool>("HasPassword")
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 

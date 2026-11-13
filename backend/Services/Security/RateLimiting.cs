@@ -19,6 +19,7 @@ namespace Services.Security
         public const string CodeVerify = "auth-code-verify";
         public const string PasswordSet = "auth-password-set";
         public const string GoogleLogin = "auth-google";
+        public const string PasswordChange = "auth-password-change";
 
         // name → (config key, default permits, default window)
         public static readonly IReadOnlyDictionary<string, (string Key, int Permits, TimeSpan Window)> Defaults =
@@ -28,7 +29,8 @@ namespace Services.Security
                 [CodeSend] = ("CodeSend", 10, TimeSpan.FromHours(1)),
                 [CodeVerify] = ("CodeVerify", 30, TimeSpan.FromMinutes(15)),
                 [PasswordSet] = ("PasswordSet", 10, TimeSpan.FromHours(1)),
-                [GoogleLogin] = ("GoogleLogin", 20, TimeSpan.FromMinutes(1))
+                [GoogleLogin] = ("GoogleLogin", 20, TimeSpan.FromMinutes(1)),
+                [PasswordChange] = ("PasswordChange", 10, TimeSpan.FromMinutes(15))
             };
     }
 

@@ -169,6 +169,7 @@ namespace Services.Auth
         public const string CodeAttemptsExceeded = "CODE_ATTEMPTS_EXCEEDED";
         public const string VerificationRequired = "VERIFICATION_REQUIRED";
         public const string PasswordPolicy = "PASSWORD_POLICY";
+        public const string PasswordNotSet = "PASSWORD_NOT_SET";
         public const string LinkExpired = "LINK_EXPIRED";
         public const string AccountLinkRequired = "ACCOUNT_LINK_REQUIRED";
         public const string GoogleTokenInvalid = "GOOGLE_TOKEN_INVALID";

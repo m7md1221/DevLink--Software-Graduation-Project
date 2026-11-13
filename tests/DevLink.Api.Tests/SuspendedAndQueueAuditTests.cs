@@ -111,7 +111,7 @@ namespace DevLink.Api.Tests
     public class EmailQueueAuditTests
     {
         [Fact]
-        public void T_AU_04_a_full_queue_drops_new_mail_at_once_instead_of_blocking_the_request()
+        public void T_AU_04_a_full_queue_refuses_new_mail_at_once_instead_of_blocking_the_request()
         {
             var queue = new EmailQueue();
             for (var i = 0; i < 1_000; i++)
@@ -120,12 +120,11 @@ namespace DevLink.Api.Tests
             }
 
             var watch = Stopwatch.StartNew();
-            queue.Enqueue("late@example.test", "s", "b");
+            var queued = queue.Enqueue("late@example.test", "s", "b");
             watch.Stop();
 
-            // Never blocks, and the queue never grows past its bound: the newest mail is dropped.
-            // KI-67: in DropWrite mode TryWrite reports true even for the dropped mail, so Enqueue's
-            // return value can't tell a caller that its email was lost.
+            // Never blocks, never grows past its bound, and (KI-67, fixed in M2.11b) reports the refusal.
+            Assert.False(queued);
             Assert.True(watch.ElapsedMilliseconds < 100, $"took {watch.ElapsedMilliseconds} ms");
             Assert.Equal(1_000, queue.Reader.Count);
             Assert.True(queue.Reader.TryRead(out var first));

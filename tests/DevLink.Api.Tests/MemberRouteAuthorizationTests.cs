@@ -305,7 +305,7 @@ namespace DevLink.Api.Tests
                 .ToList();
 
             Assert.Empty(missing);
-            Assert.Equal(78, Actions().Count());
+            Assert.Equal(79, Actions().Count()); // M2.11b added Auth.ChangePassword
         }
 
         [Fact]

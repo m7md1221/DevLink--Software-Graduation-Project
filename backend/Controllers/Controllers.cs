@@ -692,6 +692,7 @@ namespace Controllers
             await using (var transaction = await _context.Database.BeginTransactionAsync(cancellationToken))
             {
                 user.PasswordHash = _passwordService.Hash(user, model.NewPassword);
+                user.HasPassword = true;
                 user.SecurityStamp = DataBase.User.NewSecurityStamp();
                 user.FailedLoginCount = 0;
                 user.LockoutEndAt = null;
@@ -714,6 +715,55 @@ namespace Controllers
             {
                 message = "Password reset successfully"
             });
+        }
+
+        // M2.11b (FR-AUTH-11, §3.6): the signed-in user changes the password with the current one. Other sessions
+        // end; this session stays signed in with the new access token in the response (its refresh token still works).
+        [HttpPost("change-password")]
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.PasswordChange)]
+        public async Task<IActionResult> ChangePassword(
+            [FromBody] ChangePasswordDto model,
+            [FromServices] PasswordChangeService passwordChange,
+            CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(User.FindFirst("sub")?.Value, out var userId) ||
+                !Guid.TryParse(User.FindFirst(AuthClaims.SessionId)?.Value, out var sessionId))
+            {
+                return Unauthorized();
+            }
+
+            if (string.IsNullOrEmpty(model.CurrentPassword) || string.IsNullOrEmpty(model.NewPassword))
+            {
+                return BadRequest(new { message = "currentPassword and newPassword are required" });
+            }
+
+            var clientType = CookieSessionGuard.ModeOf(Request) == ClientMode.Mobile ? AuthClientType.Mobile : AuthClientType.Web;
+            var result = await passwordChange.ChangeAsync(userId, sessionId, model.CurrentPassword, model.NewPassword, clientType, HttpContext, cancellationToken);
+
+            switch (result.Outcome)
+            {
+                case PasswordChangeOutcome.Success:
+                    return Ok(new
+                    {
+                        message = "Your password was changed. Your other sessions were signed out.",
+                        accessToken = result.Token!.Token,
+                        accessTokenExpiresAt = result.Token.ExpiresAtUtc
+                    });
+                case PasswordChangeOutcome.WrongPassword:
+                    return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.InvalidCredentials, "Your current password is incorrect.");
+                case PasswordChangeOutcome.LockedOut:
+                    Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(result.RetryAfter!.Value.TotalSeconds)).ToString();
+                    return AuthError(StatusCodes.Status429TooManyRequests, AuthErrorCodes.AccountLocked,
+                        "Too many failed attempts. Try again in 15 minutes or reset your password.");
+                case PasswordChangeOutcome.NoPassword:
+                    return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.PasswordNotSet,
+                        "Your account signs in with Google and has no DevLink password yet. To set one, use \"Forgot password\" to reset it.");
+                case PasswordChangeOutcome.PolicyFailed:
+                    return AuthError(StatusCodes.Status400BadRequest, AuthErrorCodes.PasswordPolicy, result.PolicyError!);
+                default:
+                    return Unauthorized();
+            }
         }
 
         private ObjectResult TooManyRequests(TimeSpan retryAfter)
@@ -743,6 +793,12 @@ namespace Controllers
         public string IdToken { get; set; } = string.Empty;
         public string UserType { get; set; } = string.Empty;
         public string Mode { get; set; } = "signup"; // signup / login
+    }
+
+    public class ChangePasswordDto
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
 
     public class GoogleLinkDto

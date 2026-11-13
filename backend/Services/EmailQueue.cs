@@ -9,14 +9,37 @@ namespace Services
     // enqueue, so the response time of send-code / send-reset-code does not
     // depend on whether an email is actually sent (no enumeration by timing).
     // In Development without SMTP, IEmailSender writes to the console.
+    //
+    // KI-67 (M2.11b): Wait mode, so TryWrite returns false at once when the
+    // queue is full (it never waits; DropWrite returned true for dropped mail).
+    // Enqueue reports the truth and logs the drop with the subject only (the
+    // subjects are fixed texts; never the address or body).
     // ============================================================
     public class EmailQueue
     {
-        private readonly Channel<QueuedEmail> _channel = Channel.CreateBounded<QueuedEmail>(
-            new BoundedChannelOptions(1_000) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
+        public const int DefaultCapacity = 1_000;
 
-        public bool Enqueue(string to, string subject, string body) =>
-            _channel.Writer.TryWrite(new QueuedEmail(to, subject, body));
+        private readonly Channel<QueuedEmail> _channel;
+        private readonly ILogger? _logger;
+
+        public EmailQueue(int capacity = DefaultCapacity, ILogger? logger = null)
+        {
+            _channel = Channel.CreateBounded<QueuedEmail>(
+                new BoundedChannelOptions(capacity) { FullMode = BoundedChannelFullMode.Wait, SingleReader = true });
+            _logger = logger;
+        }
+
+        // False when the queue is full: the email was not queued and will not be sent.
+        public bool Enqueue(string to, string subject, string body)
+        {
+            if (_channel.Writer.TryWrite(new QueuedEmail(to, subject, body)))
+            {
+                return true;
+            }
+
+            _logger?.LogWarning("Email.QueueFull subject {Subject}", subject);
+            return false;
+        }
 
         public ChannelReader<QueuedEmail> Reader => _channel.Reader;
     }

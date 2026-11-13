@@ -147,7 +147,7 @@ namespace Services.Auth
             }
 
             // 3. Unknown subject, new email, sign-up: a Customer or Programmer account (never Admin) holding the subject.
-            var created = new User { Email = google.Email, UserType = userType, GoogleSubject = google.Subject };
+            var created = new User { Email = google.Email, UserType = userType, GoogleSubject = google.Subject, HasPassword = false };
             created.PasswordHash = _passwords.Hash(created, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
             _db.Users.Add(created);
             _db.SecurityEvents.Add(_events.Create(http, SecurityEventTypes.AccountCreated, SecurityEventOutcome.Success, now, reason: "Google", clientType: clientType, email: google.Email));
