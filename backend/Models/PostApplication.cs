@@ -30,6 +30,9 @@ namespace DataBase
         [MaxLength(100)]
         public string? Duration { get; set; }
 
+        [MaxLength(50)]
+        public string? Framework { get; set; }   // ✅ جديد
+
         [Required]
         [MaxLength(20)]
         public string Status { get; set; } = "Pending";

@@ -20,22 +20,17 @@ namespace Controllers
             _context = context;
         }
 
-        // ============================================================
-        // Helper: Get City from Coordinates using Nominatim
-        // ============================================================
         private async Task<string> GetCityFromCoordinates(double lat, double lon, HttpClient client)
         {
             try
             {
                 var url = $"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&accept-language=en";
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("DevLinkApp/1.0");
-
                 var response = await client.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
                     using var doc = System.Text.Json.JsonDocument.Parse(json);
-
                     if (doc.RootElement.TryGetProperty("address", out var address))
                     {
                         if (address.TryGetProperty("city", out var city) && !string.IsNullOrEmpty(city.GetString()))
@@ -56,111 +51,68 @@ namespace Controllers
             return "Your Location";
         }
 
-        // ============================================================
-        // FEED
-        // ============================================================
+        // ================= FEED =================
         [HttpGet("feed")]
         public async Task<IActionResult> GetFeed(
             [FromQuery] int userId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            if (userId <= 0)
-                return BadRequest(new { message = "userId is required" });
-
+            if (userId <= 0) return BadRequest(new { message = "userId is required" });
             var posts = await _postService.GetFeed(userId, page, pageSize);
             return Ok(new { posts });
         }
 
         [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetUserPosts(
-            int userId,
-            [FromQuery] int currentUserId)
+        public async Task<IActionResult> GetUserPosts(int userId, [FromQuery] int currentUserId)
         {
-            if (userId <= 0 || currentUserId <= 0)
-                return BadRequest(new { message = "Invalid user id" });
-
+            if (userId <= 0 || currentUserId <= 0) return BadRequest(new { message = "Invalid user id" });
             var posts = await _postService.GetPostsByUser(userId, currentUserId);
             return Ok(new { posts });
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreatePost(
-            [FromForm] CreatePostDto model)
+        public async Task<IActionResult> CreatePost([FromForm] CreatePostDto model)
         {
-            if (model.UserId <= 0)
-                return BadRequest(new { message = "userId is required" });
+            if (model.UserId <= 0) return BadRequest(new { message = "userId is required" });
 
             var images = new List<(byte[], string)>();
-
             if (model.Images != null && model.Images.Count > 0)
             {
-                if (model.Images.Count > 10)
-                    return BadRequest(new { message = "Maximum 10 images per post" });
-
+                if (model.Images.Count > 10) return BadRequest(new { message = "Maximum 10 images per post" });
                 foreach (var file in model.Images)
                 {
-                    if (file.Length > 5 * 1024 * 1024)
-                        return BadRequest(new { message = "Each image must be less than 5MB" });
-
+                    if (file.Length > 5 * 1024 * 1024) return BadRequest(new { message = "Each image must be less than 5MB" });
                     var ct = NormalizeImageType(file.ContentType, file.FileName);
-                    if (ct == null)
-                        return BadRequest(new { message = "Only JPG, PNG, WEBP images are allowed" });
-
+                    if (ct == null) return BadRequest(new { message = "Only JPG, PNG, WEBP images are allowed" });
                     using var ms = new MemoryStream();
                     await file.CopyToAsync(ms);
                     images.Add((ms.ToArray(), ct));
                 }
             }
 
-            var (success, message, postId) =
-                await _postService.CreatePost(
-                    model.UserId,
-                    model.Content,
-                    images.Count > 0 ? images : null);
+            var (success, message, postId) = await _postService.CreatePost(
+                model.UserId, model.Content, model.Framework, images.Count > 0 ? images : null);
 
-            if (!success)
-                return BadRequest(new { message });
-
-            return Ok(new
-            {
-                message = "Post submitted successfully. Your post is now pending admin approval.",
-                postId
-            });
+            if (!success) return BadRequest(new { message });
+            return Ok(new { message = "Post submitted successfully. Your post is now pending admin approval.", postId });
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePost(
-            int id,
-            [FromQuery] int userId,
-            [FromQuery] bool isAdmin = false)
+        public async Task<IActionResult> DeletePost(int id, [FromQuery] int userId, [FromQuery] bool isAdmin = false)
         {
-            if (userId <= 0)
-                return BadRequest(new { message = "userId is required" });
-
-            var (success, message) =
-                await _postService.DeletePost(id, userId, isAdmin);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (userId <= 0) return BadRequest(new { message = "userId is required" });
+            var (success, message) = await _postService.DeletePost(id, userId, isAdmin);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
         [HttpPost("{id}/like")]
-        public async Task<IActionResult> ToggleLike(
-            int id,
-            [FromBody] LikeDto model)
+        public async Task<IActionResult> ToggleLike(int id, [FromBody] LikeDto model)
         {
-            if (model.UserId <= 0)
-                return BadRequest(new { message = "userId is required" });
-
-            var (success, message, isLiked, likeCount) =
-                await _postService.ToggleLike(id, model.UserId);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (model.UserId <= 0) return BadRequest(new { message = "userId is required" });
+            var (success, message, isLiked, likeCount) = await _postService.ToggleLike(id, model.UserId);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message, isLiked, likeCount });
         }
 
@@ -172,40 +124,21 @@ namespace Controllers
         }
 
         [HttpPost("{id}/comments")]
-        public async Task<IActionResult> AddComment(
-            int id,
-            [FromBody] AddCommentDto model)
+        public async Task<IActionResult> AddComment(int id, [FromBody] AddCommentDto model)
         {
-            if (model.UserId <= 0)
-                return BadRequest(new { message = "userId is required" });
-
-            if (string.IsNullOrWhiteSpace(model.Content))
-                return BadRequest(new { message = "Content is required" });
-
-            var (success, message, commentId) =
-                await _postService.AddComment(id, model.UserId, model.Content);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (model.UserId <= 0) return BadRequest(new { message = "userId is required" });
+            if (string.IsNullOrWhiteSpace(model.Content)) return BadRequest(new { message = "Content is required" });
+            var (success, message, commentId) = await _postService.AddComment(id, model.UserId, model.Content);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message, commentId });
         }
 
         [HttpDelete("comments/{commentId}")]
-        public async Task<IActionResult> DeleteComment(
-            int commentId,
-            [FromQuery] int userId,
-            [FromQuery] bool isAdmin = false)
+        public async Task<IActionResult> DeleteComment(int commentId, [FromQuery] int userId, [FromQuery] bool isAdmin = false)
         {
-            if (userId <= 0)
-                return BadRequest(new { message = "userId is required" });
-
-            var (success, message) =
-                await _postService.DeleteComment(commentId, userId, isAdmin);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (userId <= 0) return BadRequest(new { message = "userId is required" });
+            var (success, message) = await _postService.DeleteComment(commentId, userId, isAdmin);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
@@ -213,10 +146,7 @@ namespace Controllers
         public async Task<IActionResult> GetPostImage(int imageId)
         {
             var result = await _postService.GetPostImage(imageId);
-
-            if (result.data == null)
-                return NotFound(new { message = "Image not found" });
-
+            if (result.data == null) return NotFound(new { message = "Image not found" });
             Response.Headers.Append("Cache-Control", "public, max-age=86400");
             return File(result.data, result.contentType ?? "image/jpeg");
         }
@@ -225,22 +155,15 @@ namespace Controllers
         public async Task<IActionResult> GetUserAvatar(int userId)
         {
             var result = await _postService.GetUserAvatar(userId);
-
-            if (result.data == null)
-                return NotFound(new { message = "No avatar found" });
-
+            if (result.data == null) return NotFound(new { message = "No avatar found" });
             Response.Headers.Append("Cache-Control", "public, max-age=3600");
             return File(result.data, result.contentType ?? "image/jpeg");
         }
 
         [HttpGet("search")]
-        public async Task<IActionResult> Search(
-            [FromQuery] string q,
-            [FromQuery] string? userType = null)
+        public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] string? userType = null)
         {
-            if (string.IsNullOrWhiteSpace(q))
-                return Ok(new { users = new List<object>() });
-
+            if (string.IsNullOrWhiteSpace(q)) return Ok(new { users = new List<object>() });
             var users = await _postService.SearchUsers(q, userType);
             return Ok(new { users });
         }
@@ -249,65 +172,37 @@ namespace Controllers
         public async Task<IActionResult> GetUserProfile(int userId)
         {
             var profile = await _postService.GetUserProfile(userId);
-
-            if (profile == null)
-                return NotFound(new { message = "Profile not found" });
-
+            if (profile == null) return NotFound(new { message = "Profile not found" });
             return Ok(profile);
         }
 
         [HttpPost("{id}/apply")]
-        public async Task<IActionResult> ApplyToPost(
-            int id,
-            [FromBody] ApplyToPostDto model)
+        public async Task<IActionResult> ApplyToPost(int id, [FromBody] ApplyToPostDto model)
         {
-            if (model.ProgrammerId <= 0)
-                return BadRequest(new { message = "ProgrammerId is required" });
+            if (model.ProgrammerId <= 0) return BadRequest(new { message = "ProgrammerId is required" });
+            if (string.IsNullOrWhiteSpace(model.Proposal)) return BadRequest(new { message = "Proposal is required" });
 
-            if (string.IsNullOrWhiteSpace(model.Proposal))
-                return BadRequest(new { message = "Proposal is required" });
+            var (success, message, applicationId) = await _postService.ApplyToPost(
+                id, model.ProgrammerId, model.Proposal, model.Price, model.Duration, model.Framework);
 
-            var (success, message, applicationId) =
-                await _postService.ApplyToPost(
-                    id,
-                    model.ProgrammerId,
-                    model.Proposal,
-                    model.Price,
-                    model.Duration);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (!success) return BadRequest(new { message });
             return Ok(new { message, applicationId });
         }
 
         [HttpGet("{id}/applications")]
-        public async Task<IActionResult> GetApplications(
-            int id,
-            [FromQuery] int requesterId)
+        public async Task<IActionResult> GetApplications(int id, [FromQuery] int requesterId)
         {
-            if (requesterId <= 0)
-                return BadRequest(new { message = "requesterId is required" });
-
+            if (requesterId <= 0) return BadRequest(new { message = "requesterId is required" });
             var applications = await _postService.GetPostApplications(id, requesterId);
             return Ok(new { applications });
         }
 
         [HttpPost("{id}/applications/{applicationId}/accept")]
-        public async Task<IActionResult> AcceptApplication(
-            int id,
-            int applicationId,
-            [FromQuery] int requesterId)
+        public async Task<IActionResult> AcceptApplication(int id, int applicationId, [FromQuery] int requesterId)
         {
-            if (requesterId <= 0)
-                return BadRequest(new { message = "requesterId is required" });
-
-            var (success, message) = await _postService.AcceptApplication(
-                id, applicationId, requesterId);
-
-            if (!success)
-                return BadRequest(new { message });
-
+            if (requesterId <= 0) return BadRequest(new { message = "requesterId is required" });
+            var (success, message) = await _postService.AcceptApplication(id, applicationId, requesterId);
+            if (!success) return BadRequest(new { message });
             return Ok(new { message });
         }
 
@@ -319,9 +214,7 @@ namespace Controllers
         }
 
         [HttpGet("{id}/has-applied")]
-        public async Task<IActionResult> HasUserApplied(
-            int id,
-            [FromQuery] int userId)
+        public async Task<IActionResult> HasUserApplied(int id, [FromQuery] int userId)
         {
             var hasApplied = await _postService.HasUserApplied(id, userId);
             return Ok(new { hasApplied });
@@ -338,68 +231,67 @@ namespace Controllers
         public async Task<IActionResult> ApprovePost(int id)
         {
             var (success, message) = await _postService.ApprovePost(id);
-
-            if (!success)
-                return BadRequest(new { message });
+            if (!success) return BadRequest(new { message });
 
             var authorEmail = await _postService.GetPostAuthorEmail(id);
-
             if (!string.IsNullOrEmpty(authorEmail))
             {
                 try
                 {
-                    await _emailService.SendEmailAsync(
-                        authorEmail,
-                        "Your post has been approved ✅",
-                        "Hi,\n\nYour post has been reviewed and approved by our team.\nIt is now live on DevLink!\n\nBest regards,\nDevLink Team"
-                    );
+                    await _emailService.SendEmailAsync(authorEmail, "Your post has been approved ✅",
+                        "Hi,\n\nYour post has been reviewed and approved by our team.\nIt is now live on DevLink!\n\nBest regards,\nDevLink Team");
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Email error: {ex.Message}");
-                }
+                catch (Exception ex) { Console.WriteLine($"Email error: {ex.Message}"); }
             }
-
             return Ok(new { message });
         }
 
         [HttpPost("{id}/reject")]
-        public async Task<IActionResult> RejectPost(
-            int id,
-            [FromBody] RejectPostDto model)
+        public async Task<IActionResult> RejectPost(int id, [FromBody] RejectPostDto model)
         {
-            if (string.IsNullOrWhiteSpace(model.Reason))
-                return BadRequest(new { message = "Reason is required" });
-
+            if (string.IsNullOrWhiteSpace(model.Reason)) return BadRequest(new { message = "Reason is required" });
             var (success, message) = await _postService.RejectPost(id, model.Reason);
-
-            if (!success)
-                return BadRequest(new { message });
+            if (!success) return BadRequest(new { message });
 
             var authorEmail = await _postService.GetPostAuthorEmail(id);
-
             if (!string.IsNullOrEmpty(authorEmail))
             {
                 try
                 {
-                    await _emailService.SendEmailAsync(
-                        authorEmail,
-                        "Your post has been rejected ❌",
-                        $"Hi,\n\nUnfortunately, your post was rejected by our team.\n\nReason: {model.Reason}\n\nIf you think this is a mistake, please contact support.\n\nBest regards,\nDevLink Team"
-                    );
+                    await _emailService.SendEmailAsync(authorEmail, "Your post has been rejected ❌",
+                        $"Hi,\n\nUnfortunately, your post was rejected by our team.\n\nReason: {model.Reason}\n\nIf you think this is a mistake, please contact support.\n\nBest regards,\nDevLink Team");
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Email error: {ex.Message}");
-                }
+                catch (Exception ex) { Console.WriteLine($"Email error: {ex.Message}"); }
             }
-
             return Ok(new { message });
         }
 
-        // ============================================================
-        // WEATHER ENDPOINTS
-        // ============================================================
+        // ================= SAVED POSTS ✅ جديد =================
+        [HttpPost("{id}/save")]
+        public async Task<IActionResult> ToggleSave(int id, [FromBody] SavePostDto model)
+        {
+            if (model.UserId <= 0) return BadRequest(new { message = "userId is required" });
+            var (success, message, isSaved) = await _postService.ToggleSavePost(id, model.UserId);
+            if (!success) return BadRequest(new { message });
+            return Ok(new { message, isSaved });
+        }
+
+        [HttpGet("saved/{userId}")]
+        public async Task<IActionResult> GetSavedPosts(int userId)
+        {
+            if (userId <= 0) return BadRequest(new { message = "Invalid userId" });
+            var posts = await _postService.GetSavedPosts(userId);
+            return Ok(new { posts });
+        }
+
+        [HttpGet("{id}/is-saved")]
+        public async Task<IActionResult> IsPostSaved(int id, [FromQuery] int userId)
+        {
+            var isSaved = await _postService.IsPostSaved(id, userId);
+            return Ok(new { isSaved });
+        }
+
+        // ================= WEATHER =================
         [HttpGet("weather/{userId}")]
         public async Task<IActionResult> GetWeather(int userId)
         {
@@ -407,36 +299,28 @@ namespace Controllers
             if (user == null) return NotFound(new { message = "User not found" });
 
             string city = "Ramallah";
-
             if (user.UserType == "Customer")
             {
                 var profile = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.UserId == userId);
-                if (profile != null && !string.IsNullOrWhiteSpace(profile.City))
-                    city = profile.City;
+                if (profile != null && !string.IsNullOrWhiteSpace(profile.City)) city = profile.City;
             }
             else if (user.UserType == "Programmer")
             {
                 var profile = await _context.ProgrammerProfiles.FirstOrDefaultAsync(c => c.UserId == userId);
-                if (profile != null && !string.IsNullOrWhiteSpace(profile.City))
-                    city = profile.City;
+                if (profile != null && !string.IsNullOrWhiteSpace(profile.City)) city = profile.City;
             }
 
             try
             {
                 using var client = new HttpClient();
-                
                 async Task<(double lat, double lon, string country)?> GetCoordinates(string cityName)
                 {
                     var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(cityName)}&count=1&language=en&format=json";
                     var response = await client.GetAsync(url);
                     if (!response.IsSuccessStatusCode) return null;
-                    
                     var json = await response.Content.ReadAsStringAsync();
                     using var doc = System.Text.Json.JsonDocument.Parse(json);
-                    
-                    if (!doc.RootElement.TryGetProperty("results", out var results) || results.GetArrayLength() == 0)
-                        return null;
-
+                    if (!doc.RootElement.TryGetProperty("results", out var results) || results.GetArrayLength() == 0) return null;
                     var first = results[0];
                     var lat = first.GetProperty("latitude").GetDouble();
                     var lon = first.GetProperty("longitude").GetDouble();
@@ -450,31 +334,19 @@ namespace Controllers
                 if (coords == null) return StatusCode(500, new { message = "Could not find city coordinates" });
 
                 var (lat, lon, country) = coords.Value;
-
                 var weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto";
                 var weatherResponse = await client.GetAsync(weatherUrl);
                 if (!weatherResponse.IsSuccessStatusCode) return StatusCode(500, new { message = "Failed to fetch weather" });
 
                 var weatherJson = await weatherResponse.Content.ReadAsStringAsync();
                 using var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
-                
                 var current = weatherDoc.RootElement.GetProperty("current");
                 var temp = current.GetProperty("temperature_2m").GetDouble();
                 var weatherCode = current.GetProperty("weather_code").GetInt32();
                 var windSpeed = current.GetProperty("wind_speed_10m").GetDouble();
                 var timezone = weatherDoc.RootElement.GetProperty("timezone").GetString();
 
-                return Ok(new
-                {
-                    city = city,
-                    country = country,
-                    temperature = temp,
-                    weatherCode = weatherCode,
-                    windSpeed = windSpeed,
-                    timezone = timezone,
-                    latitude = lat,
-                    longitude = lon
-                });
+                return Ok(new { city, country, temperature = temp, weatherCode, windSpeed, timezone, latitude = lat, longitude = lon });
             }
             catch (Exception ex)
             {
@@ -488,34 +360,20 @@ namespace Controllers
             try
             {
                 using var client = new HttpClient();
-                
                 var weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto";
                 var weatherResponse = await client.GetAsync(weatherUrl);
                 if (!weatherResponse.IsSuccessStatusCode) return StatusCode(500, new { message = "Failed to fetch weather" });
 
                 var weatherJson = await weatherResponse.Content.ReadAsStringAsync();
                 using var weatherDoc = System.Text.Json.JsonDocument.Parse(weatherJson);
-                
                 var current = weatherDoc.RootElement.GetProperty("current");
                 var temp = current.GetProperty("temperature_2m").GetDouble();
                 var weatherCode = current.GetProperty("weather_code").GetInt32();
                 var windSpeed = current.GetProperty("wind_speed_10m").GetDouble();
                 var timezone = weatherDoc.RootElement.GetProperty("timezone").GetString();
 
-                // ✅ استخدام Nominatim لجلب اسم المدينة
                 string cityName = await GetCityFromCoordinates(lat, lon, client);
-
-                return Ok(new
-                {
-                    city = cityName,
-                    country = "",
-                    temperature = temp,
-                    weatherCode = weatherCode,
-                    windSpeed = windSpeed,
-                    timezone = timezone,
-                    latitude = lat,
-                    longitude = lon
-                });
+                return Ok(new { city = cityName, country = "", temperature = temp, weatherCode, windSpeed, timezone, latitude = lat, longitude = lon });
             }
             catch (Exception ex)
             {
@@ -523,32 +381,18 @@ namespace Controllers
             }
         }
 
-        private static string? NormalizeImageType(
-            string contentType,
-            string fileName)
+        private static string? NormalizeImageType(string contentType, string fileName)
         {
             var ct = contentType.ToLower();
             var fn = fileName.ToLower();
-
-            var allowed = new[]
-            {
-                "image/jpeg",
-                "image/jpg",
-                "image/png",
-                "image/webp",
-                "application/octet-stream"
-            };
-
-            if (!allowed.Contains(ct))
-                return null;
-
+            var allowed = new[] { "image/jpeg", "image/jpg", "image/png", "image/webp", "application/octet-stream" };
+            if (!allowed.Contains(ct)) return null;
             if (ct == "application/octet-stream")
             {
                 if (fn.EndsWith(".png")) return "image/png";
                 if (fn.EndsWith(".webp")) return "image/webp";
                 return "image/jpeg";
             }
-
             return ct;
         }
     }
@@ -557,6 +401,7 @@ namespace Controllers
     {
         public int UserId { get; set; }
         public string? Content { get; set; }
+        public string? Framework { get; set; }
         public List<IFormFile>? Images { get; set; }
     }
 
@@ -577,10 +422,16 @@ namespace Controllers
         public string Proposal { get; set; } = string.Empty;
         public decimal? Price { get; set; }
         public string? Duration { get; set; }
+        public string? Framework { get; set; }
     }
 
     public class RejectPostDto
     {
         public string Reason { get; set; } = string.Empty;
+    }
+
+    public class SavePostDto
+    {
+        public int UserId { get; set; }
     }
 }

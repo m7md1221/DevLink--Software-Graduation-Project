@@ -16,7 +16,6 @@ namespace Services
         private async Task CreateNotification(int userId, string title, string message, string type, int? referenceId = null)
         {
             if (userId <= 0) return;
-
             var notification = new Notification
             {
                 UserId = userId,
@@ -27,23 +26,11 @@ namespace Services
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
-
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
-
-            var userNotifications = await _context.Notifications
-                .Where(n => n.UserId == userId)
-                .OrderByDescending(n => n.CreatedAt)
-                .ToListAsync();
-
-            if (userNotifications.Count > 5)
-            {
-                var toDelete = userNotifications.Skip(5).ToList();
-                _context.Notifications.RemoveRange(toDelete);
-                await _context.SaveChangesAsync();
-            }
         }
 
+        // ================= FEED =================
         public async Task<List<object>> GetFeed(int currentUserId, int page = 1, int pageSize = 20)
         {
             if (page < 1) page = 1;
@@ -67,6 +54,7 @@ namespace Services
                 if (author == null) continue;
 
                 var appCount = await _context.PostApplications.CountAsync(a => a.PostId == post.Id);
+                var isSaved = await _context.SavedPosts.AnyAsync(sp => sp.PostId == post.Id && sp.UserId == currentUserId);
 
                 result.Add(new
                 {
@@ -76,6 +64,7 @@ namespace Services
                     authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
                     authorType = author.Value.userType,
                     content = post.Content,
+                    framework = post.Framework,
                     createdAt = post.CreatedAt,
                     updatedAt = post.UpdatedAt,
                     imageCount = post.Images.Count,
@@ -85,10 +74,10 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
+                    isSaved = isSaved,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
                 });
             }
-
             return result;
         }
 
@@ -110,6 +99,7 @@ namespace Services
             foreach (var post in posts)
             {
                 var appCount = await _context.PostApplications.CountAsync(a => a.PostId == post.Id);
+                var isSaved = await _context.SavedPosts.AnyAsync(sp => sp.PostId == post.Id && sp.UserId == currentUserId);
 
                 result.Add(new
                 {
@@ -119,6 +109,7 @@ namespace Services
                     authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
                     authorType = author.Value.userType,
                     content = post.Content,
+                    framework = post.Framework,
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     likeCount = post.Likes.Count,
@@ -127,18 +118,22 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
+                    isSaved = isSaved,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
                 });
             }
-
             return result;
         }
 
-        public async Task<(bool success, string message, int? postId)> CreatePost(int userId, string? content, List<(byte[] data, string contentType)>? images)
+        // ================= CREATE POST =================
+        public async Task<(bool success, string message, int? postId)> CreatePost(
+            int userId,
+            string? content,
+            string? framework,
+            List<(byte[] data, string contentType)>? images)
         {
             var hasContent = !string.IsNullOrWhiteSpace(content);
             var hasImages = images != null && images.Count > 0;
-
             if (!hasContent && !hasImages) return (false, "Post must have content or at least one image", null);
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -152,6 +147,7 @@ namespace Services
             {
                 UserId = userId,
                 Content = hasContent ? content!.Trim() : null,
+                Framework = string.IsNullOrWhiteSpace(framework) ? null : framework.Trim(),
                 CreatedAt = DateTime.UtcNow,
                 Status = "Pending"
             };
@@ -175,7 +171,6 @@ namespace Services
                 }
                 await _context.SaveChangesAsync();
             }
-
             return (true, "Post created successfully", post.Id);
         }
 
@@ -184,11 +179,9 @@ namespace Services
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId);
             if (post == null || post.IsDeleted) return (false, "Post not found");
             if (post.UserId != userId && !isAdmin) return (false, "You can only delete your own posts");
-
             post.IsDeleted = true;
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-
             return (true, "Post deleted successfully");
         }
 
@@ -199,7 +192,6 @@ namespace Services
 
             var existing = await _context.PostLikes.FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userId);
             bool isLiked;
-
             if (existing != null)
             {
                 _context.PostLikes.Remove(existing);
@@ -207,22 +199,15 @@ namespace Services
             }
             else
             {
-                _context.PostLikes.Add(new PostLike
-                {
-                    PostId = postId,
-                    UserId = userId,
-                    CreatedAt = DateTime.UtcNow
-                });
+                _context.PostLikes.Add(new PostLike { PostId = postId, UserId = userId, CreatedAt = DateTime.UtcNow });
                 isLiked = true;
             }
-
             await _context.SaveChangesAsync();
 
             if (isLiked && post.UserId != userId)
             {
                 var liker = await _context.Users.FindAsync(userId);
                 var likerName = liker?.Email?.Split('@')[0] ?? "Someone";
-
                 await CreateNotification(post.UserId, "New Like", $"{likerName} liked your post.", "like", postId);
             }
 
@@ -238,12 +223,10 @@ namespace Services
                 .ToListAsync();
 
             var result = new List<object>();
-
             foreach (var c in comments)
             {
                 var author = await GetAuthorInfo(c.UserId);
                 if (author == null) continue;
-
                 result.Add(new
                 {
                     id = c.Id,
@@ -256,7 +239,6 @@ namespace Services
                     createdAt = c.CreatedAt
                 });
             }
-
             return result;
         }
 
@@ -275,7 +257,6 @@ namespace Services
                 Content = content.Trim(),
                 CreatedAt = DateTime.UtcNow
             };
-
             _context.PostComments.Add(comment);
             await _context.SaveChangesAsync();
 
@@ -283,10 +264,8 @@ namespace Services
             {
                 var commenter = await _context.Users.FindAsync(userId);
                 var commenterName = commenter?.Email?.Split('@')[0] ?? "Someone";
-
                 await CreateNotification(post.UserId, "New Comment", $"{commenterName} commented on your post.", "comment", postId);
             }
-
             return (true, "Comment added", comment.Id);
         }
 
@@ -295,10 +274,8 @@ namespace Services
             var comment = await _context.PostComments.FirstOrDefaultAsync(c => c.Id == commentId);
             if (comment == null) return (false, "Comment not found");
             if (comment.UserId != userId && !isAdmin) return (false, "You can only delete your own comments");
-
             _context.PostComments.Remove(comment);
             await _context.SaveChangesAsync();
-
             return (true, "Comment deleted successfully");
         }
 
@@ -306,7 +283,6 @@ namespace Services
         {
             var img = await _context.PostImages.FirstOrDefaultAsync(i => i.Id == imageId);
             if (img == null) return (null, null);
-
             return (img.ImageData, img.ContentType);
         }
 
@@ -327,14 +303,12 @@ namespace Services
                 if (p?.ProfileImage == null) return (null, null);
                 return (p.ProfileImage, p.ImageContentType ?? "image/jpeg");
             }
-
             return (null, null);
         }
 
         public async Task<List<object>> SearchUsers(string query, string? userType = null)
         {
             if (string.IsNullOrWhiteSpace(query)) return new List<object>();
-
             query = query.Trim().ToLower();
 
             var users = await _context.Users.Where(u => u.UserType != "Admin").ToListAsync();
@@ -358,11 +332,9 @@ namespace Services
                     var p = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == user.Id);
                     if (p != null) { nickname = p.Nickname; hasImage = p.ProfileImage != null; specialty = p.Specialty; }
                 }
-
                 if (nickname == null) continue;
 
                 var matches = nickname.ToLower().Contains(query) || user.Email.ToLower().Contains(query) || (specialty != null && specialty.ToLower().Contains(query));
-
                 if (matches)
                 {
                     results.Add(new
@@ -377,7 +349,6 @@ namespace Services
                     });
                 }
             }
-
             return results.Take(30).ToList();
         }
 
@@ -392,7 +363,6 @@ namespace Services
             {
                 var p = await _context.CustomerProfiles.FirstOrDefaultAsync(cp => cp.UserId == userId);
                 if (p == null) return null;
-
                 return new
                 {
                     userId = user.Id,
@@ -412,7 +382,6 @@ namespace Services
             {
                 var p = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == userId);
                 if (p == null) return null;
-
                 return new
                 {
                     userId = user.Id,
@@ -435,7 +404,14 @@ namespace Services
             }
         }
 
-        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(int postId, int programmerId, string proposal, decimal? price, string? duration)
+        // ================= APPLY (مع Framework validation) =================
+        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(
+            int postId,
+            int programmerId,
+            string proposal,
+            decimal? price,
+            string? duration,
+            string? framework)
         {
             if (string.IsNullOrWhiteSpace(proposal)) return (false, "Proposal is required", null);
             if (proposal.Length > 2000) return (false, "Proposal is too long", null);
@@ -449,7 +425,17 @@ namespace Services
             if (post.UserId == programmerId) return (false, "You cannot apply to your own post", null);
             if (post.IsClosed) return (false, "This post is already closed", null);
 
-            var existing = await _context.PostApplications.FirstOrDefaultAsync(a => a.PostId == postId && a.ProgrammerId == programmerId);
+            // ✅ Framework validation
+            if (!string.IsNullOrWhiteSpace(post.Framework))
+            {
+                if (string.IsNullOrWhiteSpace(framework))
+                    return (false, $"This project requires {post.Framework}", null);
+                if (!string.Equals(post.Framework.Trim(), framework.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return (false, $"You must use {post.Framework} for this project", null);
+            }
+
+            var existing = await _context.PostApplications
+                .FirstOrDefaultAsync(a => a.PostId == postId && a.ProgrammerId == programmerId);
             if (existing != null) return (false, "You have already applied to this post", null);
 
             var application = new PostApplication
@@ -459,12 +445,17 @@ namespace Services
                 Proposal = proposal.Trim(),
                 Price = price,
                 Duration = duration?.Trim(),
+                Framework = string.IsNullOrWhiteSpace(framework) ? null : framework.Trim(),
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.PostApplications.Add(application);
             await _context.SaveChangesAsync();
+
+            // ✅ Notification للكستمر إنه في تقديم جديد
+            await CreateNotification(post.UserId, "New Application",
+                $"{user.Email.Split('@')[0]} applied to your post.", "application", postId);
 
             return (true, "Application submitted successfully", application.Id);
         }
@@ -482,12 +473,10 @@ namespace Services
                 .ToListAsync();
 
             var result = new List<object>();
-
             foreach (var app in applications)
             {
                 var programmer = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == app.ProgrammerId);
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == app.ProgrammerId);
-
                 result.Add(new
                 {
                     id = app.Id,
@@ -503,11 +492,11 @@ namespace Services
                     proposal = app.Proposal,
                     price = app.Price,
                     duration = app.Duration,
+                    framework = app.Framework,
                     status = app.Status,
                     createdAt = app.CreatedAt
                 });
             }
-
             return result;
         }
 
@@ -531,12 +520,12 @@ namespace Services
                 other.Status = "Rejected";
                 other.UpdatedAt = DateTime.UtcNow;
             }
-
             post.IsClosed = true;
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            await CreateNotification(application.ProgrammerId, "Application Accepted", "Congratulations! Your application has been accepted.", "accepted", postId);
+            await CreateNotification(application.ProgrammerId, "Application Accepted",
+                "Congratulations! Your application has been accepted.", "accepted", postId);
 
             return (true, "Application accepted successfully");
         }
@@ -560,12 +549,10 @@ namespace Services
                 .ToListAsync();
 
             var result = new List<object>();
-
             foreach (var post in posts)
             {
                 var author = await GetAuthorInfo(post.UserId);
                 if (author == null) continue;
-
                 result.Add(new
                 {
                     id = post.Id,
@@ -574,12 +561,12 @@ namespace Services
                     authorType = author.Value.userType,
                     authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
                     content = post.Content,
+                    framework = post.Framework,
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
                 });
             }
-
             return result;
         }
 
@@ -592,9 +579,8 @@ namespace Services
             post.Status = "Approved";
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-
-            await CreateNotification(post.UserId, "Post Approved", "Your post has been reviewed and approved by the admin.", "approved", postId);
-
+            await CreateNotification(post.UserId, "Post Approved",
+                "Your post has been reviewed and approved by the admin.", "approved", postId);
             return (true, "Post approved successfully");
         }
 
@@ -602,12 +588,12 @@ namespace Services
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId);
             if (post == null) return (false, "Post not found");
-
             post.Status = "Rejected";
             post.RejectionReason = reason.Trim();
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-
+            await CreateNotification(post.UserId, "Post Rejected",
+                $"Your post was rejected: {reason}", "rejected", postId);
             return (true, "Post rejected");
         }
 
@@ -615,11 +601,90 @@ namespace Services
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId);
             if (post == null) return null;
-
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.UserId);
             return user?.Email;
         }
 
+        // ================= SAVED POSTS ✅ جديد =================
+        public async Task<(bool success, string message, bool isSaved)> ToggleSavePost(int postId, int userId)
+        {
+            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+            if (post == null) return (false, "Post not found", false);
+
+            var existing = await _context.SavedPosts
+                .FirstOrDefaultAsync(sp => sp.PostId == postId && sp.UserId == userId);
+
+            bool isSaved;
+            if (existing != null)
+            {
+                _context.SavedPosts.Remove(existing);
+                isSaved = false;
+            }
+            else
+            {
+                _context.SavedPosts.Add(new SavedPost
+                {
+                    PostId = postId,
+                    UserId = userId,
+                    CreatedAt = DateTime.UtcNow
+                });
+                isSaved = true;
+            }
+            await _context.SaveChangesAsync();
+            return (true, isSaved ? "Post saved" : "Post unsaved", isSaved);
+        }
+
+        public async Task<List<object>> GetSavedPosts(int userId)
+        {
+            var saved = await _context.SavedPosts
+                .Where(sp => sp.UserId == userId)
+                .OrderByDescending(sp => sp.CreatedAt)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Images)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Likes)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Comments)
+                .ToListAsync();
+
+            var result = new List<object>();
+            foreach (var s in saved)
+            {
+                var post = s.Post;
+                if (post == null || post.IsDeleted) continue;
+
+                var author = await GetAuthorInfo(post.UserId);
+                if (author == null) continue;
+
+                var appCount = await _context.PostApplications.CountAsync(a => a.PostId == post.Id);
+
+                result.Add(new
+                {
+                    id = post.Id,
+                    userId = post.UserId,
+                    authorName = author.Value.nickname,
+                    authorImage = author.Value.hasImage ? $"/api/Posts/user/{post.UserId}/avatar" : null,
+                    authorType = author.Value.userType,
+                    content = post.Content,
+                    framework = post.Framework,
+                    createdAt = post.CreatedAt,
+                    imageCount = post.Images.Count,
+                    likeCount = post.Likes.Count,
+                    commentCount = post.Comments.Count,
+                    applicationsCount = appCount,
+                    isClosed = post.IsClosed,
+                    isLikedByMe = post.Likes.Any(l => l.UserId == userId),
+                    isMine = post.UserId == userId,
+                    isSaved = true,
+                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = $"/api/Posts/image/{i.Id}" }).ToList()
+                });
+            }
+            return result;
+        }
+
+        public async Task<bool> IsPostSaved(int postId, int userId)
+        {
+            return await _context.SavedPosts.AnyAsync(sp => sp.PostId == postId && sp.UserId == userId);
+        }
+
+        // ================= HELPERS =================
         private async Task<(string nickname, string userType, bool hasImage)?> GetAuthorInfo(int userId)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -635,7 +700,6 @@ namespace Services
                 var p = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == userId);
                 return (p?.Nickname ?? "User", user.UserType, p?.ProfileImage != null);
             }
-
             return ("User", user.UserType, false);
         }
     }
