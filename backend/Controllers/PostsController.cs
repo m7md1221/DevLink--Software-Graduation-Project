@@ -145,6 +145,7 @@ namespace Controllers
                 await _postService.CreatePost(
                     userId.Value,
                     model.Content,
+                    model.Framework,
                     images.Count > 0 ? images : null);
 
             if (!success)
@@ -310,7 +311,8 @@ namespace Controllers
                     programmerId.Value,
                     model.Proposal,
                     model.Price,
-                    model.Duration);
+                    model.Duration,
+                    model.Framework);
 
             if (!success)
                 return BadRequest(new { message });
@@ -374,6 +376,51 @@ namespace Controllers
         {
             var hasApplied = await _postService.HasUserApplied(id, _currentUser.ResolveUserId(userId) ?? 0);
             return Ok(new { hasApplied });
+        }
+
+        // ================= SAVED POSTS (partner feature, 2026-11-21) =================
+        // M2 rules: the user is always the token's user (a client userId is used only on the
+        // development fallback), members only (no admins), and a saved list is private.
+
+        [HttpPost("{id}/save")]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
+        public async Task<IActionResult> ToggleSave(int id, [FromBody] SavePostDto? model)
+        {
+            var userId = _currentUser.ResolveUserId(model?.UserId);
+            if (userId is null or <= 0)
+                return BadRequest(new { message = "userId is required" });
+
+            var (success, message, isSaved) = await _postService.ToggleSavePost(id, userId.Value);
+            if (!success)
+                return NotFound(new { message });
+
+            return Ok(new { message, isSaved });
+        }
+
+        [HttpGet("saved/{userId}")]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
+        public async Task<IActionResult> GetSavedPosts(int userId)
+        {
+            var callerId = _currentUser.ResolveUserId(userId);
+            if (callerId is null or <= 0)
+                return BadRequest(new { message = "Invalid userId" });
+            if (callerId != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only see your own saved posts");
+
+            var posts = await _postService.GetSavedPosts(callerId.Value);
+            return Ok(new { posts });
+        }
+
+        [HttpGet("{id}/is-saved")]
+        [Authorize(Policy = AuthPolicies.NonAdminOrDevFallback)]
+        public async Task<IActionResult> IsPostSaved(int id, [FromQuery] int userId)
+        {
+            var callerId = _currentUser.ResolveUserId(userId);
+            if (callerId is null or <= 0)
+                return BadRequest(new { message = "userId is required" });
+
+            var isSaved = await _postService.IsPostSaved(id, callerId.Value);
+            return Ok(new { isSaved });
         }
 
         [HttpGet("pending")]
@@ -586,6 +633,7 @@ namespace Controllers
     {
         public int UserId { get; set; }
         public string? Content { get; set; }
+        public string? Framework { get; set; }
         public List<IFormFile>? Images { get; set; }
     }
 
@@ -606,10 +654,16 @@ namespace Controllers
         public string Proposal { get; set; } = string.Empty;
         public decimal? Price { get; set; }
         public string? Duration { get; set; }
+        public string? Framework { get; set; }
     }
 
     public class RejectPostDto
     {
         public string Reason { get; set; } = string.Empty;
+    }
+
+    public class SavePostDto
+    {
+        public int UserId { get; set; }
     }
 }

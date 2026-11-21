@@ -17,6 +17,9 @@ namespace DataBase
 
         public string? Content { get; set; }
 
+        [MaxLength(50)]
+        public string? Framework { get; set; }   // ✅ جديد
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime? UpdatedAt { get; set; }

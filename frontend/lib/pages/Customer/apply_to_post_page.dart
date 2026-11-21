@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../services/post_service.dart';
+import '../../widgets/custom_toast.dart';
 
 class ApplyToPostPage extends StatefulWidget {
   final int postId;
   final int programmerId;
   final String postAuthorName;
   final String? postContent;
+  final String? requiredFramework;
 
   const ApplyToPostPage({
     super.key,
@@ -13,6 +15,7 @@ class ApplyToPostPage extends StatefulWidget {
     required this.programmerId,
     required this.postAuthorName,
     this.postContent,
+    this.requiredFramework,
   });
 
   @override
@@ -25,7 +28,29 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
   final _priceController = TextEditingController();
   final _durationController = TextEditingController();
 
+  String? _selectedFramework;
   bool _isSubmitting = false;
+
+  final List<String> _frameworks = [
+    'Flutter',
+    'React',
+    'Angular',
+    'Vue',
+    'Node.js',
+    '.NET',
+    'Django',
+    'Laravel',
+    'Spring Boot',
+    'Other'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.requiredFramework != null) {
+      _selectedFramework = widget.requiredFramework;
+    }
+  }
 
   @override
   void dispose() {
@@ -53,6 +78,7 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
       duration: _durationController.text.trim().isEmpty
           ? null
           : _durationController.text.trim(),
+      framework: _selectedFramework,
     );
 
     if (!mounted) return;
@@ -61,37 +87,24 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
     if (result['success'] == true) {
       _showSuccessDialog();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Failed'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      CustomToast.show(context, result['message'] ?? 'Failed', isError: true);
     }
   }
 
   void _showSuccessDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark
-        ? const Color(0xFFF1F5F9)
-        : const Color(0xFF0F172A);
-    final textSecondary = isDark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
+    final textPrimary =
+        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final textSecondary =
+        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -103,30 +116,23 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                   color: const Color(0xFF10B981).withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  color: Color(0xFF10B981),
-                  size: 42,
-                ),
+                child: const Icon(Icons.check_circle_rounded,
+                    color: Color(0xFF10B981), size: 42),
               ),
               const SizedBox(height: 16),
               Text(
                 'Application Sent!',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: textPrimary,
-                ),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
                 'Your proposal has been submitted. The post owner will review it soon.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: textSecondary,
-                  height: 1.5,
-                ),
+                style:
+                    TextStyle(fontSize: 13, color: textSecondary, height: 1.5),
               ),
               const SizedBox(height: 22),
               SizedBox(
@@ -141,16 +147,11 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                     backgroundColor: const Color(0xFF8B5CF6),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                        borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text(
-                    'Got it',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
-                  ),
+                  child: const Text('Got it',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
               ),
             ],
@@ -163,22 +164,17 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFF5F3FF);
+    final bgColor =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F3FF);
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark
-        ? const Color(0xFFF1F5F9)
-        : const Color(0xFF0F172A);
-    final textSecondary = isDark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
-    final borderColor = isDark
-        ? const Color(0xFF334155)
-        : const Color(0xFFE2E8F0);
-    final inputFill = isDark
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFF8FAFC);
+    final textPrimary =
+        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final textSecondary =
+        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final borderColor =
+        isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final inputFill =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -192,10 +188,9 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
         title: Text(
           'Apply to Post',
           style: TextStyle(
-            color: textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 18,
-          ),
+              color: textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 18),
         ),
       ),
       body: SafeArea(
@@ -206,6 +201,7 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Post owner card
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -224,21 +220,17 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                               color: const Color(0xFF8B5CF6).withOpacity(0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(
-                              Icons.person_rounded,
-                              color: Color(0xFF8B5CF6),
-                              size: 16,
-                            ),
+                            child: const Icon(Icons.person_rounded,
+                                color: Color(0xFF8B5CF6), size: 16),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               widget.postAuthorName,
                               style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                color: textPrimary,
-                              ),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                  color: textPrimary),
                             ),
                           ),
                         ],
@@ -251,23 +243,23 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 13,
-                            color: textSecondary,
-                            height: 1.4,
-                          ),
+                              fontSize: 13,
+                              color: textSecondary,
+                              height: 1.4),
                         ),
                       ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // Proposal
                 Text(
                   'Your Proposal *',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: textPrimary,
-                  ),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: textPrimary),
                 ),
                 const SizedBox(height: 10),
                 Container(
@@ -281,23 +273,16 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                     maxLines: 6,
                     maxLength: 2000,
                     style: TextStyle(
-                      color: textPrimary,
-                      fontSize: 14.5,
-                      height: 1.5,
-                    ),
+                        color: textPrimary, fontSize: 14.5, height: 1.5),
                     decoration: InputDecoration(
                       hintText:
                           'Tell the post owner how you can help, your experience, and your plan...',
-                      hintStyle: TextStyle(
-                        color: textSecondary,
-                        fontSize: 13.5,
-                      ),
+                      hintStyle:
+                          TextStyle(color: textSecondary, fontSize: 13.5),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(14),
-                      counterStyle: TextStyle(
-                        color: textSecondary,
-                        fontSize: 11,
-                      ),
+                      counterStyle:
+                          TextStyle(color: textSecondary, fontSize: 11),
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {
@@ -311,13 +296,96 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // Framework
+                Text(
+                  'Framework',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: textPrimary),
+                ),
+                const SizedBox(height: 10),
+                if (widget.requiredFramework != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: const Color(0xFF8B5CF6).withOpacity(0.3),
+                          width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock_rounded,
+                            color: Color(0xFF8B5CF6), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.requiredFramework!,
+                            style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8B5CF6)),
+                          ),
+                        ),
+                        const Text(
+                          'REQUIRED',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF8B5CF6),
+                              letterSpacing: 0.5),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: _selectedFramework,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: 'Select Framework (Optional)',
+                      hintStyle:
+                          TextStyle(color: textSecondary, fontSize: 13.5),
+                      prefixIcon: const Icon(Icons.code_rounded,
+                          color: Color(0xFF8B5CF6), size: 20),
+                      filled: true,
+                      fillColor: inputFill,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide:
+                            BorderSide(color: borderColor, width: 1.4),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF8B5CF6), width: 2),
+                      ),
+                    ),
+                    items: _frameworks.map((f) {
+                      return DropdownMenuItem<String>(
+                        value: f,
+                        child: Text(f,
+                            style: TextStyle(
+                                fontSize: 14, color: textPrimary)),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setState(() => _selectedFramework = v),
+                  ),
+                const SizedBox(height: 20),
+
+                // Price
                 Text(
                   'Price (Optional)',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: textPrimary,
-                  ),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: textPrimary),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
@@ -325,94 +393,71 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                      color: textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
                     hintText: 'e.g. 500',
-                    hintStyle: TextStyle(
-                      color: textSecondary,
-                      fontSize: 13.5,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.attach_money_rounded,
-                      color: Color(0xFF10B981),
-                      size: 20,
-                    ),
+                    hintStyle:
+                        TextStyle(color: textSecondary, fontSize: 13.5),
+                    prefixIcon: const Icon(Icons.attach_money_rounded,
+                        color: Color(0xFF10B981), size: 20),
                     filled: true,
                     fillColor: inputFill,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
+                        horizontal: 16, vertical: 16),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                        color: borderColor,
-                        width: 1.4,
-                      ),
+                      borderSide: BorderSide(color: borderColor, width: 1.4),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
-                        color: Color(0xFF8B5CF6),
-                        width: 2,
-                      ),
+                          color: Color(0xFF8B5CF6), width: 2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
+
+                // Duration
                 Text(
                   'Estimated Duration (Optional)',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: textPrimary,
-                  ),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: textPrimary),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _durationController,
                   style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                      color: textPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
                     hintText: 'e.g. 2 weeks',
-                    hintStyle: TextStyle(
-                      color: textSecondary,
-                      fontSize: 13.5,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.schedule_rounded,
-                      color: Color(0xFFF59E0B),
-                      size: 20,
-                    ),
+                    hintStyle:
+                        TextStyle(color: textSecondary, fontSize: 13.5),
+                    prefixIcon: const Icon(Icons.schedule_rounded,
+                        color: Color(0xFFF59E0B), size: 20),
                     filled: true,
                     fillColor: inputFill,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
+                        horizontal: 16, vertical: 16),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                        color: borderColor,
-                        width: 1.4,
-                      ),
+                      borderSide: BorderSide(color: borderColor, width: 1.4),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: const BorderSide(
-                        color: Color(0xFF8B5CF6),
-                        width: 2,
-                      ),
+                          color: Color(0xFF8B5CF6), width: 2),
                     ),
                   ),
                 ),
                 const SizedBox(height: 30),
+
+                // Submit button
                 SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -420,14 +465,12 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                      ),
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF8B5CF6).withOpacity(0.40),
-                          blurRadius: 22,
-                          offset: const Offset(0, 10),
-                        ),
+                            color: const Color(0xFF8B5CF6).withOpacity(0.40),
+                            blurRadius: 22,
+                            offset: const Offset(0, 10)),
                       ],
                     ),
                     child: ElevatedButton(
@@ -438,17 +481,14 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                         shadowColor: Colors.transparent,
                         disabledBackgroundColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                            borderRadius: BorderRadius.circular(16)),
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
+                                  strokeWidth: 2.5, color: Colors.white),
                             )
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -458,10 +498,9 @@ class _ApplyToPostPageState extends State<ApplyToPostPage> {
                                 Text(
                                   'SUBMIT APPLICATION',
                                   style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                  ),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.2),
                                 ),
                               ],
                             ),

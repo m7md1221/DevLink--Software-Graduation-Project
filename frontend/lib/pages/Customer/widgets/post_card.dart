@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../services/media_url.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
-import '../../../widgets/custom_toast.dart'; 
+import '../../../services/media_url.dart';
+import '../../../widgets/custom_toast.dart';
 import 'comments_sheet.dart';
 import '../apply_to_post_page.dart';
 import '../post_applications_page.dart';
@@ -34,6 +34,7 @@ class _PostCardState extends State<PostCard>
   late int _commentCount;
   late int _applicationsCount;
   late bool _isClosed;
+  late bool _isSaved;
   bool _isLiking = false;
   bool _hasApplied = false;
   bool _checkingApplied = true;
@@ -49,6 +50,7 @@ class _PostCardState extends State<PostCard>
     _commentCount = widget.post.commentCount;
     _applicationsCount = widget.post.applicationsCount;
     _isClosed = widget.post.isClosed;
+    _isSaved = widget.post.isSaved;
     _checkApplied();
 
     _controller = AnimationController(
@@ -104,6 +106,29 @@ class _PostCardState extends State<PostCard>
     setState(() => _isLiking = false);
   }
 
+  Future<void> _toggleSave() async {
+    final result = await PostService.toggleSavePost(
+      postId: widget.post.id,
+      userId: widget.currentUserId,
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() => _isSaved = result['isSaved'] == true);
+      CustomToast.show(
+        context,
+        _isSaved ? 'Post saved' : 'Post unsaved',
+      );
+    } else {
+      CustomToast.show(
+        context,
+        result['message'] ?? 'Failed',
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _openComments() async {
     final added = await showModalBottomSheet<bool>(
       context: context,
@@ -126,6 +151,7 @@ class _PostCardState extends State<PostCard>
           programmerId: widget.currentUserId,
           postAuthorName: widget.post.authorName,
           postContent: widget.post.content,
+          requiredFramework: widget.post.framework,
         ),
       ),
     );
@@ -154,7 +180,8 @@ class _PostCardState extends State<PostCard>
   Future<void> _confirmDelete() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final textPrimary =
+        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -172,16 +199,20 @@ class _PostCardState extends State<PostCard>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+            child: const Text('Cancel',
+                style: TextStyle(
+                    color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: const Text('Delete',
+                style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -197,11 +228,11 @@ class _PostCardState extends State<PostCard>
     if (!mounted) return;
 
     if (result['success'] == true) {
-      
       CustomToast.show(context, 'Post deleted successfully');
       widget.onChanged();
     } else {
-      CustomToast.show(context, result['message'] ?? 'Failed to delete post', isError: true);
+      CustomToast.show(context, result['message'] ?? 'Failed to delete post',
+          isError: true);
     }
   }
 
@@ -224,15 +255,22 @@ class _PostCardState extends State<PostCard>
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final textPrimary = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textPrimary =
+        isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final textSecondary =
+        isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final borderColor =
+        isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     final isProgrammer = widget.currentUserType == 'Programmer';
     // KI-56 (owner decision UI-11): only customers' posts take applications; the API
     // refuses an application to a programmer's post (D-11), so don't offer one.
     final ownerTakesApplications = widget.post.authorType != 'Programmer';
-    final canApply = isProgrammer && ownerTakesApplications && !widget.post.isMine && !_isClosed && !_hasApplied;
+    final canApply = isProgrammer &&
+        ownerTakesApplications &&
+        !widget.post.isMine &&
+        !_isClosed &&
+        !_hasApplied;
     final canViewApplications = widget.post.isMine;
 
     return Container(
@@ -241,12 +279,16 @@ class _PostCardState extends State<PostCard>
         color: cardColor,
         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         border: Border.all(
-          color: _isClosed ? const Color(0xFF10B981).withOpacity(0.4) : borderColor,
+          color: _isClosed
+              ? const Color(0xFF10B981).withOpacity(0.4)
+              : borderColor,
           width: _isClosed ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.06),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.black.withOpacity(0.06),
             blurRadius: 20,
             spreadRadius: 2,
             offset: const Offset(0, 8),
@@ -259,7 +301,12 @@ class _PostCardState extends State<PostCard>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, isMobile ? 14 : 16, isMobile ? 14 : 16, isMobile ? 10 : 12),
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 14 : 16,
+                isMobile ? 14 : 16,
+                isMobile ? 14 : 16,
+                isMobile ? 10 : 12,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
@@ -301,7 +348,9 @@ class _PostCardState extends State<PostCard>
                           const SizedBox(height: 3),
                           Row(
                             children: [
-                              Icon(Icons.access_time_rounded, size: isMobile ? 10 : 11, color: textSecondary),
+                              Icon(Icons.access_time_rounded,
+                                  size: isMobile ? 10 : 11,
+                                  color: textSecondary),
                               const SizedBox(width: 4),
                               Text(
                                 _formatDateTime(widget.post.createdAt),
@@ -319,35 +368,50 @@ class _PostCardState extends State<PostCard>
                   ),
                   if (_isClosed)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                        border: Border.all(
+                            color: const Color(0xFF10B981).withOpacity(0.3)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10B981)),
+                          Icon(Icons.check_circle_rounded,
+                              size: 13, color: Color(0xFF10B981)),
                           SizedBox(width: 5),
-                          Text('Assigned', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF10B981))),
+                          Text('Assigned',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF10B981))),
                         ],
                       ),
                     ),
                   if (widget.post.isMine && !_isClosed)
                     PopupMenuButton<String>(
-                      icon: Icon(Icons.more_horiz_rounded, color: textSecondary),
+                      icon: Icon(Icons.more_horiz_rounded,
+                          color: textSecondary),
                       color: cardColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      onSelected: (v) { if (v == 'delete') _confirmDelete(); },
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      onSelected: (v) {
+                        if (v == 'delete') _confirmDelete();
+                      },
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                           value: 'delete',
                           child: Row(
                             children: [
-                              Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                              Icon(Icons.delete_outline_rounded,
+                                  size: 18, color: Color(0xFFEF4444)),
                               SizedBox(width: 10),
-                              Text('Delete', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w700)),
+                              Text('Delete',
+                                  style: TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontWeight: FontWeight.w700)),
                             ],
                           ),
                         ),
@@ -357,9 +421,15 @@ class _PostCardState extends State<PostCard>
               ),
             ),
 
-            if (widget.post.content != null && widget.post.content!.trim().isNotEmpty)
+            if (widget.post.content != null &&
+                widget.post.content!.trim().isNotEmpty)
               Padding(
-                padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, 0, isMobile ? 14 : 16, isMobile ? 12 : 14),
+                padding: EdgeInsets.fromLTRB(
+                  isMobile ? 14 : 16,
+                  0,
+                  isMobile ? 14 : 16,
+                  isMobile ? 12 : 14,
+                ),
                 child: Text(
                   widget.post.content!,
                   style: TextStyle(
@@ -371,26 +441,75 @@ class _PostCardState extends State<PostCard>
                 ),
               ),
 
+            // Framework badge
+            if (widget.post.framework != null &&
+                widget.post.framework!.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isMobile ? 14 : 16,
+                  0,
+                  isMobile ? 14 : 16,
+                  10,
+                ),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.code_rounded,
+                          size: 14, color: Color(0xFF8B5CF6)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Required: ${widget.post.framework}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             if (widget.post.images.isNotEmpty) _buildImages(isDark, isMobile),
 
             Padding(
-              padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, isMobile ? 10 : 12, isMobile ? 14 : 16, isMobile ? 4 : 6),
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 14 : 16,
+                isMobile ? 10 : 12,
+                isMobile ? 14 : 16,
+                isMobile ? 4 : 6,
+              ),
               child: Row(
                 children: [
                   if (_likeCount > 0) ...[
                     Container(
                       padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                      child: Icon(Icons.favorite_rounded, size: isMobile ? 9 : 10, color: Colors.white),
+                      decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444), shape: BoxShape.circle),
+                      child: Icon(Icons.favorite_rounded,
+                          size: isMobile ? 9 : 10, color: Colors.white),
                     ),
                     const SizedBox(width: 6),
-                    Text('$_likeCount', style: TextStyle(fontSize: isMobile ? 11 : 12, color: textSecondary, fontWeight: FontWeight.w700)),
+                    Text('$_likeCount',
+                        style: TextStyle(
+                            fontSize: isMobile ? 11 : 12,
+                            color: textSecondary,
+                            fontWeight: FontWeight.w700)),
                   ],
                   const Spacer(),
                   GestureDetector(
                     onTap: canViewApplications ? _openApplications : null,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 10,
+                          vertical: isMobile ? 4 : 5),
                       decoration: BoxDecoration(
                         color: const Color(0xFF3B82F6).withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
@@ -398,18 +517,29 @@ class _PostCardState extends State<PostCard>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.people_alt_rounded, size: isMobile ? 12 : 13, color: const Color(0xFF3B82F6)),
+                          Icon(Icons.people_alt_rounded,
+                              size: isMobile ? 12 : 13,
+                              color: const Color(0xFF3B82F6)),
                           const SizedBox(width: 4),
-                          Text('$_applicationsCount', style: TextStyle(fontSize: isMobile ? 11 : 12, color: const Color(0xFF3B82F6), fontWeight: FontWeight.w900)),
+                          Text('$_applicationsCount',
+                              style: TextStyle(
+                                  fontSize: isMobile ? 11 : 12,
+                                  color: const Color(0xFF3B82F6),
+                                  fontWeight: FontWeight.w900)),
                         ],
                       ),
                     ),
                   ),
                   if (_commentCount > 0) ...[
                     SizedBox(width: isMobile ? 10 : 12),
-                    Icon(Icons.chat_bubble_outline_rounded, size: isMobile ? 13 : 14, color: textSecondary),
+                    Icon(Icons.chat_bubble_outline_rounded,
+                        size: isMobile ? 13 : 14, color: textSecondary),
                     const SizedBox(width: 4),
-                    Text('$_commentCount', style: TextStyle(fontSize: isMobile ? 11 : 12, color: textSecondary, fontWeight: FontWeight.w700)),
+                    Text('$_commentCount',
+                        style: TextStyle(
+                            fontSize: isMobile ? 11 : 12,
+                            color: textSecondary,
+                            fontWeight: FontWeight.w700)),
                   ],
                 ],
               ),
@@ -417,32 +547,59 @@ class _PostCardState extends State<PostCard>
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Divider(height: isMobile ? 12 : 16, thickness: 1, color: borderColor.withOpacity(0.5)),
+              child: Divider(
+                  height: isMobile ? 12 : 16,
+                  thickness: 1,
+                  color: borderColor.withOpacity(0.5)),
             ),
 
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 4 : 6, vertical: 4),
               child: Row(
                 children: [
+                  // Like
                   Expanded(
                     child: _actionButton(
-                      icon: _isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      icon: _isLiked
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
                       label: 'Like',
-                      color: _isLiked ? const Color(0xFFEF4444) : textSecondary,
+                      color:
+                          _isLiked ? const Color(0xFFEF4444) : textSecondary,
                       onTap: _toggleLike,
                       scaleAnimation: _scaleAnimation,
                       isMobile: isMobile,
                     ),
                   ),
+
+                  // Comment (Customer only)
+                  if (!isProgrammer)
+                    Expanded(
+                      child: _actionButton(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        label: 'Comment',
+                        color: textSecondary,
+                        onTap: _openComments,
+                        isMobile: isMobile,
+                      ),
+                    ),
+
+                  // Save
                   Expanded(
                     child: _actionButton(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      label: 'Comment',
-                      color: textSecondary,
-                      onTap: _openComments,
+                      icon: _isSaved
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      label: _isSaved ? 'Saved' : 'Save',
+                      color:
+                          _isSaved ? const Color(0xFFF59E0B) : textSecondary,
+                      onTap: _toggleSave,
                       isMobile: isMobile,
                     ),
                   ),
+
+                  // Apply / Applied / View
                   if (canApply)
                     Expanded(
                       child: _actionButton(
@@ -523,11 +680,15 @@ class _PostCardState extends State<PostCard>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: isMobile ? 28 : 32),
+                        Icon(Icons.add_photo_alternate_rounded,
+                            color: Colors.white, size: isMobile ? 28 : 32),
                         const SizedBox(height: 6),
                         Text(
                           '+${imgs.length - 1}',
-                          style: TextStyle(color: Colors.white, fontSize: isMobile ? 20 : 22, fontWeight: FontWeight.w900),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isMobile ? 20 : 22,
+                              fontWeight: FontWeight.w900),
                         ),
                       ],
                     ),
@@ -547,13 +708,17 @@ class _PostCardState extends State<PostCard>
       loadingBuilder: (_, child, progress) {
         if (progress == null) return child;
         return Container(
-          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          color:
+              isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+          child:
+              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         );
       },
       errorBuilder: (_, __, ___) => Container(
         color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-        child: const Center(child: Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8))),
+        child: const Center(
+            child: Icon(Icons.broken_image_outlined,
+                color: Color(0xFF94A3B8))),
       ),
     );
   }
@@ -566,9 +731,11 @@ class _PostCardState extends State<PostCard>
     Animation<double>? scaleAnimation,
     required bool isMobile,
   }) {
-    Widget iconWidget = Icon(icon, size: isMobile ? 18 : 20, color: color);
+    Widget iconWidget =
+        Icon(icon, size: isMobile ? 18 : 20, color: color);
     if (scaleAnimation != null) {
-      iconWidget = ScaleTransition(scale: scaleAnimation, child: iconWidget);
+      iconWidget =
+          ScaleTransition(scale: scaleAnimation, child: iconWidget);
     }
 
     return Material(
@@ -590,7 +757,10 @@ class _PostCardState extends State<PostCard>
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: isMobile ? 12.5 : 13.5, fontWeight: FontWeight.w800, color: color),
+                  style: TextStyle(
+                      fontSize: isMobile ? 12.5 : 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: color),
                 ),
               ),
             ],
@@ -618,7 +788,9 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = authorType == 'Programmer' ? const Color(0xFF8B5CF6) : const Color(0xFF10B981);
+    final color = authorType == 'Programmer'
+        ? const Color(0xFF8B5CF6)
+        : const Color(0xFF10B981);
 
     return Container(
       width: size,
@@ -628,7 +800,10 @@ class _Avatar extends StatelessWidget {
         color: color.withOpacity(0.12),
         border: Border.all(color: color, width: 2),
         boxShadow: [
-          BoxShadow(color: color.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 3)),
+          BoxShadow(
+              color: color.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 3)),
         ],
       ),
       child: ClipOval(
@@ -636,9 +811,19 @@ class _Avatar extends StatelessWidget {
             ? Image.network(
                 MediaUrl.resolve(url),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(authorType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded, color: color, size: size * 0.5),
+                errorBuilder: (_, __, ___) => Icon(
+                    authorType == 'Programmer'
+                        ? Icons.code_rounded
+                        : Icons.person_rounded,
+                    color: color,
+                    size: size * 0.5),
               )
-            : Icon(authorType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded, color: color, size: size * 0.5),
+            : Icon(
+                authorType == 'Programmer'
+                    ? Icons.code_rounded
+                    : Icons.person_rounded,
+                color: color,
+                size: size * 0.5),
       ),
     );
   }

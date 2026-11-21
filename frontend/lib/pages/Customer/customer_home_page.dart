@@ -14,7 +14,7 @@ import '../../widgets/theme_toggle.dart';
 import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
 import 'create_post_page.dart';
-import 'widgets/post_card.dart';
+import 'widgets/post_card.dart' hide PostService;
 import 'user_profile_page.dart';
 import 'search_users_page.dart';
 import 'contact_support_page.dart';

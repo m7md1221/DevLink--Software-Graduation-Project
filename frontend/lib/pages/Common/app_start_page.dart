@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_http.dart' show AuthHttp;
 import '../Customer/customer_home_page.dart';
-import '../Programmer/programmer_dashboard_page.dart';
+import '../Programmer/programmer_home_page.dart';
 import '../Programmer/programmer_profile_setup_page.dart';
 import '../admin/admin_dashboard_page.dart';
 import 'account_suspended_page.dart';
@@ -20,7 +20,9 @@ Widget homeForSignedInUser({
     case 'Customer':
       return CustomerHomePage(userId: userId, authorName: email, authorType: 'Customer');
     case 'Programmer':
-      return hasProfile ? ProgrammerDashboardPage(userId: userId) : ProgrammerProfileSetupPage(userId: userId);
+      return hasProfile
+          ? ProgrammerHomePage(userId: userId, authorName: email, authorType: 'Programmer')
+          : ProgrammerProfileSetupPage(userId: userId);
     case 'Admin':
       return AdminDashboardPage(userId: userId);
     default:

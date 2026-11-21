@@ -18,6 +18,7 @@ namespace DataBase
 
         // ✅ ضفنا جدول الإشعارات هنا
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SavedPost> SavedPosts { get; set; }
 
         public AppDbContext(
             DbContextOptions<AppDbContext> options)
@@ -330,6 +331,31 @@ namespace DataBase
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_Notifications_Users");
+
+            // Saved posts (partner, 2026-11-21): one row per user and post.
+            modelBuilder.Entity<SavedPost>()
+                .ToTable("SavedPosts");
+
+            modelBuilder.Entity<SavedPost>()
+                .HasIndex(sp => new { sp.PostId, sp.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SavedPost>()
+                .HasIndex(sp => sp.UserId);
+
+            modelBuilder.Entity<SavedPost>()
+                .HasOne(sp => sp.Post)
+                .WithMany()
+                .HasForeignKey(sp => sp.PostId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_SavedPosts_Posts");
+
+            modelBuilder.Entity<SavedPost>()
+                .HasOne(sp => sp.User)
+                .WithMany()
+                .HasForeignKey(sp => sp.UserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_SavedPosts_Users");
 
             // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
             ConfigureAuthSecurity(modelBuilder);

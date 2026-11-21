@@ -70,6 +70,8 @@ namespace Services
                 .Include(p => p.Comments)
                 .ToListAsync();
 
+            var savedIds = await SavedPostIdsAsync(currentUserId, posts.Select(p => p.Id));
+
             var result = new List<object>();
 
             foreach (var post in posts)
@@ -97,6 +99,8 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
+                    framework = post.Framework,
+                    isSaved = savedIds.Contains(post.Id),
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
             }
@@ -116,6 +120,8 @@ namespace Services
 
             var author = await GetAuthorInfo(userId);
             if (author == null) return new List<object>();
+
+            var savedIds = await SavedPostIdsAsync(currentUserId, posts.Select(p => p.Id));
 
             var result = new List<object>();
 
@@ -140,6 +146,8 @@ namespace Services
                     isClosed = post.IsClosed,
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
+                    framework = post.Framework,
+                    isSaved = savedIds.Contains(post.Id),
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
             }
@@ -147,7 +155,7 @@ namespace Services
             return result;
         }
 
-        public async Task<(bool success, string message, int? postId)> CreatePost(int userId, string? content, List<(byte[] data, string contentType)>? images)
+        public async Task<(bool success, string message, int? postId)> CreatePost(int userId, string? content, string? framework, List<(byte[] data, string contentType)>? images)
         {
             var hasContent = !string.IsNullOrWhiteSpace(content);
             var hasImages = images != null && images.Count > 0;
@@ -160,11 +168,13 @@ namespace Services
 
             if (hasImages && images!.Count > 10) return (false, "Maximum 10 images per post", null);
             if (hasContent && content!.Length > 5000) return (false, "Post content is too long", null);
+            if (!string.IsNullOrWhiteSpace(framework) && framework.Trim().Length > 50) return (false, "Framework is too long", null);
 
             var post = new Post
             {
                 UserId = userId,
                 Content = hasContent ? content!.Trim() : null,
+                Framework = string.IsNullOrWhiteSpace(framework) ? null : framework.Trim(),
                 CreatedAt = DateTime.UtcNow,
                 Status = "Pending"
             };
@@ -476,10 +486,11 @@ namespace Services
             }
         }
 
-        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(int postId, int programmerId, string proposal, decimal? price, string? duration)
+        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(int postId, int programmerId, string proposal, decimal? price, string? duration, string? framework)
         {
             if (string.IsNullOrWhiteSpace(proposal)) return (false, "Proposal is required", null);
             if (proposal.Length > 2000) return (false, "Proposal is too long", null);
+            if (!string.IsNullOrWhiteSpace(framework) && framework.Trim().Length > 50) return (false, "Framework is too long", null);
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == programmerId);
             if (user == null) return (false, "User not found", null);
@@ -495,6 +506,15 @@ namespace Services
 
             if (post.IsClosed) return (false, "This post is already closed", null);
 
+            // Partner rule (2026-11-21): a post that names a framework only takes applications for it.
+            if (!string.IsNullOrWhiteSpace(post.Framework))
+            {
+                if (string.IsNullOrWhiteSpace(framework))
+                    return (false, $"This project requires {post.Framework}", null);
+                if (!string.Equals(post.Framework.Trim(), framework.Trim(), StringComparison.OrdinalIgnoreCase))
+                    return (false, $"You must use {post.Framework} for this project", null);
+            }
+
             var existing = await _context.PostApplications.FirstOrDefaultAsync(a => a.PostId == postId && a.ProgrammerId == programmerId);
             if (existing != null) return (false, "You have already applied to this post", null);
 
@@ -505,6 +525,7 @@ namespace Services
                 Proposal = proposal.Trim(),
                 Price = price,
                 Duration = duration?.Trim(),
+                Framework = string.IsNullOrWhiteSpace(framework) ? null : framework.Trim(),
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
@@ -520,6 +541,10 @@ namespace Services
                 _context.Entry(application).State = EntityState.Detached;
                 return (false, "You have already applied to this post", null);
             }
+
+            // The applicant is named by nickname, never by email (KI-58).
+            var applicantName = await SenderNameAsync(programmerId);
+            await CreateNotification(post.UserId, "New Application", $"{applicantName} applied to your post.", "application", postId);
 
             return (true, "Application submitted successfully", application.Id);
         }
@@ -564,6 +589,7 @@ namespace Services
                     proposal = app.Proposal,
                     price = app.Price,
                     duration = app.Duration,
+                    framework = app.Framework,
                     status = app.Status,
                     createdAt = app.CreatedAt
                 });
@@ -637,6 +663,7 @@ namespace Services
                     authorImage = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     content = post.Content,
+                    framework = post.Framework,
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
@@ -671,6 +698,8 @@ namespace Services
             post.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            await CreateNotification(post.UserId, "Post Rejected", $"Your post was rejected: {post.RejectionReason}", "rejected", postId);
+
             return (true, "Post rejected");
         }
 
@@ -682,6 +711,102 @@ namespace Services
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == post.UserId);
             return user?.Email;
         }
+
+        // ================= SAVED POSTS (partner feature, M2 rules) =================
+        // The caller comes from the access token (controller). A user can save only a post they
+        // can see (approved, or their own), and only ever reads or changes their own saved list.
+
+        private async Task<HashSet<int>> SavedPostIdsAsync(int userId, IEnumerable<int> postIds)
+        {
+            var ids = postIds.ToList();
+            if (userId <= 0 || ids.Count == 0) return new HashSet<int>();
+            var saved = await _context.SavedPosts
+                .Where(sp => sp.UserId == userId && ids.Contains(sp.PostId))
+                .Select(sp => sp.PostId)
+                .ToListAsync();
+            return saved.ToHashSet();
+        }
+
+        public async Task<(bool success, string message, bool isSaved)> ToggleSavePost(int postId, int userId)
+        {
+            var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+            if (post == null || (post.Status != "Approved" && post.UserId != userId))
+                return (false, "Post not found", false);
+
+            var existing = await _context.SavedPosts
+                .FirstOrDefaultAsync(sp => sp.PostId == postId && sp.UserId == userId);
+
+            if (existing != null)
+            {
+                _context.SavedPosts.Remove(existing);
+                await _context.SaveChangesAsync();
+                return (true, "Post unsaved", false);
+            }
+
+            var saved = new SavedPost { PostId = postId, UserId = userId, CreatedAt = DateTime.UtcNow };
+            _context.SavedPosts.Add(saved);
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Two parallel saves: the unique (PostId, UserId) index keeps one row.
+                _context.Entry(saved).State = EntityState.Detached;
+            }
+
+            return (true, "Post saved", true);
+        }
+
+        // The caller's own saved posts that are still visible, newest save first.
+        public async Task<List<object>> GetSavedPosts(int userId)
+        {
+            var saved = await _context.SavedPosts
+                .Where(sp => sp.UserId == userId)
+                .OrderByDescending(sp => sp.CreatedAt)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Images)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Likes)
+                .Include(sp => sp.Post).ThenInclude(p => p!.Comments)
+                .ToListAsync();
+
+            var result = new List<object>();
+            foreach (var s in saved)
+            {
+                var post = s.Post;
+                if (post == null || post.IsDeleted || (post.Status != "Approved" && post.UserId != userId)) continue;
+
+                var author = await GetAuthorInfo(post.UserId);
+                if (author == null) continue;
+
+                var appCount = await _context.PostApplications.CountAsync(a => a.PostId == post.Id);
+                result.Add(new
+                {
+                    id = post.Id,
+                    userId = post.UserId,
+                    authorName = author.Value.nickname,
+                    authorImage = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
+                    avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
+                    authorType = author.Value.userType,
+                    content = post.Content,
+                    framework = post.Framework,
+                    createdAt = post.CreatedAt,
+                    imageCount = post.Images.Count,
+                    likeCount = post.Likes.Count,
+                    commentCount = post.Comments.Count,
+                    applicationsCount = appCount,
+                    isClosed = post.IsClosed,
+                    isLikedByMe = post.Likes.Any(l => l.UserId == userId),
+                    isMine = post.UserId == userId,
+                    isSaved = true,
+                    savedAt = s.CreatedAt,
+                    images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
+                });
+            }
+            return result;
+        }
+
+        public Task<bool> IsPostSaved(int postId, int userId) =>
+            _context.SavedPosts.AnyAsync(sp => sp.PostId == postId && sp.UserId == userId);
 
         private async Task<(string nickname, string userType, bool hasImage)?> GetAuthorInfo(int userId)
         {
