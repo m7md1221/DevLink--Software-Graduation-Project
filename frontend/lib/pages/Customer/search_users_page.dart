@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 import 'user_profile_page.dart';
@@ -242,7 +243,7 @@ class _SearchUsersPageState extends State<SearchUsersPage> {
               child: ClipOval(
                 child: u.hasImage
                     ? Image.network(
-                        PostService.getUserAvatarUrl(u.userId),
+                        MediaUrl.resolve(u.avatarUrl),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Icon(
                           isProg ? Icons.code_rounded : Icons.person_rounded,

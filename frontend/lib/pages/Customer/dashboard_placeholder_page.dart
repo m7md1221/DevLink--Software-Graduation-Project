@@ -1,5 +1,6 @@
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../widgets/sign_out_dialog.dart';
 import '../../services/api_service.dart';
 import '../../theme/theme_manager.dart';
@@ -393,8 +394,7 @@ class _DashboardPlaceholderPageState
                     child: ClipOval(
                       child: hasImage
                           ? Image.network(
-                              ApiService.getProfileImageUrl(
-                                  widget.userId),
+                              MediaUrl.resolve(_profile?['avatarUrl'] as String?),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
                                 color: Colors.white.withOpacity(0.2),

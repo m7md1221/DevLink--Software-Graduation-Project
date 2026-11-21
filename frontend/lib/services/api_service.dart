@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'auth_http.dart' as http;
 import 'auth_http.dart' show AuthHttp;
 import 'session_manager.dart';
+import 'media_url.dart';
 
 class ApiResult {
   final bool success;
@@ -393,6 +394,7 @@ class ApiService {
     } catch (_) {
       // Signed out locally either way.
     }
+    MediaUrl.forgetOwnAvatar();
     AuthHttp.instance.clearSession();
     await SessionManager.clear();
   }
@@ -406,6 +408,7 @@ class ApiService {
     } catch (_) {
       ok = false;
     }
+    MediaUrl.forgetOwnAvatar();
     AuthHttp.instance.clearSession();
     await SessionManager.clear();
     return ok;

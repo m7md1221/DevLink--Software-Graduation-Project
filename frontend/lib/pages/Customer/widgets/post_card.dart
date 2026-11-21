@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/media_url.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
 import '../../../widgets/custom_toast.dart'; 
@@ -262,6 +263,7 @@ class _PostCardState extends State<PostCard>
                     onTap: widget.onOpenProfile,
                     child: _Avatar(
                       userId: widget.post.userId,
+                      url: widget.post.authorImage,
                       hasImage: widget.post.authorImage != null,
                       authorType: widget.post.authorType,
                       size: isMobile ? 40 : 46,
@@ -486,7 +488,7 @@ class _PostCardState extends State<PostCard>
     if (imgs.length == 1) {
       return AspectRatio(
         aspectRatio: isMobile ? 4 / 3 : 16 / 9,
-        child: _image(imgs[0].id, isDark),
+        child: _image(imgs[0].url, isDark),
       );
     }
 
@@ -495,9 +497,9 @@ class _PostCardState extends State<PostCard>
         height: isMobile ? 180 : 220,
         child: Row(
           children: [
-            Expanded(child: _image(imgs[0].id, isDark)),
+            Expanded(child: _image(imgs[0].url, isDark)),
             const SizedBox(width: 2),
-            Expanded(child: _image(imgs[1].id, isDark)),
+            Expanded(child: _image(imgs[1].url, isDark)),
           ],
         ),
       );
@@ -507,13 +509,13 @@ class _PostCardState extends State<PostCard>
       height: isMobile ? 220 : 260,
       child: Row(
         children: [
-          Expanded(child: _image(imgs[0].id, isDark)),
+          Expanded(child: _image(imgs[0].url, isDark)),
           const SizedBox(width: 2),
           Expanded(
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _image(imgs[1].id, isDark),
+                _image(imgs[1].url, isDark),
                 if (imgs.length > 2)
                   Container(
                     color: Colors.black.withOpacity(0.6),
@@ -538,9 +540,9 @@ class _PostCardState extends State<PostCard>
     );
   }
 
-  Widget _image(int id, bool isDark) {
+  Widget _image(String url, bool isDark) {
     return Image.network(
-      PostService.getPostImageUrl(id),
+      MediaUrl.resolve(url),
       fit: BoxFit.cover,
       loadingBuilder: (_, child, progress) {
         if (progress == null) return child;
@@ -601,12 +603,14 @@ class _PostCardState extends State<PostCard>
 
 class _Avatar extends StatelessWidget {
   final int userId;
+  final String? url;
   final bool hasImage;
   final String authorType;
   final double size;
 
   const _Avatar({
     required this.userId,
+    this.url,
     required this.hasImage,
     required this.authorType,
     this.size = 46,
@@ -630,7 +634,7 @@ class _Avatar extends StatelessWidget {
       child: ClipOval(
         child: hasImage
             ? Image.network(
-                PostService.getUserAvatarUrl(userId),
+                MediaUrl.resolve(url),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Icon(authorType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded, color: color, size: size * 0.5),
               )

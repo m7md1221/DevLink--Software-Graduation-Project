@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:devlink/main.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../widgets/sign_out_dialog.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -739,8 +740,7 @@ class _ProgrammerDashboardPageState
                     child: ClipOval(
                       child: hasImage
                           ? Image.network(
-                              ApiService.getProgrammerImageUrl(
-                                  widget.userId),
+                              MediaUrl.resolve(_profile?['avatarUrl'] as String?),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
                                 color: Colors.white.withOpacity(0.2),

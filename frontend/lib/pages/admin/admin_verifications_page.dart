@@ -1,5 +1,6 @@
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../services/api_service.dart';
 import '../../theme/theme_manager.dart';
 import '../../widgets/theme_toggle.dart';
@@ -584,7 +585,7 @@ class _AdminVerificationsPageState
                   child: ClipOval(
                     child: hasImage
                         ? Image.network(
-                            ApiService.getProgrammerImageUrl(userId),
+                            MediaUrl.resolve(p['avatarUrl'] as String?),
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
                                 _avatarFallback(statusColor),

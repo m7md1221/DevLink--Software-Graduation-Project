@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../services/media_url.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
 
@@ -355,7 +356,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
           child: ClipOval(
             child: c.authorImage != null
                 ? Image.network(
-                    PostService.getUserAvatarUrl(c.userId),
+                    MediaUrl.resolve(c.authorImage),
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Icon(
                       isProg ? Icons.code_rounded : Icons.person_rounded,

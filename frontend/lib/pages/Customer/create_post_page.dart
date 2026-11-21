@@ -2,6 +2,7 @@ import 'dart:io' show File;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../widgets/own_avatar_image.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/post_service.dart';
 
@@ -336,8 +337,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                               color: (widget.authorType == 'Programmer' ? const Color(0xFF8B5CF6) : const Color(0xFF10B981)).withOpacity(0.12),
                             ),
                             child: ClipOval(
-                              child: Image.network(
-                                PostService.getUserAvatarUrl(widget.userId),
+                              child: OwnAvatarImage(
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => Icon(
                                   widget.authorType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded,

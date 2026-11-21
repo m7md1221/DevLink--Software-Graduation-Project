@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/own_avatar_image.dart';
+import '../../services/media_url.dart';
 import '../../widgets/sign_out_dialog.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:devlink/main.dart';
@@ -431,8 +433,7 @@ class _CustomerHomePageState extends State<CustomerHomePage>
                               color: const Color(0xFF8B5CF6).withOpacity(0.12),
                             ),
                             child: ClipOval(
-                              child: Image.network(
-                                PostService.getUserAvatarUrl(widget.userId),
+                              child: OwnAvatarImage(
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(
                                   Icons.person_rounded,
@@ -576,8 +577,7 @@ class _CustomerHomePageState extends State<CustomerHomePage>
                   border: Border.all(color: const Color(0xFF8B5CF6), width: 3),
                 ),
                 child: ClipOval(
-                  child: Image.network(
-                    PostService.getUserAvatarUrl(widget.userId),
+                  child: OwnAvatarImage(
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const Icon(
                       Icons.person_rounded,
@@ -953,7 +953,7 @@ class _CustomerHomePageState extends State<CustomerHomePage>
               child: ClipOval(
                 child: p.hasImage
                     ? Image.network(
-                        PostService.getUserAvatarUrl(p.userId),
+                        MediaUrl.resolve(p.avatarUrl),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Icon(
                           isProg ? Icons.code_rounded : Icons.person_rounded,
