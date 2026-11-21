@@ -56,6 +56,7 @@ class PostService {
   static Future<Map<String, dynamic>> createPost({
     required int userId,
     String? content,
+    String? framework,
     List<XFile>? images,
   }) async {
     try {
@@ -66,6 +67,9 @@ class PostService {
 
       if (content != null && content.trim().isNotEmpty) {
         request.fields['content'] = content.trim();
+      }
+      if (framework != null && framework.trim().isNotEmpty) {
+        request.fields['framework'] = framework.trim();
       }
 
       if (images != null && images.isNotEmpty) {
@@ -156,6 +160,47 @@ class PostService {
       return {'success': false, 'message': data['message']};
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> toggleSavePost({
+    required int postId,
+    required int userId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/$postId/save');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userId': userId}),
+      );
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'isSaved': data['isSaved'] == true,
+          'message': data['message']
+        };
+      }
+      return {'success': false, 'message': data['message']};
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
+  static Future<List<PostModel>> getSavedPosts(int userId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/Posts/saved/$userId');
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final list = data['posts'] as List? ?? [];
+        return list.map((e) => PostModel.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 
@@ -264,46 +309,13 @@ class PostService {
     return '$baseUrl/api/Posts/user/$userId/avatar';
   }
 
-  static Future<Map<String, dynamic>> sendSupportMessage({
-    int? userId,
-    required String name,
-    required String email,
-    required String subject,
-    required String message,
-  }) async {
-    try {
-      final uri = Uri.parse('$baseUrl/api/Support');
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': userId,
-          'name': name,
-          'email': email,
-          'subject': subject,
-          'message': message,
-        }),
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': data['message'],
-          'ticketId': data['ticketId'],
-        };
-      }
-      return {'success': false, 'message': data['message'] ?? 'Failed'};
-    } catch (e) {
-      return {'success': false, 'message': 'Connection error: $e'};
-    }
-  }
-
   static Future<Map<String, dynamic>> applyToPost({
     required int postId,
     required int programmerId,
     required String proposal,
     double? price,
     String? duration,
+    String? framework,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/api/Posts/$postId/apply');
@@ -315,6 +327,7 @@ class PostService {
           'proposal': proposal,
           'price': price,
           'duration': duration,
+          'framework': framework,
         }),
       );
       final data = jsonDecode(response.body);

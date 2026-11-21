@@ -11,7 +11,7 @@ import '../../widgets/theme_toggle.dart';
 import '../../theme/theme_manager.dart';
 import '../Customer/customer_home_page.dart';
 import '../Programmer/programmer_profile_setup_page.dart';
-import '../Programmer/programmer_dashboard_page.dart';
+import '../Programmer/programmer_home_page.dart'; // ✅ ضفنا هذا
 import '../admin/admin_dashboard_page.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
@@ -94,7 +94,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFF10B981);
       case 'Programmer':
-        return const Color(0xFF8B5CF6);
+        return const Color(0xFF3B82F6); // ✅ صار أزرق
       default:
         return const Color(0xFF2563EB);
     }
@@ -107,7 +107,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFF047857);
       case 'Programmer':
-        return const Color(0xFF6D28D9);
+        return const Color(0xFF1D4ED8); // ✅ صار أزرق غامق
       default:
         return const Color(0xFF1E40AF);
     }
@@ -120,7 +120,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFFD1FAE5);
       case 'Programmer':
-        return const Color(0xFFEDE9FE);
+        return const Color(0xFFDBEAFE); // ✅ صار أزرق فاتح
       default:
         return const Color(0xFFDBEAFE);
     }
@@ -298,7 +298,11 @@ class _LoginPageState extends State<LoginPage>
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => ProgrammerDashboardPage(userId: userId),
+            builder: (_) => ProgrammerHomePage( // ✅ هنا التعديل المهم
+              userId: userId,
+              authorName: email,
+              authorType: 'Programmer',
+            ),
           ),
         );
       }
@@ -531,7 +535,6 @@ class _LoginPageState extends State<LoginPage>
                           ),
                         ),
 
-                        // ✅ التعديل هنا: شلنا شريط التمرير من الويب
                         Expanded(
                           child: ScrollConfiguration(
                             behavior: ScrollConfiguration.of(context)

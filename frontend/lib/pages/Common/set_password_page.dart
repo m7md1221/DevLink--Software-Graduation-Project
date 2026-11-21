@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/session_manager.dart';
-import '../Customer/customer_profile_setup_page.dart'; // ✅ رجعناها
+import '../Customer/customer_profile_setup_page.dart';
 import '../Programmer/programmer_profile_setup_page.dart';
-import 'login_page.dart';
+import 'login_page.dart'; // تأكد من المسار الصحيح
 
 class SetPasswordPage extends StatefulWidget {
   final String email;
@@ -95,7 +95,6 @@ class _SetPasswordPageState extends State<SetPasswordPage>
 
         if (!mounted) return;
 
-        // ✅ التوجيه لصفحة إعداد البروفايل أولاً
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -167,7 +166,7 @@ class _SetPasswordPageState extends State<SetPasswordPage>
                     child: Icon(
                       Icons.check_rounded,
                       color: const Color(0xFF10B981),
-                      size: isDesktop ? 48 : 40,
+                      size: isDesktop ? 48 : 42,
                     ),
                   ),
                   const SizedBox(height: 16),

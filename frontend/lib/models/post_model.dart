@@ -19,6 +19,7 @@ class PostModel {
   final String? authorImage;
   final String authorType;
   final String? content;
+  final String? framework;
   final DateTime createdAt;
   final int imageCount;
   final int likeCount;
@@ -28,6 +29,7 @@ class PostModel {
   final String status;
   bool isLikedByMe;
   final bool isMine;
+  bool isSaved;
   final List<PostImage> images;
 
   PostModel({
@@ -37,6 +39,7 @@ class PostModel {
     this.authorImage,
     required this.authorType,
     this.content,
+    this.framework,
     required this.createdAt,
     required this.imageCount,
     required this.likeCount,
@@ -46,6 +49,7 @@ class PostModel {
     this.status = 'Approved',
     required this.isLikedByMe,
     required this.isMine,
+    this.isSaved = false,
     required this.images,
   });
 
@@ -57,6 +61,7 @@ class PostModel {
       authorImage: json['authorImage'],
       authorType: json['authorType'] ?? 'Customer',
       content: json['content'],
+      framework: json['framework'],
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       imageCount: json['imageCount'] ?? 0,
       likeCount: json['likeCount'] ?? 0,
@@ -66,6 +71,7 @@ class PostModel {
       status: json['status'] ?? 'Approved',
       isLikedByMe: json['isLikedByMe'] == true,
       isMine: json['isMine'] == true,
+      isSaved: json['isSaved'] == true,
       images: (json['images'] as List? ?? [])
           .map((e) => PostImage.fromJson(e))
           .toList(),
@@ -213,6 +219,7 @@ class PostApplicationModel {
   final String proposal;
   final dynamic price;
   final String? duration;
+  final String? framework;
   final String status;
   final DateTime createdAt;
 
@@ -230,6 +237,7 @@ class PostApplicationModel {
     required this.proposal,
     this.price,
     this.duration,
+    this.framework,
     required this.status,
     required this.createdAt,
   });
@@ -249,6 +257,7 @@ class PostApplicationModel {
       proposal: json['proposal'] ?? '',
       price: json['price'],
       duration: json['duration'],
+      framework: json['framework'],
       status: json['status'] ?? 'Pending',
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
     );
