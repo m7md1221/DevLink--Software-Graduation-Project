@@ -291,11 +291,8 @@ class _PostCardState extends State<PostCard>
                                   ),
                                 ),
                               ),
-                              if (widget.post.authorType == 'Programmer')
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 5),
-                                  child: Icon(Icons.verified_rounded, size: isMobile ? 14 : 15, color: Colors.blue.shade400),
-                                ),
+                              // KI-60 (owner decision UI-12): no verified badge on post cards. It was
+                              // shown for every programmer; the feed has no verification field yet.
                             ],
                           ),
                           const SizedBox(height: 3),
