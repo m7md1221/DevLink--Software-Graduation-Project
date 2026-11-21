@@ -272,6 +272,33 @@ namespace DotnetAPI.Migrations
                     b.ToTable("PostLikes", (string)null);
                 });
 
+            modelBuilder.Entity("DataBase.Models.SavedPost", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("SavedPosts", (string)null);
+                });
+
             modelBuilder.Entity("DataBase.OneTimeCode", b =>
                 {
                     b.Property<long>("Id")
@@ -358,6 +385,10 @@ namespace DotnetAPI.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Framework")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<bool>("IsClosed")
                         .HasColumnType("bit");
 
@@ -408,6 +439,10 @@ namespace DotnetAPI.Migrations
                     b.Property<string>("Duration")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Framework")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<int>("PostId")
                         .HasColumnType("int");
@@ -919,6 +954,27 @@ namespace DotnetAPI.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_PostLikes_Users");
+
+                    b.Navigation("Post");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DataBase.Models.SavedPost", b =>
+                {
+                    b.HasOne("DataBase.Post", "Post")
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_SavedPosts_Posts");
+
+                    b.HasOne("DataBase.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_SavedPosts_Users");
 
                     b.Navigation("Post");
 

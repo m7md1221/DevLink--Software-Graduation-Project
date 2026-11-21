@@ -288,6 +288,9 @@ namespace Services
                     await _context.RefreshTokens.Where(t => sessionIds.Contains(t.SessionId)).ExecuteDeleteAsync();
                     await _context.AuthSessions.Where(s => s.UserId == id).ExecuteDeleteAsync();
 
+                    // SavedPosts.UserId is NO ACTION too (2026-11-21): a user's saved list is private and goes with the account.
+                    await _context.SavedPosts.Where(sp => sp.UserId == id).ExecuteDeleteAsync();
+
                     _context.Users.Remove(user);
                     await _context.SaveChangesAsync();
 
