@@ -80,6 +80,7 @@ class _ResetVerifyPageState extends State<ResetVerifyPage> {
           builder: (_) => ResetPasswordPage(
             email: widget.email,
             userType: widget.userType,
+            resetToken: result.data?['resetToken'] as String?,
           ),
         ),
       );

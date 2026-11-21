@@ -1,10 +1,9 @@
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
-import '../../services/session_manager.dart';
+import '../../widgets/sign_out_dialog.dart';
 import '../../services/api_service.dart';
 import '../../theme/theme_manager.dart';
 import '../../widgets/theme_toggle.dart';
-import '../Common/welcome_page.dart';
 
 class DashboardPlaceholderPage extends StatefulWidget {
   final int userId;
@@ -82,13 +81,8 @@ class _DashboardPlaceholderPageState
   }
 
   Future<void> _logout() async {
-    await SessionManager.clear();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
-      (route) => false,
-    );
+    // M2.12 (F10): ends the session on the server too; offers "all devices".
+    await showSignOutDialog(context);
   }
 
   @override

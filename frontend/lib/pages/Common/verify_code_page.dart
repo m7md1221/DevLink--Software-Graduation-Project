@@ -110,6 +110,7 @@ class _VerifyCodePageState extends State<VerifyCodePage>
           builder: (_) => SetPasswordPage(
             email: widget.email,
             userType: widget.userType,
+            signupToken: result.data?['signupToken'] as String?,
           ),
         ),
       );

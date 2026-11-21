@@ -451,7 +451,7 @@ class _AdminUserFormPageState extends State<AdminUserFormPage>
               decoration: _inputDecoration(
                 hint: isEditing
                     ? 'New password (optional)'
-                    : 'At least 6 characters',
+                    : 'At least 8 characters',
                 icon: Icons.lock_outline_rounded,
                 isDark: isDark,
                 suffix: IconButton(
@@ -469,16 +469,16 @@ class _AdminUserFormPageState extends State<AdminUserFormPage>
               ),
               validator: (v) {
                 if (isEditing) {
-                  if (v != null && v.isNotEmpty && v.length < 6) {
-                    return 'At least 6 characters';
+                  if (v != null && v.isNotEmpty && v.length < 8) {
+                    return 'At least 8 characters';
                   }
                   return null;
                 }
                 if (v == null || v.isEmpty) {
                   return 'Password is required';
                 }
-                if (v.length < 6) {
-                  return 'At least 6 characters';
+                if (v.length < 8) {
+                  return 'At least 8 characters';
                 }
                 return null;
               },

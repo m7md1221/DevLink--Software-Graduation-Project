@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io' show Platform, File;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
+import 'auth_http.dart' as http;
+import 'auth_http.dart' show AuthHttp;
+import 'session_manager.dart';
 
 class ApiResult {
   final bool success;
@@ -10,12 +12,31 @@ class ApiResult {
   final Map<String, dynamic>? data;
   final int? expiresInMinutes;
 
+  /// The API's `errorCode` (problem details), when it sent one.
+  final String? errorCode;
+
   ApiResult({
     required this.success,
     required this.message,
     this.data,
     this.expiresInMinutes,
+    this.errorCode,
   });
+}
+
+/// Shown instead of signing in when the browser can't coordinate the session
+/// between tabs (no Web Locks; T-MT-04).
+const String unsupportedBrowserMessage =
+    "This browser can't keep a DevLink session safe. Please use a current version of Chrome, Edge, Firefox or Safari.";
+
+Map<String, dynamic>? _jsonMap(String body) {
+  if (body.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(body);
+    return decoded is Map<String, dynamic> ? decoded : null;
+  } on FormatException {
+    return null;
+  }
 }
 
 class ApiService {
@@ -36,6 +57,10 @@ class ApiService {
     required String password,
     required String userType,
   }) async {
+    if (!AuthHttp.instance.isRefreshSupported) {
+      return ApiResult(success: false, message: unsupportedBrowserMessage, errorCode: 'UNSUPPORTED_BROWSER');
+    }
+
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/Auth/login'),
@@ -47,9 +72,10 @@ class ApiService {
         }),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
       if (response.statusCode == 200) {
+        AuthHttp.instance.setSessionFromJson(body);
         return ApiResult(
           success: true,
           message: body['message'] ?? 'Login successful',
@@ -60,6 +86,7 @@ class ApiService {
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Invalid email or password',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -74,6 +101,10 @@ class ApiService {
     required String userType,
     String mode = 'signup',
   }) async {
+    if (!AuthHttp.instance.isRefreshSupported) {
+      return ApiResult(success: false, message: unsupportedBrowserMessage, errorCode: 'UNSUPPORTED_BROWSER');
+    }
+
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/Auth/google-login'),
@@ -85,9 +116,10 @@ class ApiService {
         }),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
       if (response.statusCode == 200) {
+        AuthHttp.instance.setSessionFromJson(body);
         return ApiResult(
           success: true,
           message: body['message'] ?? 'Login successful',
@@ -98,6 +130,7 @@ class ApiService {
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Google login failed',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -148,18 +181,21 @@ class ApiService {
         body: jsonEncode({'email': email, 'code': code}),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
+      // `data['signupToken']` is the proof that signUp() must send.
       if (response.statusCode == 200) {
         return ApiResult(
           success: true,
           message: body['message'] ?? 'Email verified',
+          data: body,
         );
       }
 
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Invalid or expired code',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -173,6 +209,7 @@ class ApiService {
     required String email,
     required String password,
     required String userType,
+    required String? signupToken,
   }) async {
     try {
       final response = await http.post(
@@ -182,10 +219,11 @@ class ApiService {
           'email': email,
           'password': password,
           'userType': userType,
+          'signupToken': signupToken,
         }),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
       if (response.statusCode == 200) {
         return ApiResult(
@@ -198,6 +236,7 @@ class ApiService {
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Signup failed',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -248,18 +287,21 @@ class ApiService {
         body: jsonEncode({'email': email, 'code': code}),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
+      // `data['resetToken']` is the proof that resetPassword() must send.
       if (response.statusCode == 200) {
         return ApiResult(
           success: true,
           message: body['message'] ?? 'Reset code verified',
+          data: body,
         );
       }
 
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Invalid or expired code',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -272,6 +314,7 @@ class ApiService {
   static Future<ApiResult> resetPassword({
     required String email,
     required String newPassword,
+    required String? resetToken,
   }) async {
     try {
       final response = await http.post(
@@ -280,10 +323,11 @@ class ApiService {
         body: jsonEncode({
           'email': email,
           'newPassword': newPassword,
+          'resetToken': resetToken,
         }),
       );
 
-      final body = jsonDecode(response.body);
+      final body = _jsonMap(response.body) ?? {};
 
       if (response.statusCode == 200) {
         return ApiResult(
@@ -295,6 +339,7 @@ class ApiService {
       return ApiResult(
         success: false,
         message: body['message'] ?? 'Reset failed',
+        errorCode: body['errorCode'],
       );
     } catch (e) {
       return ApiResult(
@@ -302,6 +347,68 @@ class ApiService {
         message: 'Connection error: $e',
       );
     }
+  }
+
+  // ============================================================
+  // SESSION (M2.12)
+  // ============================================================
+
+  /// The signed-in user as the server sees them: role, status, suspension reason.
+  static Future<ApiResult> me() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/Auth/me'));
+      final body = _jsonMap(response.body) ?? {};
+      if (response.statusCode == 200) {
+        return ApiResult(success: true, message: 'OK', data: body);
+      }
+      return ApiResult(success: false, message: body['message'] ?? 'Not signed in', errorCode: body['errorCode']);
+    } catch (e) {
+      return ApiResult(success: false, message: 'Connection error: $e');
+    }
+  }
+
+  /// Saves the non-secret user details after a sign-in or a restored session.
+  /// The access token stays in memory (AuthHttp) and is never written here.
+  static Future<void> saveSignedInUser(Map<String, dynamic> data, {String? fallbackUserType}) async {
+    final userType = (data['userType'] ?? data['role'] ?? fallbackUserType ?? '') as String;
+    final hasProfile = userType == 'Programmer'
+        ? (data['hasProgrammerProfile'] ?? false) as bool
+        : (data['hasProfile'] ?? false) as bool;
+    await SessionManager.saveUser(
+      userId: (data['userId'] ?? 0) as int,
+      userType: userType,
+      email: (data['email'] ?? '') as String,
+      hasProfile: hasProfile,
+    );
+  }
+
+  /// Ends this session on the server (and its refresh cookie), then locally.
+  static Future<void> logout() async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/api/Auth/session/logout'),
+        headers: {'Content-Type': 'application/json'},
+        body: '{}',
+      );
+    } catch (_) {
+      // Signed out locally either way.
+    }
+    AuthHttp.instance.clearSession();
+    await SessionManager.clear();
+  }
+
+  /// Ends every session of this account, on every device.
+  static Future<bool> logoutAll() async {
+    var ok = false;
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/api/Auth/logout-all'));
+      ok = response.statusCode == 204 || response.statusCode == 200;
+    } catch (_) {
+      ok = false;
+    }
+    AuthHttp.instance.clearSession();
+    await SessionManager.clear();
+    return ok;
   }
 
   // ============================================================
@@ -345,7 +452,7 @@ class ApiService {
         );
       }
 
-      final streamed = await request.send();
+      final streamed = await http.send(request);
       final response = await http.Response.fromStream(streamed);
       final body = jsonDecode(response.body);
 
@@ -433,7 +540,7 @@ class ApiService {
         );
       }
 
-      final streamed = await request.send();
+      final streamed = await http.send(request);
       final response = await http.Response.fromStream(streamed);
       final body = jsonDecode(response.body);
 
@@ -547,7 +654,7 @@ class ApiService {
         );
       }
 
-      final streamed = await request.send();
+      final streamed = await http.send(request);
       final response = await http.Response.fromStream(streamed);
       final body = jsonDecode(response.body);
 
@@ -673,7 +780,7 @@ class ApiService {
         );
       }
 
-      final streamed = await request.send();
+      final streamed = await http.send(request);
       final response = await http.Response.fromStream(streamed);
       final body = jsonDecode(response.body);
 
@@ -762,7 +869,7 @@ class ApiService {
         );
       }
 
-      final streamed = await request.send();
+      final streamed = await http.send(request);
       final response = await http.Response.fromStream(streamed);
       final body = jsonDecode(response.body);
 

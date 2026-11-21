@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/sign_out_dialog.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:devlink/main.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
-import '../../services/session_manager.dart';
 import '../../services/weather_service.dart';
 import '../../services/location_service.dart'
     if (dart.library.html) '../../services/location_service_web.dart';
 import '../../widgets/theme_toggle.dart';
 import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
-import '../Common/welcome_page.dart';
 import 'create_post_page.dart';
 import 'widgets/post_card.dart';
 import 'user_profile_page.dart';
@@ -172,13 +171,8 @@ class _CustomerHomePageState extends State<CustomerHomePage>
   }
 
   Future<void> _logout() async {
-    await SessionManager.clear();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
-      (route) => false,
-    );
+    // M2.12 (F10): ends the session on the server too; offers "all devices".
+    await showSignOutDialog(context);
   }
 
   Future<void> _openCreatePost() async {

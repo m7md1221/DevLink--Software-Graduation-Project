@@ -5,10 +5,14 @@ class ResetPasswordPage extends StatefulWidget {
   final String email;
   final String userType;
 
+  /// Proof from verify-reset-code (M2.12, F9); the API refuses the reset without it.
+  final String? resetToken;
+
   const ResetPasswordPage({
     super.key,
     required this.email,
     required this.userType,
+    this.resetToken,
   });
 
   @override
@@ -42,6 +46,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     final result = await ApiService.resetPassword(
       email: widget.email,
       newPassword: _passController.text,
+      resetToken: widget.resetToken,
     );
 
     if (!mounted) return;
@@ -359,8 +364,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                                   if (v == null || v.isEmpty) {
                                     return 'Password is required';
                                   }
-                                  if (v.length < 6) {
-                                    return 'At least 6 characters';
+                                  if (v.length < 8) {
+                                    return 'At least 8 characters';
                                   }
                                   return null;
                                 },
