@@ -34,7 +34,7 @@
 | new `lib/services/auth_http.dart` | Drop-in replacement for `package:http`'s top-level `get/post/put/delete` and `send(MultipartRequest)`. Adds `Authorization: Bearer` (token in memory only) and `X-DevLink-Client: web` to every API request, through one `BrowserClient` with `withCredentials = true` so the HttpOnly `devlink_rt` cookie is set by login and sent to `session/refresh` and `session/logout` (its path limits it to those). On 401 `TOKEN_EXPIRED`: one shared refresh (single-flight within the tab, Web Locks across tabs), then the request is retried once. Refresh failure or another 401 code: the session ends and the app returns to the welcome screen with a message. 403 `ACCOUNT_SUSPENDED`: the suspended screen. Any other 403: the caller's normal error, session kept |
 | new `lib/services/http/refresh_lock*.dart` (web + io) | `navigator.locks.request('devlink-refresh')`, at most 15 s to get the lock, 10 s for the refresh call. Inside the lock, a tab first checks whether another tab already rotated the token (by comparing generations) so a waiting tab refreshes again rather than reusing a spent cookie |
 | new `lib/services/http/browser_client*.dart` (web + io) | `BrowserClient()..withCredentials = true` on web; a plain client elsewhere |
-| `lib/services/session_manager.dart` | Holds the access token and expiry **in memory only**. SharedPreferences keeps only non-secret UI values (as today) and never a token |
+| `lib/services/session_manager.dart` | Unchanged: SharedPreferences keeps only non-secret UI values (as today) and never a token. *As built:* the access token and expiry live in memory in `AuthHttp`, not here |
 | `lib/main.dart` | Start-up: `session/refresh` → home for the **server's** role, or the suspended screen, or the welcome page. A global navigator key so `auth_http` can navigate |
 | `lib/services/api_service.dart` | `login` / `googleLogin` save the session from the response; `verifyCode` / `verifyResetCode` return `signupToken` / `resetToken`; `signUp` / `resetPassword` send them; new `logout`, `logoutAll`, `me` |
 | `post_service`, `support_service`, `notification_service`, `weather_service` | Import swap: `package:http` → `auth_http.dart` (same call signatures) |
@@ -68,6 +68,19 @@ Synthetic `@example.test` accounts on `DevLink`, after a verified backup:
 6. A suspended account sees the suspended screen and can sign out.
 
 **Screenshots:** 6 key screens in `docs/design/after/b0/` (welcome, login, customer feed, programmer feed, applications, suspended).
+
+## 6a. Outcome (2026-11-21, local commits, not pushed)
+
+| Part | Commit | Result |
+|---|---|---|
+| A auth client | `d0dda9b` | Done as planned. Login and Google sign-in go through the same credentialed client as refresh, because the browser only stores the refresh cookie from a credentialed response. Sign-up signs in right after the account is created, so profile set-up is authorized. Password minimum 8 in the three forms (F18) |
+| B signed images | `58258bb` | 17 call sites in 12 files use the URL from the API; the user's own avatar comes from `Auth/me` |
+| C theme | `858d1e3` | Tokens, ThemeData, IBM Plex 1.1.0 TTFs (about 1.8 MB, converted from IBM's WOFF); `pubspec.lock` unchanged. 1,507 hard-coded colours still override it (KI-71) |
+| D KI-60 | `3f41d93` | Badge removed from post cards; server-based badges unchanged |
+| E KI-13 | `6ae4fc3` | "Find projects" on the programmer dashboard |
+| F KI-56 | `e6e5996` | Apply only on customer-owned posts |
+
+**Tests:** 34 Flutter tests (T-MT-01…05, handling, start-up, images, theme contrast, badge and apply), three consecutive green runs; the partner's `widget_test.dart` needed a finder fix for its RichText title. **Runtime (enforced, fallback off, `Jwt:AccessTokenMinutes=2`):** every step in §6 passed; T-MT-07: one session, 12 sequential rotations, no reuse, both tabs still signed in after expiry. Screenshots: `docs/design/after/b0/` (9). **Found:** KI-69 (CV and certificate buttons need the link routes before M2.13), KI-70 (CanvasKit and a Roboto fallback load from Google's CDN), KI-71 (hard-coded colours).
 
 ## 7. Effort and risks
 

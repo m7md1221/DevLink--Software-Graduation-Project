@@ -1,4 +1,4 @@
-# DevLink API test report (M2.11, updated in M2.11b)
+# DevLink API test report (M2.11, updated in M2.11b and M2.12-lite)
 
 **Status:** audit of the backend tests against `docs/M2_AUTH_DESIGN.md` and `docs/M2_7_ENDPOINT_PLAN.md`, at commit `1e78c69` (M2.11) plus the M2.11b fixes and tests.
 **Result of the last full runs (2026-11-11, M2.11b):** 3 consecutive runs, each 662 passed, 0 failed, 0 skipped (5 m 2 s, 5 m 20 s, 4 m 51 s). The M2.11 run before this: 645 passed in 4 m 37 s.
@@ -10,6 +10,19 @@
 - M2.11 added two small tests and found one product defect: a full email queue drops new mail while reporting it as queued (KI-67).
 - M2.11b fixed KI-67 and added `POST /api/Auth/change-password`, which closes the T-PW-01 and T-PW-05…08 gaps and completes T-AU-04 (17 new test cases).
 - The larger gaps are listed at the end. Each needs product code or a later milestone.
+
+## Flutter tests (M2.12-lite)
+
+Run with `C:lutter-3.47.9inlutter.bat test --no-pub` in `frontend/`. 34 tests, three consecutive green runs on 2026-11-21.
+
+| File | Tests | What they prove |
+|---|---|---|
+| `test/services/auth_http_test.dart` | 14 | T-MT-01…05; 403 `ACCOUNT_SUSPENDED` reported, other 403 kept; revoked session ends once with the server message; offline refresh keeps the session; Bearer and `X-DevLink-Client` only to the API; a login 401 is not refreshed; multipart retry keeps the body; refresh before expiry; no token in SharedPreferences |
+| `test/pages/app_start_test.dart` | 2 | Start-up: suspended account goes to the suspended screen with its reason; no cookie goes to the welcome page with one request |
+| `test/services/media_url_test.dart` | 3 | Signed paths get the API address; no URL shows the placeholder |
+| `test/theme/theme_test.dart` | 9 | WCAG contrast of text and control pairs in both themes; flat cards; Plex fonts and letter-spacing 0; token values |
+| `test/pages/post_card_test.dart` | 5 | KI-60 no badge; KI-56 apply only on customer posts, never for customers |
+| `test/widget_test.dart` (partner) | 1 | The app starts on the welcome page (finder fixed for its RichText title) |
 
 ## How to run
 
@@ -95,8 +108,8 @@ Status: **Implemented**, **Partially** (some of the stated checks are missing), 
 | T-RT-08 | Implemented | `AuthSecuritySchemaTests.T_MIG_04` | Under a schema test name |
 | T-RT-10 | Implemented | `SessionCleanupTests` | Also covers the 90-day event retention of T-AU-05 |
 | T-MT-06 | Implemented | `RefreshSessionTests` | Server side of two tabs sharing one cookie |
-| T-MT-01…05 | Deferred | M2.12 | Flutter unit tests of the new HTTP client |
-| T-MT-07, 08 | Deferred | M2.14 | Automated two-tab test in a real browser |
+| T-MT-01…05 | Implemented (M2.12-lite) | `frontend/test/services/auth_http_test.dart` | Flutter unit tests of the new HTTP client: two tabs with and without the lock, 20 parallel 401s, no Web Locks, lock timeout |
+| T-MT-07, 08 | T-MT-07 checked manually (M2.12-lite); automation deferred to M2.14 | — | 2026-11-21: two tabs, 2-minute tokens, both acted after expiry; one session, 12 sequential rotations, no reuse, both still signed in |
 | T-SC-01…06 | Implemented | `SessionValidationTests`, `SecurityFoundationTests` | |
 | T-SC-07 | Implemented | `SessionValidationTests.T_SC_05` | The 30-second staleness bound, under another number |
 | T-DL-01…11 | Implemented | `DownloadLinkTests` | `revoke-sessions` doesn't exist; admin revocation is tested through suspension (KI-63) |
@@ -178,7 +191,7 @@ Some older tests have descriptive names without an ID: `AuthFlowTests`, `Passwor
 | T-SP-05: appeal | No appeal route exists |
 | T-AU-03: an event rolls back with its failed change | Needs a test seam to force a save to fail inside the transaction |
 | `revoke-sessions` (KI-63) | The route doesn't exist; its link test waits for it |
-| T-MT-01…05 | Flutter tests, M2.12 |
+| ~~T-MT-01…05~~ | Done in M2.12-lite |
 | T-MT-07, 08 | Real-browser two-tab test, M2.14 |
 | T-SW-R | M2.13, when the fallback is removed |
 | Weather success path | Needs a fake for the external weather service |
