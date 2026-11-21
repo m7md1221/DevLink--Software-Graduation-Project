@@ -229,7 +229,10 @@ class _PostCardState extends State<PostCard>
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     final isProgrammer = widget.currentUserType == 'Programmer';
-    final canApply = isProgrammer && !widget.post.isMine && !_isClosed && !_hasApplied;
+    // KI-56 (owner decision UI-11): only customers' posts take applications; the API
+    // refuses an application to a programmer's post (D-11), so don't offer one.
+    final ownerTakesApplications = widget.post.authorType != 'Programmer';
+    final canApply = isProgrammer && ownerTakesApplications && !widget.post.isMine && !_isClosed && !_hasApplied;
     final canViewApplications = widget.post.isMine;
 
     return Container(

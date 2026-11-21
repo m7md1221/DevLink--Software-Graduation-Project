@@ -61,4 +61,19 @@ void main() {
     await pumpCard(tester, post(authorType: 'Customer'));
     expect(find.byIcon(Icons.verified_rounded), findsNothing);
   });
+
+  testWidgets('KI-56: a programmer sees "Apply" on a customer\'s post', (tester) async {
+    await pumpCard(tester, post(authorType: 'Customer'), viewer: 'Programmer');
+    expect(find.text('Apply'), findsOneWidget);
+  });
+
+  testWidgets('KI-56: a programmer sees no "Apply" on another programmer\'s post', (tester) async {
+    await pumpCard(tester, post(authorType: 'Programmer'), viewer: 'Programmer');
+    expect(find.text('Apply'), findsNothing);
+  });
+
+  testWidgets('KI-56: a customer never sees "Apply"', (tester) async {
+    await pumpCard(tester, post(authorType: 'Customer'), viewer: 'Customer');
+    expect(find.text('Apply'), findsNothing);
+  });
 }
