@@ -58,13 +58,24 @@ Design: [M2_AUTH_DESIGN.md](M2_AUTH_DESIGN.md) revision 3, **approved 2026-11-03
 | M2.9 | Google: server-side ID-token validation, subject matching, 409 instead of auto-linking, `google-link`, Admin excluded | `git ls-remote` check | **implemented, not committed** (2026-11-10): T-GG-01…17 | — |
 | M2.10 | Notification retention (N1) + paging + unread count + R4 cleanup | Partner informed (owner, 2026-11-10); `git ls-remote` check | **implemented, not committed** (2026-11-10): T-NR-01…10 | — |
 | M2.11 | Full backend security + regression suite: audit and report | — | **done** (2026-11-10), committed `1e78c69`: `docs/TEST_REPORT.md`; 645 tests pass; T-SP-04, T-AU-04 added; KI-67 | M2-07 |
-| M2.11b | Backend fixes before M2.12: KI-67 (email queue reports the truth) and `change-password` with `Users.HasPassword` | Partner commit check; ≥ 10 GB free; DevLink backup before the migration | **implemented, not committed** (2026-11-11): 662 tests (3 runs); T-PW-01c, 05c…12, T-AU-04b…d; KI-67 fixed, KI-68; migration applied to DevLink after a backup (2026-11-13); runtime 10/10 | — |
-| M2.12 | Flutter integration (F1–F18) | **Partner review** | todo (Flutter 3.47.9 ready) | M2-02 |
-| M2.13 | Remove the migration switch and fallbacks | — | todo | — |
-| M2.14 | E2E per role, two-tab check | Admin email for `seed-admin` | todo | — |
+| M2.11b | Backend fixes before M2.12: KI-67 (email queue reports the truth) and `change-password` with `Users.HasPassword` | Partner commit check; ≥ 10 GB free; DevLink backup before the migration | **done**, committed and pushed `d7d7db0`: 662 tests (3 runs); T-PW-01c, 05c…12, T-AU-04b…d; KI-67 fixed, KI-68; migration applied to DevLink after a backup (2026-11-13); runtime 10/10 | — |
+| M2.12-lite | Week 1 ([plan](M2_12_PLAN.md)): auth client (F1–F13), signed images (F14–F15), Blueprint theme app-wide, KI-60 / KI-13 / KI-56 in their own commits. The full redesign and Arabic move to week 7 | **Partner review** before merge | todo | M2-02 |
+| M2.13 | Remove the migration switch and fallbacks (week 2) | — | todo | — |
+| M2.14 | E2E per role, two-tab check (week 2) | Admin email for `seed-admin` | todo | — |
+
+## M3 — Clear Scope features ([roadmap](ROADMAP_8_WEEKS.md))
+
+| Step | Task | Depends on | Status |
+|---|---|---|---|
+| M3.1 | Week 3: structured project brief with numbered acceptance criteria and a readiness check | M2.14; partner review of `Post*` changes | todo |
+| M3.2 | Week 4: applications answer each criterion; applicant comparison | M3.1 | todo |
+| M3.3 | Week 5: engagement with agreed-scope snapshot; delivery against criteria, revision, accept | M3.2 | todo |
+| M3.4 | Week 6: reviews with "criteria met n/m"; one message thread per engagement | M3.3 | todo |
+| W7 | Arabic for the key demo screens, demo data, polish | M3.4 | todo |
+| W8 | Testing, report, presentation, buffer | — | todo |
 
 ## UI redesign — Mukhatat / Blueprint
-Spec: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). Plan and file lists: [design/IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md). Decisions: UI-1 to UI-7 in the [decision log](decision-log.md). **Implemented together with M2.12, screen by screen, after M2.8–M2.11.**
+Spec: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). Plan and file lists: [design/IMPLEMENTATION_PLAN.md](design/IMPLEMENTATION_PLAN.md). Decisions: UI-1 to UI-7 in the [decision log](decision-log.md). **Implemented together with M2.12, screen by screen, after M2.8–M2.11.** **Changed 2026-11-21 (features-first roadmap):** only the app-wide theme and fonts are done in M2.12-lite; the per-screen batches and localization below move to week 7, if time allows.
 
 **Language (UI-8):** Arabic is the default. The language switch appears only when 100% of screens are translated.
 
