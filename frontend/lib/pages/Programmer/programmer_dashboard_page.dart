@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:devlink/main.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../Customer/customer_home_page.dart';
 import '../../services/media_url.dart';
 import '../../widgets/sign_out_dialog.dart';
 import 'package:file_selector/file_selector.dart';
@@ -99,6 +100,22 @@ class _ProgrammerDashboardPageState
       _isLoading = false;
       if (result.success) _profile = result.data;
     });
+  }
+
+  // KI-13: the existing feed, with this programmer as the viewer, so the post
+  // cards offer "apply" (the API checks the role on its own).
+  void _openProjectFeed() {
+    final nickname = _profile?['nickname'] as String?;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CustomerHomePage(
+          userId: widget.userId,
+          authorName: (nickname == null || nickname.isEmpty) ? 'Programmer' : nickname,
+          authorType: 'Programmer',
+        ),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -595,6 +612,14 @@ class _ProgrammerDashboardPageState
         ),
         Row(
           children: [
+            // KI-13 (owner decision UI-10): programmers reach the project feed.
+            FilledButton.icon(
+              key: const Key('find-projects'),
+              onPressed: _openProjectFeed,
+              icon: const Icon(Icons.work_outline_rounded),
+              label: Text(isDesktop ? 'Find projects' : 'Projects'),
+            ),
+            const SizedBox(width: 10),
             ThemeToggle(
               themeManager: themeManager,
               compact: true,
