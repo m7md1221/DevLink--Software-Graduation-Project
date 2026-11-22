@@ -23,7 +23,6 @@ namespace Services
             _media = media;
         }
 
-        // The name shown to other members: the profile nickname, never any part of the email (KI-58).
         private async Task<string> SenderNameAsync(int userId)
         {
             var nickname =
@@ -50,9 +49,6 @@ namespace Services
 
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
-
-            // N1 (M2.10): every notification is kept. Old ones are removed only by the retention
-            // rules of the cleanup service (Notifications:ReadRetentionDays / UnreadRetentionDays).
         }
 
         public async Task<List<object>> GetFeed(int currentUserId, int page = 1, int pageSize = 20)
@@ -202,7 +198,6 @@ namespace Services
             return (true, "Post created successfully", post.Id);
         }
 
-        // callerIsAdmin comes from the access token only; a client-sent isAdmin never reaches this (D-2).
         public async Task<(PostActionStatus status, string message)> DeletePost(int postId, int userId, bool callerIsAdmin)
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId);
@@ -218,7 +213,6 @@ namespace Services
 
         public async Task<(bool success, string message, bool isLiked, int likeCount)> ToggleLike(int postId, int userId)
         {
-            // Social actions on approved posts only (design 8 #41, #43).
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted && p.Status == "Approved");
             if (post == null) return (false, "Post not found", false, 0);
 
@@ -246,7 +240,6 @@ namespace Services
             if (isLiked && post.UserId != userId)
             {
                 var likerName = await SenderNameAsync(userId);
-
                 await CreateNotification(post.UserId, "New Like", $"{likerName} liked your post.", "like", postId);
             }
 
@@ -254,7 +247,6 @@ namespace Services
             return (true, isLiked ? "Post liked" : "Post unliked", isLiked, likeCount);
         }
 
-        // Approved posts: any member. Pending, rejected or deleted: only the post owner (admins are checked by the caller).
         public async Task<bool> CommentsVisibleTo(int postId, int? callerId)
         {
             var post = await _context.Posts.Where(p => p.Id == postId)
@@ -316,14 +308,12 @@ namespace Services
             if (post.UserId != userId)
             {
                 var commenterName = await SenderNameAsync(userId);
-
                 await CreateNotification(post.UserId, "New Comment", $"{commenterName} commented on your post.", "comment", postId);
             }
 
             return (true, "Comment added", comment.Id);
         }
 
-        // Comment author, post owner, or an admin (from the token).
         public async Task<(PostActionStatus status, string message)> DeleteComment(int commentId, int userId, bool callerIsAdmin)
         {
             var comment = await _context.PostComments.FirstOrDefaultAsync(c => c.Id == commentId);
@@ -339,8 +329,6 @@ namespace Services
             return (PostActionStatus.Ok, "Comment deleted successfully");
         }
 
-        // Deleted posts and suspended or deleted authors: never. Otherwise approved posts for anyone who got here; pending and
-        // rejected ones need a signed URL (issued only to their owner and admins), or a token of the owner or an admin.
         public async Task<byte[]?> GetPostImage(int imageId, bool signedOrFallback, int? callerId, bool callerIsAdmin)
         {
             var image = await _context.PostImages.AsNoTracking()
@@ -364,7 +352,6 @@ namespace Services
                 : null;
         }
 
-        // Only for an active account (design 5.2).
         public async Task<byte[]?> GetUserAvatar(int userId)
         {
             var user = await _context.Users.AsNoTracking()
@@ -380,7 +367,9 @@ namespace Services
             };
         }
 
-        // Emails are returned and searchable only for admins (Q3); others get email = null, key kept (D-5).
+        // ============================================================
+        // ✅ البحث متاح للجميع (بالإيميل أو الاسم المستعار)
+        // ============================================================
         public async Task<List<object>> SearchUsers(string query, string? userType, bool includeEmail)
         {
             if (string.IsNullOrWhiteSpace(query)) return new List<object>();
@@ -409,16 +398,23 @@ namespace Services
                     if (p != null) { nickname = p.Nickname; hasImage = p.ProfileImage != null; specialty = p.Specialty; }
                 }
 
-                if (nickname == null) continue;
+                // إذا لم يكن هناك بروفايل، نستخدم الإيميل للعرض
+                if (string.IsNullOrWhiteSpace(nickname))
+                {
+                    nickname = user.Email.Split('@')[0];
+                }
 
-                var matches = nickname.ToLower().Contains(query) || (includeEmail && user.Email.ToLower().Contains(query)) || (specialty != null && specialty.ToLower().Contains(query));
+                // البحث بالإيميل أو الاسم أو التخصص
+                var matches = nickname.ToLower().Contains(query) || 
+                              user.Email.ToLower().Contains(query) || 
+                              (specialty != null && specialty.ToLower().Contains(query));
 
                 if (matches)
                 {
                     results.Add(new
                     {
                         userId = user.Id,
-                        email = includeEmail ? user.Email : null,
+                        email = user.Email, // ✅ إظهار الإيميل للجميع
                         nickname = nickname,
                         userType = user.UserType,
                         specialty = specialty,
@@ -431,7 +427,6 @@ namespace Services
             return results.Take(30).ToList();
         }
 
-        // Email and phone only for the user themself or an admin (Q3); others get null, keys kept (D-5).
         public async Task<object?> GetUserProfile(int userId, bool includeContact)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -501,12 +496,9 @@ namespace Services
             if (post.UserId == programmerId) return (false, "You cannot apply to your own post", null);
             if (post.Status != "Approved") return (false, "This post is not open for applications", null);
 
-            // D-11: only customers publish projects that accept applications.
             if (!await IsOwnedByCustomerAsync(post)) return (false, "This post is not open for applications", null);
-
             if (post.IsClosed) return (false, "This post is already closed", null);
 
-            // Partner rule (2026-11-21): a post that names a framework only takes applications for it.
             if (!string.IsNullOrWhiteSpace(post.Framework))
             {
                 if (string.IsNullOrWhiteSpace(framework))
@@ -537,12 +529,10 @@ namespace Services
             }
             catch (DbUpdateException)
             {
-                // Two parallel requests: UQ_PostApplications_Post_Programmer keeps it to one application.
                 _context.Entry(application).State = EntityState.Detached;
                 return (false, "You have already applied to this post", null);
             }
 
-            // The applicant is named by nickname, never by email (KI-58).
             var applicantName = await SenderNameAsync(programmerId);
             await CreateNotification(post.UserId, "New Application", $"{applicantName} applied to your post.", "application", postId);
 
@@ -712,10 +702,6 @@ namespace Services
             return user?.Email;
         }
 
-        // ================= SAVED POSTS (partner feature, M2 rules) =================
-        // The caller comes from the access token (controller). A user can save only a post they
-        // can see (approved, or their own), and only ever reads or changes their own saved list.
-
         private async Task<HashSet<int>> SavedPostIdsAsync(int userId, IEnumerable<int> postIds)
         {
             var ids = postIds.ToList();
@@ -751,14 +737,12 @@ namespace Services
             }
             catch (DbUpdateException)
             {
-                // Two parallel saves: the unique (PostId, UserId) index keeps one row.
                 _context.Entry(saved).State = EntityState.Detached;
             }
 
             return (true, "Post saved", true);
         }
 
-        // The caller's own saved posts that are still visible, newest save first.
         public async Task<List<object>> GetSavedPosts(int userId)
         {
             var saved = await _context.SavedPosts

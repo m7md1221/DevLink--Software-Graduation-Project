@@ -48,9 +48,12 @@ namespace Services
             _time = time;
         }
 
+        // ============================================================
+        // ✅ التعديل: جلب جميع المستخدمين (بما فيهم الأدمن)
+        // ============================================================
         public async Task<List<object>> GetAllUsers()
         {
-            var users = await _context.Users.Where(u => u.UserType != "Admin").OrderByDescending(u => u.Id).ToListAsync();
+            var users = await _context.Users.OrderByDescending(u => u.Id).ToListAsync();
             var result = new List<object>();
 
             foreach (var user in users)
