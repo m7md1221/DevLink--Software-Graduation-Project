@@ -28,9 +28,6 @@ namespace Services
         private readonly TimeProvider _time;
         private readonly MediaUrls _media;
 
-<<<<<<< HEAD
-        public AdminService(AppDbContext context, EmailService emailService)
-=======
         public AdminService(
             MediaUrls media,
             AppDbContext context,
@@ -40,7 +37,6 @@ namespace Services
             SessionStateCache sessionCache,
             SecurityEventFactory events,
             TimeProvider time)
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
         {
             _media = media;
             _context = context;
@@ -65,9 +61,6 @@ namespace Services
                     var p = await _context.CustomerProfiles.FirstOrDefaultAsync(cp => cp.UserId == user.Id);
                     if (p != null)
                     {
-<<<<<<< HEAD
-                        profile = new { nickname = p.Nickname, phoneNumber = p.PhoneNumber, country = p.Country, city = p.City, hasImage = p.ProfileImage != null };
-=======
                         profile = new
                         {
                             nickname = p.Nickname,
@@ -77,7 +70,6 @@ namespace Services
                             hasImage = p.ProfileImage != null,
                             avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(p.UserId) : null
                         };
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
                     }
                 }
                 else if (user.UserType == "Programmer")
@@ -85,9 +77,6 @@ namespace Services
                     var p = await _context.ProgrammerProfiles.FirstOrDefaultAsync(pp => pp.UserId == user.Id);
                     if (p != null)
                     {
-<<<<<<< HEAD
-                        profile = new { nickname = p.Nickname, phoneNumber = p.PhoneNumber, country = p.Country, city = p.City, specialty = p.Specialty, university = p.University, isVerified = p.IsVerified, hasImage = p.ProfileImage != null };
-=======
                         profile = new
                         {
                             nickname = p.Nickname,
@@ -100,7 +89,6 @@ namespace Services
                             hasImage = p.ProfileImage != null,
                             avatarUrl = p.ProfileImage != null ? _media.AvatarUrl(p.UserId) : null
                         };
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
                     }
                 }
 
@@ -124,18 +112,9 @@ namespace Services
 
             if (userType != "Admin" && userType != "Customer" && userType != "Programmer")
                 return (false, "Invalid user type");
-<<<<<<< HEAD
-
-            var user = new User { Email = email, PasswordHash = password, UserType = userType };
-=======
-            }
 
             var passwordError = _passwordService.ValidatePolicy(password, email);
-
-            if (passwordError != null)
-            {
-                return (false, passwordError);
-            }
+            if (passwordError != null) return (false, passwordError);
 
             var user = new User
             {
@@ -145,7 +124,6 @@ namespace Services
 
             user.PasswordHash = _passwordService.Hash(user, password);
 
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
             return (true, "User created successfully");
@@ -164,21 +142,12 @@ namespace Services
                 user.Email = email;
             }
 
-<<<<<<< HEAD
-            if (!string.IsNullOrWhiteSpace(password)) user.PasswordHash = password;
-=======
             if (!string.IsNullOrWhiteSpace(password))
             {
                 var passwordError = _passwordService.ValidatePolicy(password, user.Email);
-
-                if (passwordError != null)
-                {
-                    return (false, passwordError);
-                }
-
+                if (passwordError != null) return (false, passwordError);
                 user.PasswordHash = _passwordService.Hash(user, password);
             }
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
 
             if (!string.IsNullOrWhiteSpace(userType))
             {
@@ -187,8 +156,6 @@ namespace Services
                 user.UserType = userType;
             }
 
-            // M2 (§3.6): a role, password or email change signs the user out everywhere —
-            // new security stamp, every session revoked — so a new sign-in carries the new role.
             var roleChanged = _context.Entry(user).Property(u => u.UserType).IsModified;
             var credentialsChanged = roleChanged ||
                                      _context.Entry(user).Property(u => u.PasswordHash).IsModified ||
@@ -200,8 +167,6 @@ namespace Services
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
             await _context.SaveChangesAsync();
-<<<<<<< HEAD
-=======
             if (credentialsChanged)
             {
                 await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == user.Id), AuthSessionStatus.Revoked,
@@ -214,61 +179,12 @@ namespace Services
                 _sessionCache.Invalidate(user.Id);
             }
 
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
             return (true, "User updated successfully");
         }
 
-        // actorUserId: the caller's token subject, or null — this route stays anonymous until M2.7.
         public async Task<(bool success, string message)> DeleteUser(int id, HttpContext http, int? actorUserId)
         {
-<<<<<<< HEAD
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
-            if (user == null) return (false, "User not found");
-
-            if (user.UserType == "Admin")
-            {
-                var adminCount = await _context.Users.CountAsync(u => u.UserType == "Admin");
-                if (adminCount <= 1) return (false, "Cannot delete the last admin");
-            }
-
-            try
-            {
-                // ✅ تنظيف الجداول المرتبطة بالمستخدم لمنع مشاكل الـ Foreign Keys
-                var apps = await _context.PostApplications.Where(a => a.ProgrammerId == id).ToListAsync();
-                if (apps.Any()) _context.PostApplications.RemoveRange(apps);
-
-                var comments = await _context.PostComments.Where(c => c.UserId == id).ToListAsync();
-                if (comments.Any()) _context.PostComments.RemoveRange(comments);
-                
-                var likes = await _context.PostLikes.Where(l => l.UserId == id).ToListAsync();
-                if (likes.Any()) _context.PostLikes.RemoveRange(likes);
-
-                var saved = await _context.SavedPosts.Where(s => s.UserId == id).ToListAsync();
-                if (saved.Any()) _context.SavedPosts.RemoveRange(saved);
-
-                var notifications = await _context.Notifications.Where(n => n.UserId == id).ToListAsync();
-                if (notifications.Any()) _context.Notifications.RemoveRange(notifications);
-
-                var progProfile = await _context.ProgrammerProfiles.FirstOrDefaultAsync(p => p.UserId == id);
-                if (progProfile != null) _context.ProgrammerProfiles.Remove(progProfile);
-
-                var custProfile = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.UserId == id);
-                if (custProfile != null) _context.CustomerProfiles.Remove(custProfile);
-
-                // ✅ أخيراً حذف المستخدم
-                _context.Users.Remove(user);
-                await _context.SaveChangesAsync();
-                
-                return (true, "User deleted successfully");
-            }
-            catch (Exception ex)
-            {
-                return (false, $"Database error: {ex.InnerException?.Message ?? ex.Message}");
-            }
-=======
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == id);
-
             if (user == null)
             {
                 await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Failure, actorUserId, id, "NotFound");
@@ -277,9 +193,7 @@ namespace Services
 
             if (user.UserType == "Admin")
             {
-                var adminCount = await _context.Users
-                    .CountAsync(u => u.UserType == "Admin");
-
+                var adminCount = await _context.Users.CountAsync(u => u.UserType == "Admin");
                 if (adminCount <= 1)
                 {
                     await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Blocked, actorUserId, id, "LastAdmin");
@@ -292,16 +206,23 @@ namespace Services
             {
                 try
                 {
-                    // KI-39: AuthSessions/RefreshTokens reference Users with NO ACTION, so they are revoked and
-                    // removed first, in the same transaction as the delete. SecurityEvents have no FK and stay.
                     var ended = await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == id), AuthSessionStatus.Revoked,
                         "UserDeleted", now, CancellationToken.None);
                     var sessionIds = _context.AuthSessions.Where(s => s.UserId == id).Select(s => s.Id);
                     await _context.RefreshTokens.Where(t => sessionIds.Contains(t.SessionId)).ExecuteDeleteAsync();
                     await _context.AuthSessions.Where(s => s.UserId == id).ExecuteDeleteAsync();
 
-                    // SavedPosts.UserId is NO ACTION too (2026-11-21): a user's saved list is private and goes with the account.
                     await _context.SavedPosts.Where(sp => sp.UserId == id).ExecuteDeleteAsync();
+                    await _context.PostApplications.Where(a => a.ProgrammerId == id).ExecuteDeleteAsync();
+                    await _context.PostComments.Where(c => c.UserId == id).ExecuteDeleteAsync();
+                    await _context.PostLikes.Where(l => l.UserId == id).ExecuteDeleteAsync();
+                    await _context.Notifications.Where(n => n.UserId == id).ExecuteDeleteAsync();
+
+                    var progProfile = await _context.ProgrammerProfiles.FirstOrDefaultAsync(p => p.UserId == id);
+                    if (progProfile != null) _context.ProgrammerProfiles.Remove(progProfile);
+
+                    var custProfile = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.UserId == id);
+                    if (custProfile != null) _context.CustomerProfiles.Remove(custProfile);
 
                     _context.Users.Remove(user);
                     await _context.SaveChangesAsync();
@@ -313,7 +234,6 @@ namespace Services
                 }
                 catch (DbUpdateException)
                 {
-                    // The delete is refused by other references (KI-10): nothing was removed. Audit, then keep the existing behaviour.
                     await transaction.RollbackAsync();
                     _context.ChangeTracker.Clear();
                     await AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Failure, actorUserId, id, "DeleteFailed");
@@ -324,12 +244,6 @@ namespace Services
             _sessionCache.Invalidate(id);
             return (true, "User deleted successfully");
         }
-
-        // ============================================================
-        // SUSPENSION (M2.5b; §7.4). Owner rule 2026-11-04: suspending also rotates the
-        // stamp and revokes every session, so existing tokens get 401 at once; the user
-        // can sign in again, but only into restricted mode. Admins can't be suspended.
-        // ============================================================
 
         public async Task<(AdminActionStatus status, string message)> SuspendUser(int id, string? reason, HttpContext http, int actorUserId)
         {
@@ -377,7 +291,6 @@ namespace Services
                 await _context.SaveChangesAsync();
                 var ended = await _sessions.EndSessionsAsync(_context.AuthSessions.Where(s => s.UserId == id), AuthSessionStatus.Revoked,
                     "Suspended", now, CancellationToken.None);
-                // The reason text is written by the admin and may hold personal data: it stays on the user row only.
                 _context.SecurityEvents.Add(AdminEvent(http, type, SecurityEventOutcome.Success, actorUserId, id, "Suspended", new { sessionsEnded = ended }));
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
@@ -415,12 +328,10 @@ namespace Services
             _context.SecurityEvents.Add(AdminEvent(http, type, SecurityEventOutcome.Success, actorUserId, id, "Unsuspended", null));
             await _context.SaveChangesAsync();
 
-            // Sessions opened while suspended get full access on their next request.
             _sessionCache.Invalidate(id);
             return (AdminActionStatus.Ok, "User unsuspended successfully");
         }
 
-        // The controller refuses to delete admin accounts (Q10) before reaching DeleteUser.
         public Task AuditBlockedDeleteAsync(int id, HttpContext http, int? actorUserId) =>
             AuditAsync(http, SecurityEventTypes.AdminUserDeleted, SecurityEventOutcome.Blocked, actorUserId, id, "AdminTarget");
 
@@ -438,7 +349,6 @@ namespace Services
         {
             _context.SecurityEvents.Add(AdminEvent(http, type, outcome, actorUserId, targetUserId, result, null));
             await _context.SaveChangesAsync();
->>>>>>> 253d2f815f4ee6567d33f6953b65f1ad1d32da13
         }
 
         public async Task<List<object>> GetAllProgrammersForVerification()
@@ -510,11 +420,11 @@ namespace Services
             {
                 if (verified)
                 {
-                    _emailService.SendEmail(user.Email, "🎉 Congratulations! Your DevLink account is now verified", BuildVerificationEmail(profile.Nickname));
+                    await _emailService.SendEmailAsync(user.Email, "🎉 Congratulations! Your DevLink account is now verified", BuildVerificationEmail(profile.Nickname));
                 }
                 else
                 {
-                    _emailService.SendEmail(user.Email, "Your DevLink verification has been removed", BuildUnverificationEmail(profile.Nickname));
+                    await _emailService.SendEmailAsync(user.Email, "Your DevLink verification has been removed", BuildUnverificationEmail(profile.Nickname));
                 }
             }
             catch (Exception ex)
