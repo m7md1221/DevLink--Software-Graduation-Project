@@ -1,16 +1,18 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:devlink/main.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../../services/session_manager.dart';
-import 'account_suspended_page.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_http.dart' show AuthHttp; // ✅ مهم جداً لحفظ التوكن
 import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/theme_toggle.dart';
 import '../../theme/theme_manager.dart';
 import '../Customer/customer_home_page.dart';
 import '../Programmer/programmer_profile_setup_page.dart';
-import '../Programmer/programmer_home_page.dart'; // ✅ ضفنا هذا
+import '../Programmer/programmer_home_page.dart';
 import '../admin/admin_dashboard_page.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
@@ -93,7 +95,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFF10B981);
       case 'Programmer':
-        return const Color(0xFF3B82F6); // ✅ صار أزرق
+        return const Color(0xFF3B82F6);
       default:
         return const Color(0xFF2563EB);
     }
@@ -106,7 +108,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFF047857);
       case 'Programmer':
-        return const Color(0xFF1D4ED8); // ✅ صار أزرق غامق
+        return const Color(0xFF1D4ED8);
       default:
         return const Color(0xFF1E40AF);
     }
@@ -119,7 +121,7 @@ class _LoginPageState extends State<LoginPage>
       case 'Customer':
         return const Color(0xFFD1FAE5);
       case 'Programmer':
-        return const Color(0xFFDBEAFE); // ✅ صار أزرق فاتح
+        return const Color(0xFFDBEAFE);
       default:
         return const Color(0xFFDBEAFE);
     }
@@ -177,6 +179,7 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
+  // ✅ التعديل الأساسي: استخدام ApiService.login بدلاً من http.post
   Future<void> login() async {
     if (emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty) {
@@ -188,7 +191,6 @@ class _LoginPageState extends State<LoginPage>
     setState(() => isLoading = true);
 
     try {
-      // Through ApiService so the access token is kept (M2.12, F7).
       final result = await ApiService.login(
         email: emailController.text.trim(),
         password: passwordController.text,
@@ -196,10 +198,10 @@ class _LoginPageState extends State<LoginPage>
       );
 
       if (!mounted) return;
+      setState(() => isLoading = false);
 
-      if (result.success) {
+      if (result.success && result.data != null) {
         final data = result.data!;
-
         final int userId = data['userId'] ?? 0;
         final String userType = data['userType'] ?? widget.userType;
         final String email = data['email'] ?? '';
@@ -216,27 +218,9 @@ class _LoginPageState extends State<LoginPage>
         );
 
         if (!mounted) return;
-        setState(() => isLoading = false);
-
-        if (data['status'] == 'Suspended') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const AccountSuspendedPage()),
-          );
-          return;
-        }
-
         _navigateByUserType(userType, userId, hasProfile, email);
       } else {
-        setState(() => isLoading = false);
-        // Wrong email or password keeps the existing text; lockout, rate limits and
-        // an unsupported browser show the server's explanation.
-        showMessage(
-          result.errorCode == null || result.errorCode == 'INVALID_CREDENTIALS'
-              ? 'البريد أو كلمة المرور غير صحيح'
-              : result.message,
-          false,
-        );
+        showMessage(result.message, false);
       }
     } catch (e) {
       if (!mounted) return;
@@ -257,7 +241,7 @@ class _LoginPageState extends State<LoginPage>
     if (!mounted) return;
     setState(() => isLoading = false);
 
-    if (result.success) {
+    if (result.success && result.data != null) {
       final data = result.data!;
       final int userId = data['userId'] ?? 0;
       final String userType = data['userType'] ?? widget.userType;
@@ -310,7 +294,7 @@ class _LoginPageState extends State<LoginPage>
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => ProgrammerHomePage( // ✅ هنا التعديل المهم
+            builder: (_) => ProgrammerHomePage(
               userId: userId,
               authorName: email,
               authorType: 'Programmer',

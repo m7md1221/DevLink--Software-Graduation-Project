@@ -53,23 +53,18 @@ class _ProgrammerProfileSetupPageState
   bool _isPickingCv = false;
   bool _isPickingCert = false;
 
-  final Color accentColor = const Color(0xFF8B5CF6);
-  final Color accentDark = const Color(0xFF6D28D9);
+  final Color accentColor = const Color(0xFF3B82F6);
+  final Color accentDark = const Color(0xFF1D4ED8);
 
-  // ✅ نفس maxWidth المستخدم في AdminDashboardPage
   static const double maxWidth = 1200;
 
   late AnimationController _controller;
   late Animation<double> _fade;
   late Animation<Offset> _slide;
 
-  // For the programmer home page opened after set-up.
-  String? _signedInEmail;
-
   @override
   void initState() {
     super.initState();
-    SessionManager.getEmail().then((e) => _signedInEmail = e);
 
     _controller = AnimationController(
       vsync: this,
@@ -287,7 +282,6 @@ class _ProgrammerProfileSetupPageState
         ? const Color(0xFF94A3B8)
         : Colors.grey.shade600;
 
-    // ✅ تحديد حجم مناسب للديسكتوب
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 1100;
     final dialogMaxWidth = isDesktop ? 480.0 : 400.0;
@@ -356,10 +350,9 @@ class _ProgrammerProfileSetupPageState
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              // The partner's programmer home (feed + dashboard tab), as after login (KI-13).
                               builder: (_) => ProgrammerHomePage(
                                 userId: widget.userId,
-                                authorName: _signedInEmail ?? 'Programmer',
+                                authorName: 'Programmer',
                                 authorType: 'Programmer',
                               ),
                             ),
@@ -450,15 +443,10 @@ class _ProgrammerProfileSetupPageState
             ),
           ),
 
-          // ===== Content (Responsive + maxWidth) =====
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // ✅ نفس breakpoints الداشبورد
                 final isDesktop = constraints.maxWidth > 1100;
-                final isTablet = constraints.maxWidth > 700 &&
-                    constraints.maxWidth <= 1100;
-
                 final hPad = isDesktop ? 40.0 : 24.0;
                 final vTop = isDesktop ? 32.0 : 12.0;
                 final vBottom = isDesktop ? 40.0 : 24.0;
@@ -480,7 +468,6 @@ class _ProgrammerProfileSetupPageState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ===== Back Button =====
                               Material(
                                 color: cardColor,
                                 borderRadius: BorderRadius.circular(14),
@@ -509,7 +496,6 @@ class _ProgrammerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 36 : 26),
 
-                              // ===== Icon =====
                               Center(
                                 child: Container(
                                   padding: EdgeInsets.all(
@@ -529,7 +515,6 @@ class _ProgrammerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 28 : 20),
 
-                              // ===== Title =====
                               Center(
                                 child: Text(
                                   'Programmer Profile',
@@ -562,7 +547,6 @@ class _ProgrammerProfileSetupPageState
                               ),
                               SizedBox(height: isDesktop ? 40 : 30),
 
-                              // ===== Form Card =====
                               Container(
                                 padding: EdgeInsets.all(
                                   isDesktop ? 32 : 22,
@@ -1105,7 +1089,6 @@ class _ProgrammerProfileSetupPageState
         ? const Color(0xFF64748B)
         : Colors.grey.shade500;
 
-    // ✅ حجم الصورة حسب الجهاز
     final imageSize = isDesktop ? 150.0 : 120.0;
     final iconSize = isDesktop ? 62.0 : 50.0;
 
@@ -1323,7 +1306,7 @@ class _ProgrammerProfileSetupPageState
                       height: isDesktop ? 22 : 18,
                       child: const CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Color(0xFF8B5CF6),
+                        color: Color(0xFF3B82F6),
                       ),
                     )
                   : Icon(

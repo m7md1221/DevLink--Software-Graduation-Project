@@ -12,8 +12,6 @@ class ApiResult {
   final String message;
   final Map<String, dynamic>? data;
   final int? expiresInMinutes;
-
-  /// The API's `errorCode` (problem details), when it sent one.
   final String? errorCode;
 
   ApiResult({
@@ -25,8 +23,6 @@ class ApiResult {
   });
 }
 
-/// Shown instead of signing in when the browser can't coordinate the session
-/// between tabs (no Web Locks; T-MT-04).
 const String unsupportedBrowserMessage =
     "This browser can't keep a DevLink session safe. Please use a current version of Chrome, Edge, Firefox or Safari.";
 
@@ -184,7 +180,6 @@ class ApiService {
 
       final body = _jsonMap(response.body) ?? {};
 
-      // `data['signupToken']` is the proof that signUp() must send.
       if (response.statusCode == 200) {
         return ApiResult(
           success: true,
@@ -290,7 +285,6 @@ class ApiService {
 
       final body = _jsonMap(response.body) ?? {};
 
-      // `data['resetToken']` is the proof that resetPassword() must send.
       if (response.statusCode == 200) {
         return ApiResult(
           success: true,
@@ -354,7 +348,6 @@ class ApiService {
   // SESSION (M2.12)
   // ============================================================
 
-  /// The signed-in user as the server sees them: role, status, suspension reason.
   static Future<ApiResult> me() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/api/Auth/me'));
@@ -368,8 +361,6 @@ class ApiService {
     }
   }
 
-  /// Saves the non-secret user details after a sign-in or a restored session.
-  /// The access token stays in memory (AuthHttp) and is never written here.
   static Future<void> saveSignedInUser(Map<String, dynamic> data, {String? fallbackUserType}) async {
     final userType = (data['userType'] ?? data['role'] ?? fallbackUserType ?? '') as String;
     final hasProfile = userType == 'Programmer'
@@ -383,7 +374,6 @@ class ApiService {
     );
   }
 
-  /// Ends this session on the server (and its refresh cookie), then locally.
   static Future<void> logout() async {
     try {
       await http.post(
@@ -399,7 +389,6 @@ class ApiService {
     await SessionManager.clear();
   }
 
-  /// Ends every session of this account, on every device.
   static Future<bool> logoutAll() async {
     var ok = false;
     try {
@@ -931,10 +920,16 @@ class ApiService {
   // ============================================================
 
   static Future<ApiResult> getAllUsers() async {
+    // ✅ تمت إزالة التوكن المؤقت، النظام الآن يعتمد على تسجيل الدخول الحقيقي
+    print('🔍 DEBUG TOKEN: ${AuthHttp.instance.accessToken}');
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/api/Admin/users'),
       );
+
+      print('🔍 DEBUG STATUS: ${response.statusCode}');
+      print('🔍 DEBUG BODY: ${response.body}');
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
@@ -947,7 +942,7 @@ class ApiService {
 
       return ApiResult(
         success: false,
-        message: 'Failed to load users',
+        message: 'Failed to load users (Status: ${response.statusCode})',
       );
     } catch (e) {
       return ApiResult(
@@ -1180,11 +1175,10 @@ class ApiService {
     }
   }
 
-  // ✅ GET /api/Admin/statistics
   static Future<ApiResult> getAdminStatistics() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/api/Admin/statistics'), // ✅ شلنا ApiConfig. وحطينا baseUrl
+        Uri.parse('$baseUrl/api/Admin/statistics'),
       );
 
       if (response.statusCode == 200) {
