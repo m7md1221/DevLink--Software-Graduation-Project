@@ -9,10 +9,14 @@ class SetPasswordPage extends StatefulWidget {
   final String email;
   final String userType;
 
+  /// Proof from verify-code (M2.12, F8); the API refuses the sign-up without it.
+  final String? signupToken;
+
   const SetPasswordPage({
     super.key,
     required this.email,
     required this.userType,
+    this.signupToken,
   });
 
   @override
@@ -77,7 +81,18 @@ class _SetPasswordPageState extends State<SetPasswordPage>
       email: widget.email,
       password: _passController.text,
       userType: widget.userType,
+      signupToken: widget.signupToken,
     );
+
+    // Sign-up creates the account but no session; sign in so the profile set-up
+    // that follows is authorized (M2.12, F8).
+    if (result.success) {
+      await ApiService.login(
+        email: widget.email,
+        password: _passController.text,
+        userType: widget.userType,
+      );
+    }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -401,8 +416,8 @@ class _SetPasswordPageState extends State<SetPasswordPage>
                                           if (v == null || v.isEmpty) {
                                             return 'Password is required';
                                           }
-                                          if (v.length < 6) {
-                                            return 'At least 6 characters';
+                                          if (v.length < 8) {
+                                            return 'At least 8 characters';
                                           }
                                           return null;
                                         },

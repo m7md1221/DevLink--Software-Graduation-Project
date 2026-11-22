@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../services/session_manager.dart';
+import '../../services/media_url.dart';
+import '../../widgets/sign_out_dialog.dart';
 import '../../services/api_service.dart';
-import '../Common/welcome_page.dart';
 
 class ProgrammerDashboardPage extends StatefulWidget {
   final int userId;
@@ -58,13 +58,8 @@ class _ProgrammerDashboardPageState extends State<ProgrammerDashboardPage> {
   }
 
   Future<void> _logout() async {
-    await SessionManager.clear();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
-      (route) => false,
-    );
+    // M2.12 (F10): ends the session on the server too; offers "all devices".
+    await showSignOutDialog(context);
   }
 
   Future<void> _openUrl(String url, String label) async {
@@ -324,7 +319,7 @@ class _ProgrammerDashboardPageState extends State<ProgrammerDashboardPage> {
                         child: ClipOval(
                           child: _profile?['hasImage'] == true
                               ? Image.network(
-                                  ApiService.getProgrammerImageUrl(widget.userId),
+                                  MediaUrl.resolve(_profile?['avatarUrl'] as String?),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => const Icon(
                                       Icons.person_rounded,

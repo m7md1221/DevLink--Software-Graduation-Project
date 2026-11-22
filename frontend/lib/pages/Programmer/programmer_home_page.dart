@@ -4,14 +4,15 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:devlink/main.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
-import '../../services/session_manager.dart';
+import '../../services/media_url.dart';
+import '../../widgets/own_avatar_image.dart';
+import '../../widgets/sign_out_dialog.dart';
 import '../../services/weather_service.dart';
 import '../../services/location_service.dart'
     if (dart.library.html) '../../services/location_service_web.dart';
 import '../../widgets/theme_toggle.dart';
 import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
-import '../Common/welcome_page.dart';
 import '../Customer/search_users_page.dart';
 import '../Customer/user_profile_page.dart';
 import '../Customer/widgets/post_card.dart';
@@ -159,13 +160,8 @@ class _ProgrammerHomePageState extends State<ProgrammerHomePage>
   }
 
   Future<void> _logout() async {
-    await SessionManager.clear();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
-      (route) => false,
-    );
+    // M2.12 (F10): ends the session on the server too; offers "all devices".
+    await showSignOutDialog(context);
   }
 
   void _openProfile(int userId) {
@@ -579,8 +575,7 @@ class _ProgrammerHomePageState extends State<ProgrammerHomePage>
                   border: Border.all(color: Colors.white, width: 3),
                 ),
                 child: ClipOval(
-                  child: Image.network(
-                    PostService.getUserAvatarUrl(widget.userId),
+                  child: OwnAvatarImage(
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const Icon(
                       Icons.code_rounded,
@@ -843,7 +838,7 @@ class _ProgrammerHomePageState extends State<ProgrammerHomePage>
               child: ClipOval(
                 child: p.hasImage
                     ? Image.network(
-                        PostService.getUserAvatarUrl(p.userId),
+                        MediaUrl.resolve(p.avatarUrl),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Icon(
                           isProg ? Icons.code_rounded : Icons.person_rounded,

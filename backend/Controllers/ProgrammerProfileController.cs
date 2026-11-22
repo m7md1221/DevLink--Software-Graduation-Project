@@ -1,6 +1,11 @@
+using Services.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DataBase;
+using Services;
+using Services.Files;
+using Services.Security;
 
 namespace Controllers
 {
@@ -9,15 +14,25 @@ namespace Controllers
     public class ProgrammerProfileController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ICurrentUser _currentUser;
+        private readonly MediaUrls _media;
+        private readonly PostService _posts;
 
-        public ProgrammerProfileController(AppDbContext context)
+        public ProgrammerProfileController(AppDbContext context, ICurrentUser currentUser, MediaUrls media, PostService posts)
         {
             _context = context;
+            _currentUser = currentUser;
+            _media = media;
+            _posts = posts;
         }
 
+        // Self or admin: full. Other members: phone and file names are null, keys kept (design 8 #22, D-5).
         [HttpGet("{userId}")]
+        [Authorize(Policy = AuthPolicies.MemberOrDevFallback)]
         public async Task<IActionResult> GetProfile(int userId)
         {
+            var full = _currentUser.ResolveUserId(userId) == userId || _currentUser.IsAdmin;
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -34,24 +49,27 @@ namespace Controllers
                 id = profile.Id,
                 userId = profile.UserId,
                 nickname = profile.Nickname,
-                phoneNumber = profile.PhoneNumber,
+                phoneNumber = full ? profile.PhoneNumber : null,
                 country = profile.Country,
                 city = profile.City,
                 specialty = profile.Specialty,
                 university = profile.University,
                 hasCertificate = profile.Certificate != null,
                 hasCV = profile.CV != null,
-                cvName = profile.CVName,
-                certificateName = profile.CertificateName,
+                cvName = full ? profile.CVName : null,
+                certificateName = full ? profile.CertificateName : null,
                 linkedInUrl = profile.LinkedInUrl,
                 rating = profile.Rating,
                 isVerified = profile.IsVerified,
                 hasImage = profile.ProfileImage != null,
+                avatarUrl = profile.ProfileImage != null ? _media.AvatarUrl(profile.UserId) : null,
                 createdAt = profile.CreatedAt
             });
         }
 
+        // Admin only (D-4).
         [HttpGet("all")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)]
         public async Task<IActionResult> GetAllProgrammers()
         {
             var programmers = await _context.ProgrammerProfiles
@@ -71,13 +89,29 @@ namespace Controllers
                 })
                 .ToListAsync();
 
-            return Ok(programmers);
+            return Ok(programmers.Select(p => new
+            {
+                p.id,
+                p.userId,
+                p.nickname,
+                p.country,
+                p.city,
+                p.specialty,
+                p.university,
+                p.rating,
+                p.isVerified,
+                p.hasImage,
+                avatarUrl = p.hasImage ? _media.AvatarUrl(p.userId) : null
+            }));
         }
 
         [HttpPost]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> CreateProfile(
             [FromForm] CreateProgrammerProfileDto model)
         {
+            var userId = _currentUser.ResolveUserId(model.UserId) ?? 0;
+
             if (string.IsNullOrWhiteSpace(model.Nickname) ||
                 string.IsNullOrWhiteSpace(model.PhoneNumber) ||
                 string.IsNullOrWhiteSpace(model.Country) ||
@@ -92,7 +126,7 @@ namespace Controllers
             }
 
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == model.UserId);
+                .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
             {
@@ -111,7 +145,7 @@ namespace Controllers
             }
 
             var exists = await _context.ProgrammerProfiles
-                .AnyAsync(p => p.UserId == model.UserId);
+                .AnyAsync(p => p.UserId == userId);
 
             if (exists)
             {
@@ -127,7 +161,7 @@ namespace Controllers
             if (model.ProfileImage != null &&
                 model.ProfileImage.Length > 0)
             {
-                if (model.ProfileImage.Length > 2 * 1024 * 1024)
+                if (model.ProfileImage.Length > UploadValidator.MaxAvatarBytes)
                 {
                     return BadRequest(new
                     {
@@ -135,11 +169,8 @@ namespace Controllers
                     });
                 }
 
-                imageContentType = NormalizeImageType(
-                    model.ProfileImage.ContentType,
-                    model.ProfileImage.FileName);
-
-                if (imageContentType == null)
+                var image = await UploadValidator.ReadImageAsync(model.ProfileImage);
+                if (image == null)
                 {
                     return BadRequest(new
                     {
@@ -147,9 +178,8 @@ namespace Controllers
                     });
                 }
 
-                using var ms = new MemoryStream();
-                await model.ProfileImage.CopyToAsync(ms);
-                imageBytes = ms.ToArray();
+                imageBytes = image.Value.Data;
+                imageContentType = image.Value.ContentType;
             }
 
             byte[]? certBytes = null;
@@ -159,7 +189,7 @@ namespace Controllers
             if (model.Certificate != null &&
                 model.Certificate.Length > 0)
             {
-                if (model.Certificate.Length > 5 * 1024 * 1024)
+                if (model.Certificate.Length > UploadValidator.MaxDocumentBytes)
                 {
                     return BadRequest(new
                     {
@@ -167,11 +197,8 @@ namespace Controllers
                     });
                 }
 
-                var certFileName = model.Certificate.FileName.ToLower();
-                if (!certFileName.EndsWith(".pdf") &&
-                    !certFileName.EndsWith(".jpg") &&
-                    !certFileName.EndsWith(".jpeg") &&
-                    !certFileName.EndsWith(".png"))
+                var certificate = await UploadValidator.ReadCertificateAsync(model.Certificate);
+                if (certificate == null)
                 {
                     return BadRequest(new
                     {
@@ -179,12 +206,9 @@ namespace Controllers
                     });
                 }
 
-                certType = model.Certificate.ContentType.ToLower();
-                certName = model.Certificate.FileName;
-
-                using var ms = new MemoryStream();
-                await model.Certificate.CopyToAsync(ms);
-                certBytes = ms.ToArray();
+                certBytes = certificate.Value.Data;
+                certType = certificate.Value.ContentType;
+                certName = UploadValidator.SafeFileName(model.Certificate.FileName, "certificate");
             }
 
             byte[]? cvBytes = null;
@@ -192,7 +216,7 @@ namespace Controllers
 
             if (model.CV != null && model.CV.Length > 0)
             {
-                if (model.CV.Length > 5 * 1024 * 1024)
+                if (model.CV.Length > UploadValidator.MaxDocumentBytes)
                 {
                     return BadRequest(new
                     {
@@ -200,8 +224,8 @@ namespace Controllers
                     });
                 }
 
-                var cvFileName = model.CV.FileName.ToLower();
-                if (!cvFileName.EndsWith(".pdf"))
+                cvBytes = await UploadValidator.ReadCvAsync(model.CV);
+                if (cvBytes == null)
                 {
                     return BadRequest(new
                     {
@@ -209,16 +233,12 @@ namespace Controllers
                     });
                 }
 
-                cvName = model.CV.FileName;
-
-                using var ms = new MemoryStream();
-                await model.CV.CopyToAsync(ms);
-                cvBytes = ms.ToArray();
+                cvName = UploadValidator.SafeFileName(model.CV.FileName, "cv.pdf");
             }
 
             var profile = new ProgrammerProfile
             {
-                UserId = model.UserId,
+                UserId = userId,
                 Nickname = model.Nickname.Trim(),
                 PhoneNumber = model.PhoneNumber.Trim(),
                 Country = model.Country.Trim(),
@@ -251,10 +271,14 @@ namespace Controllers
         }
 
         [HttpPut("{userId}")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UpdateProfile(
             int userId,
             [FromForm] UpdateProgrammerProfileDto model)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -292,7 +316,7 @@ namespace Controllers
             if (model.ProfileImage != null &&
                 model.ProfileImage.Length > 0)
             {
-                if (model.ProfileImage.Length > 2 * 1024 * 1024)
+                if (model.ProfileImage.Length > UploadValidator.MaxAvatarBytes)
                 {
                     return BadRequest(new
                     {
@@ -300,11 +324,8 @@ namespace Controllers
                     });
                 }
 
-                var imageContentType = NormalizeImageType(
-                    model.ProfileImage.ContentType,
-                    model.ProfileImage.FileName);
-
-                if (imageContentType == null)
+                var image = await UploadValidator.ReadImageAsync(model.ProfileImage);
+                if (image == null)
                 {
                     return BadRequest(new
                     {
@@ -312,16 +333,14 @@ namespace Controllers
                     });
                 }
 
-                using var ms = new MemoryStream();
-                await model.ProfileImage.CopyToAsync(ms);
-                profile.ProfileImage = ms.ToArray();
-                profile.ImageContentType = imageContentType;
+                profile.ProfileImage = image.Value.Data;
+                profile.ImageContentType = image.Value.ContentType;
             }
 
             if (model.Certificate != null &&
                 model.Certificate.Length > 0)
             {
-                if (model.Certificate.Length > 5 * 1024 * 1024)
+                if (model.Certificate.Length > UploadValidator.MaxDocumentBytes)
                 {
                     return BadRequest(new
                     {
@@ -329,11 +348,8 @@ namespace Controllers
                     });
                 }
 
-                var certFileName = model.Certificate.FileName.ToLower();
-                if (!certFileName.EndsWith(".pdf") &&
-                    !certFileName.EndsWith(".jpg") &&
-                    !certFileName.EndsWith(".jpeg") &&
-                    !certFileName.EndsWith(".png"))
+                var certificate = await UploadValidator.ReadCertificateAsync(model.Certificate);
+                if (certificate == null)
                 {
                     return BadRequest(new
                     {
@@ -341,13 +357,9 @@ namespace Controllers
                     });
                 }
 
-                using var ms = new MemoryStream();
-                await model.Certificate.CopyToAsync(ms);
-                profile.Certificate = ms.ToArray();
-                profile.CertificateType =
-                    model.Certificate.ContentType.ToLower();
-                profile.CertificateName =
-                    model.Certificate.FileName;
+                profile.Certificate = certificate.Value.Data;
+                profile.CertificateType = certificate.Value.ContentType;
+                profile.CertificateName = UploadValidator.SafeFileName(model.Certificate.FileName, "certificate");
 
                 // ✅ إعادة التوثيق إجبارياً
                 profile.IsVerified = false;
@@ -355,7 +367,7 @@ namespace Controllers
 
             if (model.CV != null && model.CV.Length > 0)
             {
-                if (model.CV.Length > 5 * 1024 * 1024)
+                if (model.CV.Length > UploadValidator.MaxDocumentBytes)
                 {
                     return BadRequest(new
                     {
@@ -363,8 +375,8 @@ namespace Controllers
                     });
                 }
 
-                var cvFileName = model.CV.FileName.ToLower();
-                if (!cvFileName.EndsWith(".pdf"))
+                var cv = await UploadValidator.ReadCvAsync(model.CV);
+                if (cv == null)
                 {
                     return BadRequest(new
                     {
@@ -372,10 +384,8 @@ namespace Controllers
                     });
                 }
 
-                using var ms = new MemoryStream();
-                await model.CV.CopyToAsync(ms);
-                profile.CV = ms.ToArray();
-                profile.CVName = model.CV.FileName;
+                profile.CV = cv;
+                profile.CVName = UploadValidator.SafeFileName(model.CV.FileName, "cv.pdf");
             }
 
             profile.UpdatedAt = DateTime.UtcNow;
@@ -388,82 +398,102 @@ namespace Controllers
             });
         }
 
+        // Only the programmer's image; a signed URL for any avatar names the user, not the route (design 5.2).
         [HttpGet("{userId}/image")]
+        [Authorize(Policy = AuthPolicies.SignedImageOrMember)]
         public async Task<IActionResult> GetProfileImage(int userId)
         {
-            var profile = await _context.ProgrammerProfiles
-                .FirstOrDefaultAsync(p => p.UserId == userId);
+            var isProgrammer = await _context.ProgrammerProfiles.AnyAsync(p => p.UserId == userId);
 
-            if (profile?.ProfileImage == null)
+            return ImageResponse.From(this, isProgrammer ? await _posts.GetUserAvatar(userId) : null, "No image found");
+        }
+
+        // Private documents (design 8 #27): the programmer, an admin, or a customer the programmer applied to.
+        private async Task<bool> CanReadDocumentsAsync(int programmerId)
+        {
+            if (!_currentUser.IsAuthenticated)
+            {
+                return true; // Only the development fallback gets here without a token.
+            }
+
+            return await ProgrammerDocuments.CanReadAsync(_context, programmerId, _currentUser.UserId!.Value, _currentUser.Role);
+        }
+
+        private async Task<IActionResult> DirectDocumentAsync(int userId, string kind, string notFoundMessage)
+        {
+            if (!await CanReadDocumentsAsync(userId))
+                return AuthProblem.Forbidden(HttpContext, "You can't view this document");
+
+            var (data, name) = await ProgrammerDocuments.LoadAsync(_context, userId, kind);
+            if (data == null)
             {
                 return NotFound(new
                 {
-                    message = "No image found"
+                    message = notFoundMessage
                 });
             }
 
-            Response.Headers.Append("Content-Disposition", "inline");
-
-            return File(
-                profile.ProfileImage,
-                profile.ImageContentType ?? "image/jpeg"
-            );
+            return ProgrammerDocuments.Respond(this, kind, data, name);
         }
 
         [HttpGet("{userId}/cv")]
-        public async Task<IActionResult> GetCV(int userId)
-        {
-            var profile = await _context.ProgrammerProfiles
-                .FirstOrDefaultAsync(p => p.UserId == userId);
-
-            if (profile?.CV == null)
-            {
-                return NotFound(new
-                {
-                    message = "No CV found"
-                });
-            }
-
-            var fileName = profile.CVName ?? "cv.pdf";
-
-            Response.Headers.Append(
-                "Content-Disposition",
-                $"inline; filename=\"{fileName}\""
-            );
-
-            return File(
-                profile.CV,
-                "application/pdf",
-                fileName
-            );
-        }
+        [Authorize(Policy = AuthPolicies.MemberFileOrDevFallback)]
+        public Task<IActionResult> GetCV(int userId) => DirectDocumentAsync(userId, DocumentKinds.Cv, "No CV found");
 
         [HttpGet("{userId}/certificate")]
-        public async Task<IActionResult> GetCertificate(int userId)
-        {
-            var profile = await _context.ProgrammerProfiles
-                .FirstOrDefaultAsync(p => p.UserId == userId);
+        [Authorize(Policy = AuthPolicies.MemberFileOrDevFallback)]
+        public Task<IActionResult> GetCertificate(int userId) => DirectDocumentAsync(userId, DocumentKinds.Certificate, "No certificate found");
 
-            if (profile?.Certificate == null)
+        // ============================================================
+        // DOWNLOAD LINKS (design 5.1): for opening a document in a new
+        // browser tab. An access token only, never the development fallback.
+        // ============================================================
+
+        [HttpPost("{userId}/cv/link")]
+        [Authorize]
+        public Task<IActionResult> IssueCvLink(int userId, [FromServices] DownloadLinkStore links, [FromServices] TimeProvider time) =>
+            IssueLinkAsync(userId, DocumentKinds.Cv, "No CV found", links, time);
+
+        [HttpPost("{userId}/certificate/link")]
+        [Authorize]
+        public Task<IActionResult> IssueCertificateLink(int userId, [FromServices] DownloadLinkStore links, [FromServices] TimeProvider time) =>
+            IssueLinkAsync(userId, DocumentKinds.Certificate, "No certificate found", links, time);
+
+        private async Task<IActionResult> IssueLinkAsync(int userId, string kind, string notFoundMessage, DownloadLinkStore links, TimeProvider time)
+        {
+            Response.Headers.CacheControl = "no-store";
+
+            var callerId = _currentUser.UserId;
+            if (callerId == null || !Guid.TryParse(User.FindFirst(AuthClaims.SessionId)?.Value, out var sessionId) ||
+                !await CanReadDocumentsAsync(userId))
+            {
+                return AuthProblem.Forbidden(HttpContext, "You can't view this document");
+            }
+
+            var now = time.GetUtcNow().UtcDateTime;
+            if (!links.TryCountIssue(callerId.Value, now))
+            {
+                return AuthProblem.Result(HttpContext, StatusCodes.Status429TooManyRequests, AuthErrorCodes.RateLimited,
+                    "Too many download links. Please wait a few minutes and try again.");
+            }
+
+            var (data, _) = await ProgrammerDocuments.LoadAsync(_context, userId, kind);
+            if (data == null)
             {
                 return NotFound(new
                 {
-                    message = "No certificate found"
+                    message = notFoundMessage
                 });
             }
 
-            var fileName = profile.CertificateName ?? "certificate";
+            var token = links.Add(new DownloadLink(
+                userId, kind, System.Security.Cryptography.SHA256.HashData(data), callerId.Value, sessionId, now, now + DownloadLinkStore.Lifetime));
 
-            Response.Headers.Append(
-                "Content-Disposition",
-                $"inline; filename=\"{fileName}\""
-            );
-
-            return File(
-                profile.Certificate,
-                profile.CertificateType ?? "application/octet-stream",
-                fileName
-            );
+            return Ok(new
+            {
+                url = $"{Request.Scheme}://{Request.Host}/api/Files/download?t={token}",
+                expiresInSeconds = (int)DownloadLinkStore.Lifetime.TotalSeconds
+            });
         }
 
         // ============================================================
@@ -471,10 +501,14 @@ namespace Controllers
         // ============================================================
 
         [HttpPost("{userId}/cv")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UploadCV(
             int userId,
             IFormFile cv)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             if (cv == null || cv.Length == 0)
             {
                 return BadRequest(new
@@ -483,7 +517,7 @@ namespace Controllers
                 });
             }
 
-            if (cv.Length > 5 * 1024 * 1024)
+            if (cv.Length > UploadValidator.MaxDocumentBytes)
             {
                 return BadRequest(new
                 {
@@ -491,8 +525,8 @@ namespace Controllers
                 });
             }
 
-            var fileName = cv.FileName.ToLower();
-            if (!fileName.EndsWith(".pdf"))
+            var data = await UploadValidator.ReadCvAsync(cv);
+            if (data == null)
             {
                 return BadRequest(new
                 {
@@ -511,11 +545,8 @@ namespace Controllers
                 });
             }
 
-            using var ms = new MemoryStream();
-            await cv.CopyToAsync(ms);
-
-            profile.CV = ms.ToArray();
-            profile.CVName = cv.FileName;
+            profile.CV = data;
+            profile.CVName = UploadValidator.SafeFileName(cv.FileName, "cv.pdf");
             profile.UpdatedAt = DateTime.UtcNow;
 
             // ⚠️ CV ما يأثر على التوثيق
@@ -529,8 +560,12 @@ namespace Controllers
         }
 
         [HttpDelete("{userId}/cv")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> DeleteCV(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -568,10 +603,14 @@ namespace Controllers
         // ============================================================
 
         [HttpPost("{userId}/certificate")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> UploadCertificate(
             int userId,
             IFormFile certificate)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             if (certificate == null || certificate.Length == 0)
             {
                 return BadRequest(new
@@ -580,7 +619,7 @@ namespace Controllers
                 });
             }
 
-            if (certificate.Length > 5 * 1024 * 1024)
+            if (certificate.Length > UploadValidator.MaxDocumentBytes)
             {
                 return BadRequest(new
                 {
@@ -588,11 +627,8 @@ namespace Controllers
                 });
             }
 
-            var fileName = certificate.FileName.ToLower();
-            if (!fileName.EndsWith(".pdf") &&
-                !fileName.EndsWith(".jpg") &&
-                !fileName.EndsWith(".jpeg") &&
-                !fileName.EndsWith(".png"))
+            var file = await UploadValidator.ReadCertificateAsync(certificate);
+            if (file == null)
             {
                 return BadRequest(new
                 {
@@ -611,12 +647,9 @@ namespace Controllers
                 });
             }
 
-            using var ms = new MemoryStream();
-            await certificate.CopyToAsync(ms);
-
-            profile.Certificate = ms.ToArray();
-            profile.CertificateType = certificate.ContentType.ToLower();
-            profile.CertificateName = certificate.FileName;
+            profile.Certificate = file.Value.Data;
+            profile.CertificateType = file.Value.ContentType;
+            profile.CertificateName = UploadValidator.SafeFileName(certificate.FileName, "certificate");
 
             // ✅✅✅ إلغاء التوثيق إجبارياً
             profile.IsVerified = false;
@@ -634,8 +667,12 @@ namespace Controllers
         }
 
         [HttpDelete("{userId}/certificate")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOrDevFallback)]
         public async Task<IActionResult> DeleteCertificate(int userId)
         {
+            if (_currentUser.ResolveUserId(userId) != userId)
+                return AuthProblem.Forbidden(HttpContext, "You can only change your own profile");
+
             var profile = await _context.ProgrammerProfiles
                 .FirstOrDefaultAsync(p => p.UserId == userId);
 
@@ -674,6 +711,7 @@ namespace Controllers
         }
 
         [HttpPost("{userId}/verify")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> VerifyProgrammer(int userId)
         {
             var profile = await _context.ProgrammerProfiles
@@ -699,6 +737,7 @@ namespace Controllers
         }
 
         [HttpPost("{userId}/unverify")]
+        [Authorize(Policy = AuthPolicies.AdminOrDevFallback)] // M2.7a: Admin token (dev fallback: D-1)
         public async Task<IActionResult> UnverifyProgrammer(int userId)
         {
             var profile = await _context.ProgrammerProfiles
@@ -721,38 +760,6 @@ namespace Controllers
             {
                 message = "Programmer unverified successfully"
             });
-        }
-
-        private static string? NormalizeImageType(
-            string contentType,
-            string fileName)
-        {
-            var ct = contentType.ToLower();
-            var fn = fileName.ToLower();
-
-            var allowed = new[]
-            {
-                "image/jpeg",
-                "image/jpg",
-                "image/png",
-                "image/webp",
-                "application/octet-stream"
-            };
-
-            if (!allowed.Contains(ct))
-                return null;
-
-            if (ct == "application/octet-stream")
-            {
-                if (fn.EndsWith(".png")) return "image/png";
-                if (fn.EndsWith(".webp")) return "image/webp";
-                if (fn.EndsWith(".jpg") || fn.EndsWith(".jpeg"))
-                    return "image/jpeg";
-
-                return "image/jpeg";
-            }
-
-            return ct;
         }
     }
 

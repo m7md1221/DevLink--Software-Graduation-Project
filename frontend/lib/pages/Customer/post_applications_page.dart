@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 
@@ -283,7 +284,7 @@ class _PostApplicationsPageState extends State<PostApplicationsPage> {
                 child: ClipOval(
                   child: app.programmerHasImage
                       ? Image.network(
-                          PostService.getUserAvatarUrl(app.programmerId),
+                          MediaUrl.resolve(app.programmerAvatarUrl),
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => const Icon(
                             Icons.code_rounded,

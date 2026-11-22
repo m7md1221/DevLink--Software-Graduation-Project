@@ -7,7 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:intl_phone_field_v2/intl_phone_field.dart';
 import '../../services/api_service.dart';
 import '../../services/session_manager.dart';
-import 'programmer_dashboard_page.dart';
+import 'programmer_home_page.dart';
 
 class ProgrammerProfileSetupPage extends StatefulWidget {
   final int userId;
@@ -63,9 +63,13 @@ class _ProgrammerProfileSetupPageState
   late Animation<double> _fade;
   late Animation<Offset> _slide;
 
+  // For the programmer home page opened after set-up.
+  String? _signedInEmail;
+
   @override
   void initState() {
     super.initState();
+    SessionManager.getEmail().then((e) => _signedInEmail = e);
 
     _controller = AnimationController(
       vsync: this,
@@ -352,8 +356,11 @@ class _ProgrammerProfileSetupPageState
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ProgrammerDashboardPage(
+                              // The partner's programmer home (feed + dashboard tab), as after login (KI-13).
+                              builder: (_) => ProgrammerHomePage(
                                 userId: widget.userId,
+                                authorName: _signedInEmail ?? 'Programmer',
+                                authorType: 'Programmer',
                               ),
                             ),
                           );

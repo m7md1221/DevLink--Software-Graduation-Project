@@ -1,5 +1,6 @@
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 import '../../theme/theme_manager.dart';
@@ -351,7 +352,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.12)),
             child: ClipOval(
               child: p.hasImage 
-                ? Image.network(PostService.getUserAvatarUrl(p.userId), fit: BoxFit.cover)
+                ? Image.network(MediaUrl.resolve(p.avatarUrl), fit: BoxFit.cover)
                 : Icon(isProg ? Icons.code_rounded : Icons.person_rounded, size: 18, color: color),
             ),
           ),
@@ -435,7 +436,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     ),
                     child: ClipOval(
                       child: _profile!.hasImage
-                          ? Image.network(PostService.getUserAvatarUrl(widget.userId), fit: BoxFit.cover)
+                          ? Image.network(MediaUrl.resolve(_profile!.avatarUrl), fit: BoxFit.cover)
                           : Icon(
                               _profile!.userType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded,
                               color: accent,

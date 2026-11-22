@@ -1,5 +1,6 @@
 import 'package:devlink/main.dart';
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
 import '../../theme/theme_manager.dart';
@@ -379,7 +380,7 @@ class _AdminVerificationDetailsPageState
             child: ClipOval(
               child: hasImage
                   ? Image.network(
-                      ApiService.getProgrammerImageUrl(userId),
+                      MediaUrl.resolve(widget.programmer['avatarUrl'] as String?),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: statusColor.withOpacity(0.12),

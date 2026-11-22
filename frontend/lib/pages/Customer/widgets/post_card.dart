@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
+import '../../../services/media_url.dart';
 import '../../../widgets/custom_toast.dart';
 import 'comments_sheet.dart';
 import '../apply_to_post_page.dart';
@@ -262,7 +263,11 @@ class _PostCardState extends State<PostCard>
         isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
 
     final isProgrammer = widget.currentUserType == 'Programmer';
+    // KI-56 (owner decision UI-11): only customers' posts take applications; the API
+    // refuses an application to a programmer's post (D-11), so don't offer one.
+    final ownerTakesApplications = widget.post.authorType != 'Programmer';
     final canApply = isProgrammer &&
+        ownerTakesApplications &&
         !widget.post.isMine &&
         !_isClosed &&
         !_hasApplied;
@@ -308,6 +313,7 @@ class _PostCardState extends State<PostCard>
                     onTap: widget.onOpenProfile,
                     child: _Avatar(
                       userId: widget.post.userId,
+                      url: widget.post.authorImage,
                       hasImage: widget.post.authorImage != null,
                       authorType: widget.post.authorType,
                       size: isMobile ? 40 : 46,
@@ -335,15 +341,8 @@ class _PostCardState extends State<PostCard>
                                   ),
                                 ),
                               ),
-                              if (widget.post.authorType == 'Programmer')
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 5),
-                                  child: Icon(
-                                    Icons.verified_rounded,
-                                    size: isMobile ? 14 : 15,
-                                    color: Colors.blue.shade400,
-                                  ),
-                                ),
+                              // KI-60 (owner decision UI-12): no verified badge on post cards. It was
+                              // shown for every programmer; the feed has no verification field yet.
                             ],
                           ),
                           const SizedBox(height: 3),
@@ -646,7 +645,7 @@ class _PostCardState extends State<PostCard>
     if (imgs.length == 1) {
       return AspectRatio(
         aspectRatio: isMobile ? 4 / 3 : 16 / 9,
-        child: _image(imgs[0].id, isDark),
+        child: _image(imgs[0].url, isDark),
       );
     }
 
@@ -655,9 +654,9 @@ class _PostCardState extends State<PostCard>
         height: isMobile ? 180 : 220,
         child: Row(
           children: [
-            Expanded(child: _image(imgs[0].id, isDark)),
+            Expanded(child: _image(imgs[0].url, isDark)),
             const SizedBox(width: 2),
-            Expanded(child: _image(imgs[1].id, isDark)),
+            Expanded(child: _image(imgs[1].url, isDark)),
           ],
         ),
       );
@@ -667,13 +666,13 @@ class _PostCardState extends State<PostCard>
       height: isMobile ? 220 : 260,
       child: Row(
         children: [
-          Expanded(child: _image(imgs[0].id, isDark)),
+          Expanded(child: _image(imgs[0].url, isDark)),
           const SizedBox(width: 2),
           Expanded(
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _image(imgs[1].id, isDark),
+                _image(imgs[1].url, isDark),
                 if (imgs.length > 2)
                   Container(
                     color: Colors.black.withOpacity(0.6),
@@ -702,9 +701,9 @@ class _PostCardState extends State<PostCard>
     );
   }
 
-  Widget _image(int id, bool isDark) {
+  Widget _image(String url, bool isDark) {
     return Image.network(
-      PostService.getPostImageUrl(id),
+      MediaUrl.resolve(url),
       fit: BoxFit.cover,
       loadingBuilder: (_, child, progress) {
         if (progress == null) return child;
@@ -774,12 +773,14 @@ class _PostCardState extends State<PostCard>
 
 class _Avatar extends StatelessWidget {
   final int userId;
+  final String? url;
   final bool hasImage;
   final String authorType;
   final double size;
 
   const _Avatar({
     required this.userId,
+    this.url,
     required this.hasImage,
     required this.authorType,
     this.size = 46,
@@ -808,7 +809,7 @@ class _Avatar extends StatelessWidget {
       child: ClipOval(
         child: hasImage
             ? Image.network(
-                PostService.getUserAvatarUrl(userId),
+                MediaUrl.resolve(url),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => Icon(
                     authorType == 'Programmer'

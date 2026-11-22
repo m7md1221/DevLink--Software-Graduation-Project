@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:devlink/main.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../services/session_manager.dart';
+import 'account_suspended_page.dart';
 import '../../services/api_service.dart';
 import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/theme_toggle.dart';
@@ -189,20 +188,17 @@ class _LoginPageState extends State<LoginPage>
     setState(() => isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/Auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': emailController.text.trim(),
-          'password': passwordController.text,
-          'userType': widget.userType,
-        }),
+      // Through ApiService so the access token is kept (M2.12, F7).
+      final result = await ApiService.login(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        userType: widget.userType,
       );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (result.success) {
+        final data = result.data!;
 
         final int userId = data['userId'] ?? 0;
         final String userType = data['userType'] ?? widget.userType;
@@ -221,10 +217,26 @@ class _LoginPageState extends State<LoginPage>
 
         if (!mounted) return;
         setState(() => isLoading = false);
+
+        if (data['status'] == 'Suspended') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AccountSuspendedPage()),
+          );
+          return;
+        }
+
         _navigateByUserType(userType, userId, hasProfile, email);
       } else {
         setState(() => isLoading = false);
-        showMessage('البريد أو كلمة المرور غير صحيح', false);
+        // Wrong email or password keeps the existing text; lockout, rate limits and
+        // an unsupported browser show the server's explanation.
+        showMessage(
+          result.errorCode == null || result.errorCode == 'INVALID_CREDENTIALS'
+              ? 'البريد أو كلمة المرور غير صحيح'
+              : result.message,
+          false,
+        );
       }
     } catch (e) {
       if (!mounted) return;

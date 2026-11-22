@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
 
@@ -433,7 +434,7 @@ class _AdminPostsPageState extends State<AdminPostsPage>
                   ),
                   child: ClipOval(
                     child: Image.network(
-                      PostService.getUserAvatarUrl(post.userId),
+                      MediaUrl.resolve(post.authorImage),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Icon(
                         post.authorType == 'Programmer' ? Icons.code_rounded : Icons.person_rounded,
@@ -482,7 +483,7 @@ class _AdminPostsPageState extends State<AdminPostsPage>
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        PostService.getPostImageUrl(post.images[i].id),
+                        MediaUrl.resolve(post.images[i].url),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Color(0xFF94A3B8))),
                       ),

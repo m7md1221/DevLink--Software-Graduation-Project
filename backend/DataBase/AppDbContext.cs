@@ -3,175 +3,362 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DataBase
 {
-    public class AppDbContext : DbContext
+    public partial class AppDbContext : DbContext
     {
         public DbSet<User> Users { get; set; }
         public DbSet<CustomerProfile> CustomerProfiles { get; set; }
         public DbSet<ProgrammerProfile> ProgrammerProfiles { get; set; }
+
         public DbSet<Post> Posts { get; set; }
         public DbSet<PostImage> PostImages { get; set; }
         public DbSet<PostLike> PostLikes { get; set; }
         public DbSet<PostComment> PostComments { get; set; }
         public DbSet<SupportMessage> SupportMessages { get; set; }
         public DbSet<PostApplication> PostApplications { get; set; }
-        public DbSet<Notification> Notifications { get; set; }
-        public DbSet<SavedPost> SavedPosts { get; set; }   // ✅ جديد
 
-        public AppDbContext(DbContextOptions<AppDbContext> options)
+        // ✅ ضفنا جدول الإشعارات هنا
+        public DbSet<Notification> Notifications { get; set; }
+        public DbSet<SavedPost> SavedPosts { get; set; }
+
+        public AppDbContext(
+            DbContextOptions<AppDbContext> options)
             : base(options)
         {
         }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(
+            ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // ===== User =====
-            modelBuilder.Entity<User>().ToTable("Users");
-            modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
-            modelBuilder.Entity<User>().Property(u => u.Email).IsRequired();
-            modelBuilder.Entity<User>().Property(u => u.PasswordHash).IsRequired();
-            modelBuilder.Entity<User>().Property(u => u.UserType).IsRequired();
+            modelBuilder.Entity<User>()
+                .ToTable("Users");
 
-            // ===== CustomerProfile =====
-            modelBuilder.Entity<CustomerProfile>().ToTable("CustomerProfiles");
-            modelBuilder.Entity<CustomerProfile>().HasIndex(cp => cp.UserId).IsUnique();
-            modelBuilder.Entity<CustomerProfile>().Property(cp => cp.Nickname).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<CustomerProfile>().Property(cp => cp.Country).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<CustomerProfile>().Property(cp => cp.City).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<CustomerProfile>().Property(cp => cp.PhoneNumber).IsRequired().HasMaxLength(20);
-            modelBuilder.Entity<CustomerProfile>().Property(cp => cp.ImageContentType).HasMaxLength(50);
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.Email)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.PasswordHash)
+                .IsRequired();
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.UserType)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CustomerProfile>()
+                .ToTable("CustomerProfiles");
+
+            modelBuilder.Entity<CustomerProfile>()
+                .HasIndex(cp => cp.UserId)
+                .IsUnique();
+
+            modelBuilder.Entity<CustomerProfile>()
+                .Property(cp => cp.Nickname)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CustomerProfile>()
+                .Property(cp => cp.Country)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CustomerProfile>()
+                .Property(cp => cp.City)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CustomerProfile>()
+                .Property(cp => cp.PhoneNumber)
+                .IsRequired()
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<CustomerProfile>()
+                .Property(cp => cp.ImageContentType)
+                .HasMaxLength(50);
+
             modelBuilder.Entity<CustomerProfile>()
                 .HasOne(cp => cp.User)
                 .WithOne(u => u.CustomerProfile)
                 .HasForeignKey<CustomerProfile>(cp => cp.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_CustomerProfiles_Users");
 
-            // ===== ProgrammerProfile =====
-            modelBuilder.Entity<ProgrammerProfile>().ToTable("ProgrammerProfiles");
-            modelBuilder.Entity<ProgrammerProfile>().HasIndex(pp => pp.UserId).IsUnique();
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.Nickname).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.PhoneNumber).IsRequired().HasMaxLength(20);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.Country).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.City).IsRequired().HasMaxLength(50);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.Specialty).IsRequired().HasMaxLength(100);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.University).IsRequired().HasMaxLength(150);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.CertificateType).HasMaxLength(50);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.CertificateName).HasMaxLength(200);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.CVName).HasMaxLength(200);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.LinkedInUrl).HasMaxLength(300);
-            modelBuilder.Entity<ProgrammerProfile>().Property(pp => pp.ImageContentType).HasMaxLength(50);
+            modelBuilder.Entity<ProgrammerProfile>()
+                .ToTable("ProgrammerProfiles");
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .HasIndex(pp => pp.UserId)
+                .IsUnique();
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.Nickname)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.PhoneNumber)
+                .IsRequired()
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.Country)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.City)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.Specialty)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.University)
+                .IsRequired()
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.CertificateType)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.CertificateName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.CVName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.LinkedInUrl)
+                .HasMaxLength(300);
+
+            modelBuilder.Entity<ProgrammerProfile>()
+                .Property(pp => pp.ImageContentType)
+                .HasMaxLength(50);
+
             modelBuilder.Entity<ProgrammerProfile>()
                 .HasOne(pp => pp.User)
                 .WithOne(u => u.ProgrammerProfile)
                 .HasForeignKey<ProgrammerProfile>(pp => pp.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ProgrammerProfiles_Users");
 
-            // ===== Post =====
-            modelBuilder.Entity<Post>().ToTable("Posts");
-            modelBuilder.Entity<Post>().HasIndex(p => p.UserId);
-            modelBuilder.Entity<Post>().HasIndex(p => p.CreatedAt);
-            modelBuilder.Entity<Post>().HasIndex(p => p.IsDeleted);
-            modelBuilder.Entity<Post>().Property(p => p.Framework).HasMaxLength(50); // ✅
+            modelBuilder.Entity<Post>()
+                .ToTable("Posts");
+
+            modelBuilder.Entity<Post>()
+                .HasIndex(p => p.UserId);
+
+            modelBuilder.Entity<Post>()
+                .Property(p => p.Status)
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<Post>()
+                .HasIndex(p => p.CreatedAt)
+                .IsDescending();
+
+            modelBuilder.Entity<Post>()
+                .HasIndex(p => p.IsDeleted);
+
             modelBuilder.Entity<Post>()
                 .HasOne(p => p.User)
                 .WithMany(u => u.Posts)
                 .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Posts_Users");
 
-            // ===== PostImage =====
-            modelBuilder.Entity<PostImage>().ToTable("PostImages");
-            modelBuilder.Entity<PostImage>().HasIndex(i => i.PostId);
+            modelBuilder.Entity<PostImage>()
+                .ToTable("PostImages");
+
+            modelBuilder.Entity<PostImage>()
+                .HasIndex(i => i.PostId);
+
             modelBuilder.Entity<PostImage>()
                 .HasOne(i => i.Post)
                 .WithMany(p => p.Images)
                 .HasForeignKey(i => i.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostImages_Posts");
 
-            // ===== PostLike =====
-            modelBuilder.Entity<PostLike>().ToTable("PostLikes");
-            modelBuilder.Entity<PostLike>().HasIndex(l => new { l.PostId, l.UserId }).IsUnique();
+            modelBuilder.Entity<PostLike>()
+                .ToTable("PostLikes");
+
+            // The database enforces uniqueness with a UNIQUE constraint (not an index).
+            modelBuilder.Entity<PostLike>()
+                .HasAlternateKey(l => new { l.PostId, l.UserId })
+                .HasName("UQ_PostLikes_Post_User");
+
+            modelBuilder.Entity<PostLike>()
+                .HasIndex(l => l.PostId);
+
             modelBuilder.Entity<PostLike>()
                 .HasOne(l => l.Post)
                 .WithMany(p => p.Likes)
                 .HasForeignKey(l => l.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostLikes_Posts");
+
             modelBuilder.Entity<PostLike>()
                 .HasOne(l => l.User)
                 .WithMany(u => u.Likes)
                 .HasForeignKey(l => l.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostLikes_Users");
 
-            // ===== PostComment =====
-            modelBuilder.Entity<PostComment>().ToTable("PostComments");
-            modelBuilder.Entity<PostComment>().HasIndex(c => c.PostId);
+            modelBuilder.Entity<PostComment>()
+                .ToTable("PostComments");
+
+            modelBuilder.Entity<PostComment>()
+                .HasIndex(c => c.PostId);
+
             modelBuilder.Entity<PostComment>()
                 .HasOne(c => c.Post)
                 .WithMany(p => p.Comments)
                 .HasForeignKey(c => c.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostComments_Posts");
+
             modelBuilder.Entity<PostComment>()
                 .HasOne(c => c.User)
                 .WithMany(u => u.Comments)
                 .HasForeignKey(c => c.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostComments_Users");
 
-            // ===== SupportMessage =====
-            modelBuilder.Entity<SupportMessage>().ToTable("SupportMessages");
-            modelBuilder.Entity<SupportMessage>().HasIndex(sm => sm.UserId);
-            modelBuilder.Entity<SupportMessage>().HasIndex(sm => sm.Status);
+            modelBuilder.Entity<SupportMessage>()
+                .ToTable("SupportMessages", t => t.HasCheckConstraint(
+                    "CK_SupportMessages_Status",
+                    "[Status]='Closed' OR [Status]='Replied' OR [Status]='Read' OR [Status]='New'"));
+
+            modelBuilder.Entity<SupportMessage>()
+                .HasIndex(sm => sm.UserId);
+
+            modelBuilder.Entity<SupportMessage>()
+                .HasIndex(sm => sm.Status);
+
+            modelBuilder.Entity<SupportMessage>()
+                .HasIndex(sm => sm.CreatedAt)
+                .IsDescending()
+                .HasDatabaseName("IX_SupportMessages_Created");
+
             modelBuilder.Entity<SupportMessage>()
                 .HasOne(sm => sm.User)
                 .WithMany()
                 .HasForeignKey(sm => sm.UserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_SupportMessages_Users");
 
-            // ===== PostApplication =====
-            modelBuilder.Entity<PostApplication>().ToTable("PostApplications");
-            modelBuilder.Entity<PostApplication>().HasIndex(a => a.PostId);
-            modelBuilder.Entity<PostApplication>().HasIndex(a => a.ProgrammerId);
             modelBuilder.Entity<PostApplication>()
-                .HasIndex(a => new { a.PostId, a.ProgrammerId }).IsUnique();
-            modelBuilder.Entity<PostApplication>().Property(a => a.Framework).HasMaxLength(50); // ✅
+                .ToTable("PostApplications", t => t.HasCheckConstraint(
+                    "CK_PostApplications_Status",
+                    "[Status]='Rejected' OR [Status]='Accepted' OR [Status]='Pending'"));
+
+            modelBuilder.Entity<PostApplication>()
+                .Property(a => a.Price)
+                .HasPrecision(18, 2);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => a.PostId);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => a.ProgrammerId);
+
+            modelBuilder.Entity<PostApplication>()
+                .HasIndex(a => a.Status);
+
+            // The database enforces uniqueness with a UNIQUE constraint (not an index).
+            modelBuilder.Entity<PostApplication>()
+                .HasAlternateKey(a => new { a.PostId, a.ProgrammerId })
+                .HasName("UQ_PostApplications_Post_Programmer");
+
             modelBuilder.Entity<PostApplication>()
                 .HasOne(a => a.Post)
                 .WithMany(p => p.Applications)
                 .HasForeignKey(a => a.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PostApplications_Posts");
+
             modelBuilder.Entity<PostApplication>()
                 .HasOne(a => a.Programmer)
                 .WithMany(u => u.Applications)
                 .HasForeignKey(a => a.ProgrammerId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_PostApplications_Users");
 
-            // ===== Notification =====
-            modelBuilder.Entity<Notification>().ToTable("Notifications");
-            modelBuilder.Entity<Notification>().HasIndex(n => n.UserId);
-            modelBuilder.Entity<Notification>().HasIndex(n => n.IsRead);
-            modelBuilder.Entity<Notification>().Property(n => n.Title).IsRequired().HasMaxLength(200);
-            modelBuilder.Entity<Notification>().Property(n => n.Message).IsRequired().HasMaxLength(1000);
-            modelBuilder.Entity<Notification>().Property(n => n.Type).IsRequired().HasMaxLength(50);
+            // ✅ إعدادات جدول الإشعارات
+            modelBuilder.Entity<Notification>()
+                .ToTable("Notifications");
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.UserId);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.IsRead);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.CreatedAt)
+                .IsDescending();
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Message)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Type)
+                .IsRequired()
+                .HasMaxLength(50);
+
             modelBuilder.Entity<Notification>()
                 .HasOne(n => n.User)
                 .WithMany()
                 .HasForeignKey(n => n.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_Notifications_Users");
 
-            // ===== SavedPost ✅ جديد =====
-            modelBuilder.Entity<SavedPost>().ToTable("SavedPosts");
+            // Saved posts (partner, 2026-11-21): one row per user and post.
             modelBuilder.Entity<SavedPost>()
-                .HasIndex(sp => new { sp.PostId, sp.UserId }).IsUnique();
-            modelBuilder.Entity<SavedPost>().HasIndex(sp => sp.UserId);
+                .ToTable("SavedPosts");
+
+            modelBuilder.Entity<SavedPost>()
+                .HasIndex(sp => new { sp.PostId, sp.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SavedPost>()
+                .HasIndex(sp => sp.UserId);
+
             modelBuilder.Entity<SavedPost>()
                 .HasOne(sp => sp.Post)
                 .WithMany()
                 .HasForeignKey(sp => sp.PostId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_SavedPosts_Posts");
+
             modelBuilder.Entity<SavedPost>()
                 .HasOne(sp => sp.User)
                 .WithMany()
                 .HasForeignKey(sp => sp.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_SavedPosts_Users");
+
+            // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
+            ConfigureAuthSecurity(modelBuilder);
         }
     }
 }

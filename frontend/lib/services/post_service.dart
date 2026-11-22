@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
+import 'auth_http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/post_model.dart';
 
@@ -95,7 +95,7 @@ class PostService {
         }
       }
 
-      final streamedResponse = await request.send();
+      final streamedResponse = await http.send(request);
       final response = await http.Response.fromStream(streamedResponse);
       final data = jsonDecode(response.body);
 
