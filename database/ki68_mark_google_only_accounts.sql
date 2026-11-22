@@ -25,7 +25,7 @@
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
-DECLARE @guid varchar(200) =
+DECLARE @guid varchar(300) =   -- 32 x "[0-9a-f]" + 4 dashes = 260 characters
       REPLICATE('[0-9a-f]', 8) + '-' + REPLICATE('[0-9a-f]', 4) + '-' + REPLICATE('[0-9a-f]', 4) + '-'
     + REPLICATE('[0-9a-f]', 4) + '-' + REPLICATE('[0-9a-f]', 12);
 
