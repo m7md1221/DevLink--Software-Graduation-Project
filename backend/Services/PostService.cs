@@ -493,7 +493,8 @@ namespace Services
             }
         }
 
-        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(int postId, int programmerId, string proposal, decimal? price, string? duration, string? framework)
+        public async Task<(bool success, string message, int? applicationId)> ApplyToPost(int postId, int programmerId, string proposal, decimal? price, string? duration, string? framework,
+            int? durationDays = null, IReadOnlyList<CriterionAnswerInput>? answers = null)
         {
             if (string.IsNullOrWhiteSpace(proposal)) return (false, "Proposal is required", null);
             if (proposal.Length > 2000) return (false, "Proposal is too long", null);
@@ -522,6 +523,14 @@ namespace Services
             var existing = await _context.PostApplications.FirstOrDefaultAsync(a => a.PostId == postId && a.ProgrammerId == programmerId);
             if (existing != null) return (false, "You have already applied to this post", null);
 
+            var isProject = post.Title != null;
+            if (isProject)
+            {
+                var criteria = await _context.AcceptanceCriteria.Where(c => c.PostId == postId).ToListAsync();
+                var error = ProjectService.ValidateApplication(criteria, proposal, price, durationDays, answers);
+                if (error != null) return (false, error, null);
+            }
+
             var application = new PostApplication
             {
                 PostId = postId,
@@ -529,10 +538,25 @@ namespace Services
                 Proposal = proposal.Trim(),
                 Price = price,
                 Duration = duration?.Trim(),
+                DurationDays = isProject ? durationDays : null,
                 Framework = string.IsNullOrWhiteSpace(framework) ? null : framework.Trim(),
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
+
+            if (isProject)
+            {
+                foreach (var answer in answers!)
+                {
+                    var note = answer.Note?.Trim();
+                    application.Responses.Add(new ApplicationCriterionResponse
+                    {
+                        CriterionId = answer.CriterionId,
+                        Response = answer.Response!,
+                        Note = string.IsNullOrEmpty(note) ? null : note
+                    });
+                }
+            }
 
             _context.PostApplications.Add(application);
             try
@@ -675,7 +699,7 @@ namespace Services
                     budgetMax = post.BudgetMax,
                     deadlineDays = post.DeadlineDays,
                     criteriaCount = post.Criteria.Count,
-                    criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { order = c.SortOrder, text = c.Text }).ToList(),
+                    criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { id = c.Id, order = c.SortOrder, text = c.Text }).ToList(),
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()

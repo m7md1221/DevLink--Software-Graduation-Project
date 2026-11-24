@@ -20,6 +20,7 @@ namespace DataBase
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<SavedPost> SavedPosts { get; set; }
         public DbSet<AcceptanceCriterion> AcceptanceCriteria { get; set; }
+        public DbSet<ApplicationCriterionResponse> ApplicationCriterionResponses { get; set; }
 
         public AppDbContext(
             DbContextOptions<AppDbContext> options)
@@ -371,6 +372,28 @@ namespace DataBase
                 .HasForeignKey(c => c.PostId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_AcceptanceCriteria_Posts");
+
+            modelBuilder.Entity<ApplicationCriterionResponse>()
+                .ToTable("ApplicationCriterionResponses")
+                .HasKey(r => new { r.ApplicationId, r.CriterionId });
+
+            modelBuilder.Entity<ApplicationCriterionResponse>()
+                .HasIndex(r => r.CriterionId);
+
+            modelBuilder.Entity<ApplicationCriterionResponse>()
+                .HasOne(r => r.Application)
+                .WithMany(a => a.Responses)
+                .HasForeignKey(r => r.ApplicationId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_ApplicationCriterionResponses_PostApplications");
+
+            // No cascade here: a post already cascades to its applications, and SQL Server allows one path.
+            modelBuilder.Entity<ApplicationCriterionResponse>()
+                .HasOne(r => r.Criterion)
+                .WithMany()
+                .HasForeignKey(r => r.CriterionId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_ApplicationCriterionResponses_AcceptanceCriteria");
 
             // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
             ConfigureAuthSecurity(modelBuilder);

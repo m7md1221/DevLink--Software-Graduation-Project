@@ -323,14 +323,15 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public async Task Programmers_can_apply_to_an_approved_project()
+        public async Task A_project_refuses_an_application_without_the_structured_fields()
         {
             var s = await Scenario();
             var id = await CreateAsync(s.Owner);
             await SetStatusAsync(id, "Approved");
 
+            // ProjectApplicationsTests covers the complete form.
             var apply = await Send(HttpMethod.Post, $"/api/Posts/{id}/apply", s.Programmer, new { proposal = "I can build it" });
-            Assert.Equal(HttpStatusCode.OK, apply.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, apply.StatusCode);
         }
     }
 }

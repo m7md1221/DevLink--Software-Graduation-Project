@@ -312,7 +312,9 @@ namespace Controllers
                     model.Proposal,
                     model.Price,
                     model.Duration,
-                    model.Framework);
+                    model.Framework,
+                    model.DurationDays,
+                    model.Responses);
 
             if (!success)
                 return BadRequest(new { message });
@@ -655,6 +657,10 @@ namespace Controllers
         public decimal? Price { get; set; }
         public string? Duration { get; set; }
         public string? Framework { get; set; }
+
+        // Customer projects only: duration in days and one answer per acceptance criterion.
+        public int? DurationDays { get; set; }
+        public List<CriterionAnswerInput>? Responses { get; set; }
     }
 
     public class RejectPostDto

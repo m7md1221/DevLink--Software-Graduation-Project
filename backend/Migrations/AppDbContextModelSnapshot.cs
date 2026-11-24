@@ -156,6 +156,30 @@ namespace DotnetAPI.Migrations
                     b.ToTable("AcceptanceCriteria", (string)null);
                 });
 
+            modelBuilder.Entity("DataBase.Models.ApplicationCriterionResponse", b =>
+                {
+                    b.Property<int>("ApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CriterionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Response")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("ApplicationId", "CriterionId");
+
+                    b.HasIndex("CriterionId");
+
+                    b.ToTable("ApplicationCriterionResponses", (string)null);
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -487,6 +511,9 @@ namespace DotnetAPI.Migrations
                     b.Property<string>("Duration")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("DurationDays")
+                        .HasColumnType("int");
 
                     b.Property<string>("Framework")
                         .HasMaxLength(50)
@@ -954,6 +981,27 @@ namespace DotnetAPI.Migrations
                     b.Navigation("Post");
                 });
 
+            modelBuilder.Entity("DataBase.Models.ApplicationCriterionResponse", b =>
+                {
+                    b.HasOne("DataBase.PostApplication", "Application")
+                        .WithMany("Responses")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_ApplicationCriterionResponses_PostApplications");
+
+                    b.HasOne("DataBase.Models.AcceptanceCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("CriterionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ApplicationCriterionResponses_AcceptanceCriteria");
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Criterion");
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.HasOne("DataBase.User", "User")
@@ -1137,6 +1185,11 @@ namespace DotnetAPI.Migrations
                     b.Navigation("Images");
 
                     b.Navigation("Likes");
+                });
+
+            modelBuilder.Entity("DataBase.PostApplication", b =>
+                {
+                    b.Navigation("Responses");
                 });
 
             modelBuilder.Entity("DataBase.User", b =>

@@ -30,6 +30,11 @@ namespace DataBase
         [MaxLength(100)]
         public string? Duration { get; set; }
 
+        // Structured applications to customer projects; Price holds the proposed amount in USD.
+        public int? DurationDays { get; set; }
+
+        public ICollection<ApplicationCriterionResponse> Responses { get; set; } = new List<ApplicationCriterionResponse>();
+
         [MaxLength(50)]
         public string? Framework { get; set; }   // ✅ جديد
 

@@ -61,6 +61,40 @@ namespace Controllers
         public IActionResult Readiness([FromBody] ProjectInput input) =>
             Ok(new { readiness = ProjectService.Readiness(input), errors = ProjectService.Validate(input) });
 
+        [HttpGet("{id}/applicants")]
+        [Authorize(Policy = AuthPolicies.CustomerOnly)]
+        public async Task<IActionResult> Applicants(int id, [FromQuery] string? sort, [FromQuery] string? dir)
+        {
+            if (sort != null && !ProjectService.ApplicantSorts.Contains(sort.ToLowerInvariant()))
+                return BadRequest(new { message = "Sort by submitted, coverage, amount, duration, rating or verified." });
+
+            var (result, applicants) = await _projects.Applicants(id, CallerId, sort, dir);
+            return result switch
+            {
+                ProjectResult.NotFound => NotFound(new { message = "Project not found" }),
+                ProjectResult.Forbidden => AuthProblem.Forbidden(HttpContext, "Only the project owner can see its applicants."),
+                _ => Ok(new { applicants })
+            };
+        }
+
+        [HttpGet("{id}/applications/{applicationId}")]
+        [Authorize(Policy = AuthPolicies.MemberOnly)]
+        public async Task<IActionResult> Application(int id, int applicationId)
+        {
+            var (result, application) = await _projects.Application(id, applicationId, CallerId);
+            return result switch
+            {
+                ProjectResult.NotFound => NotFound(new { message = "Application not found" }),
+                ProjectResult.Forbidden => AuthProblem.Forbidden(HttpContext, "Only the project owner and the applicant can see this application."),
+                _ => Ok(application)
+            };
+        }
+
+        [HttpGet("applications/mine")]
+        [Authorize(Policy = AuthPolicies.ProgrammerOnly)]
+        public async Task<IActionResult> MyApplications() =>
+            Ok(new { applications = await _projects.MyApplications(CallerId) });
+
         [HttpGet("{id}")]
         [Authorize(Policy = AuthPolicies.MemberOnly)]
         public async Task<IActionResult> Get(int id)

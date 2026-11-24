@@ -17,6 +17,13 @@ namespace Services
         public List<string>? Criteria { get; set; }
     }
 
+    public sealed class CriterionAnswerInput
+    {
+        public int CriterionId { get; set; }
+        public string? Response { get; set; }
+        public string? Note { get; set; }
+    }
+
     public sealed record ReadinessIssue(string Code, string Field, string Message);
 
     public sealed record ReadinessReport(bool Ready, int Score, IReadOnlyList<ReadinessIssue> Blocking, IReadOnlyList<ReadinessIssue> Warnings);
@@ -123,6 +130,41 @@ namespace Services
             return new ReadinessReport(blocking.Count == 0, score, blocking, warnings);
         }
 
+        public const int ApproachMin = 100;
+        public const int ApproachMax = 1500;
+        public const int NoteMin = 5;
+        public const int NoteMax = 300;
+
+        /// <summary>Rules for an application to a project: every criterion answered once, plus amount, duration and approach.</summary>
+        public static string? ValidateApplication(IReadOnlyList<AcceptanceCriterion> criteria, string? approach, decimal? amount,
+            int? durationDays, IReadOnlyList<CriterionAnswerInput>? answers)
+        {
+            var text = approach?.Trim() ?? "";
+            if (text.Length < ApproachMin || text.Length > ApproachMax)
+                return $"Describe your approach in {ApproachMin}–{ApproachMax} characters.";
+            if (amount is not > 0 || amount > BudgetLimit) return "Enter a proposed amount above 0.";
+            if (durationDays is not (>= 1 and <= DeadlineMaxDays)) return $"Enter a duration of 1–{DeadlineMaxDays} days.";
+
+            var given = answers ?? new List<CriterionAnswerInput>();
+            var known = criteria.ToDictionary(c => c.Id);
+            if (given.Any(a => !known.ContainsKey(a.CriterionId))) return "An answer refers to a requirement that isn't on this project.";
+            if (given.GroupBy(a => a.CriterionId).Any(g => g.Count() > 1)) return "Answer each requirement once.";
+
+            foreach (var criterion in criteria.OrderBy(c => c.SortOrder))
+            {
+                var answer = given.FirstOrDefault(a => a.CriterionId == criterion.Id);
+                if (answer == null) return $"Answer requirement {criterion.SortOrder}.";
+                if (!CriterionResponses.All.Contains(answer.Response))
+                    return $"Requirement {criterion.SortOrder}: choose Will meet, Needs clarification or Propose change.";
+                var note = answer.Note?.Trim() ?? "";
+                if (note.Length > NoteMax) return $"Requirement {criterion.SortOrder}: the note can have at most {NoteMax} characters.";
+                if (answer.Response != CriterionResponses.WillMeet && note.Length < NoteMin)
+                    return $"Requirement {criterion.SortOrder}: add a note of at least {NoteMin} characters.";
+            }
+
+            return null;
+        }
+
         private void Apply(Post post, ProjectInput input)
         {
             post.Title = Clean(input.Title);
@@ -197,7 +239,7 @@ namespace Services
             if (post.Status != "Approved" && !isMine && !callerIsAdmin) return (ProjectResult.NotFound, null);
 
             var author = await _posts.GetAuthorInfo(post.UserId);
-            var criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { order = c.SortOrder, text = c.Text }).ToList();
+            var criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { id = c.Id, order = c.SortOrder, text = c.Text }).ToList();
             var canSeeReview = isMine || callerIsAdmin;
             var input = new ProjectInput
             {
@@ -226,8 +268,169 @@ namespace Services
                 criteriaCount = criteria.Count,
                 criteria,
                 applicationsCount = await _context.PostApplications.CountAsync(a => a.PostId == post.Id),
+                framework = post.Framework,
+                myApplicationId = await _context.PostApplications
+                    .Where(a => a.PostId == post.Id && a.ProgrammerId == callerId)
+                    .Select(a => (int?)a.Id)
+                    .FirstOrDefaultAsync(),
                 readiness = canSeeReview ? Readiness(input) : null
             });
+        }
+
+        // ---------------- applications ----------------
+
+        public static readonly string[] ApplicantSorts = { "submitted", "coverage", "amount", "duration", "rating", "verified" };
+
+        private sealed record Coverage(int WillMeet, int NeedsClarification, int ProposeChange);
+
+        private async Task<Dictionary<int, Coverage>> CoverageAsync(IReadOnlyCollection<int> applicationIds)
+        {
+            var rows = await _context.ApplicationCriterionResponses
+                .Where(r => applicationIds.Contains(r.ApplicationId))
+                .GroupBy(r => new { r.ApplicationId, r.Response })
+                .Select(g => new { g.Key.ApplicationId, g.Key.Response, Count = g.Count() })
+                .ToListAsync();
+            return applicationIds.ToDictionary(id => id, id => new Coverage(
+                rows.Where(r => r.ApplicationId == id && r.Response == CriterionResponses.WillMeet).Sum(r => r.Count),
+                rows.Where(r => r.ApplicationId == id && r.Response == CriterionResponses.NeedsClarification).Sum(r => r.Count),
+                rows.Where(r => r.ApplicationId == id && r.Response == CriterionResponses.ProposeChange).Sum(r => r.Count)));
+        }
+
+        private static object CoverageJson(Coverage c, int total) => new
+        {
+            willMeet = c.WillMeet,
+            needsClarification = c.NeedsClarification,
+            proposeChange = c.ProposeChange,
+            total
+        };
+
+        /// <summary>The owner's applicants with coverage, amount, duration, rating and verification. Default order: oldest first.</summary>
+        public async Task<(ProjectResult result, List<object>? applicants)> Applicants(int projectId, int ownerId, string? sort, string? dir)
+        {
+            var post = await _context.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted && p.Title != null);
+            if (post == null) return (ProjectResult.NotFound, null);
+            if (post.UserId != ownerId) return (ProjectResult.Forbidden, null);
+
+            var total = await _context.AcceptanceCriteria.CountAsync(c => c.PostId == projectId);
+            var applications = await _context.PostApplications.AsNoTracking().Where(a => a.PostId == projectId).ToListAsync();
+            var coverage = await CoverageAsync(applications.Select(a => a.Id).ToList());
+            var programmerIds = applications.Select(a => a.ProgrammerId).ToList();
+            var profiles = await _context.ProgrammerProfiles.AsNoTracking()
+                .Where(p => programmerIds.Contains(p.UserId))
+                .ToDictionaryAsync(p => p.UserId);
+
+            var rows = applications.Select(a =>
+            {
+                profiles.TryGetValue(a.ProgrammerId, out var profile);
+                return new
+                {
+                    Application = a,
+                    Coverage = coverage[a.Id],
+                    Rating = profile?.Rating > 0 ? profile.Rating : (int?)null,
+                    Verified = profile?.IsVerified == true,
+                    Name = profile?.Nickname ?? "Programmer",
+                    HasImage = profile?.ProfileImage != null
+                };
+            }).ToList();
+
+            var descending = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            var ascending = string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase);
+            // Ties always fall back to submission time, oldest first.
+            var ordered = (sort?.ToLowerInvariant()) switch
+            {
+                "coverage" => ascending
+                    ? rows.OrderBy(r => r.Coverage.WillMeet)
+                    : rows.OrderByDescending(r => r.Coverage.WillMeet),
+                "amount" => descending ? rows.OrderByDescending(r => r.Application.Price ?? decimal.MaxValue) : rows.OrderBy(r => r.Application.Price ?? decimal.MaxValue),
+                "duration" => descending ? rows.OrderByDescending(r => r.Application.DurationDays ?? int.MaxValue) : rows.OrderBy(r => r.Application.DurationDays ?? int.MaxValue),
+                "rating" => ascending ? rows.OrderBy(r => r.Rating ?? -1) : rows.OrderByDescending(r => r.Rating ?? -1),
+                "verified" => ascending ? rows.OrderBy(r => r.Verified) : rows.OrderByDescending(r => r.Verified),
+                _ => descending ? rows.OrderByDescending(r => r.Application.CreatedAt) : rows.OrderBy(r => r.Application.CreatedAt)
+            };
+            if (sort != null && sort.ToLowerInvariant() != "submitted") ordered = ordered.ThenBy(r => r.Application.CreatedAt);
+
+            return (ProjectResult.Ok, ordered.Select(r => (object)new
+            {
+                applicationId = r.Application.Id,
+                programmerId = r.Application.ProgrammerId,
+                programmerName = r.Name,
+                avatarUrl = r.HasImage ? _media.AvatarUrl(r.Application.ProgrammerId) : null,
+                status = r.Application.Status,
+                submittedAt = r.Application.CreatedAt,
+                amount = r.Application.Price,
+                durationDays = r.Application.DurationDays,
+                coverage = CoverageJson(r.Coverage, total),
+                rating = r.Rating,
+                isVerified = r.Verified
+            }).ToList());
+        }
+
+        /// <summary>One application with every criterion and its answer. Only the project owner and the applicant may read it.</summary>
+        public async Task<(ProjectResult result, object? application)> Application(int projectId, int applicationId, int callerId)
+        {
+            var application = await _context.PostApplications.AsNoTracking()
+                .Include(a => a.Responses)
+                .Include(a => a.Post)
+                .FirstOrDefaultAsync(a => a.Id == applicationId && a.PostId == projectId && a.Post!.Title != null && !a.Post.IsDeleted);
+            if (application == null) return (ProjectResult.NotFound, null);
+            if (application.ProgrammerId != callerId && application.Post!.UserId != callerId) return (ProjectResult.Forbidden, null);
+
+            var criteria = await _context.AcceptanceCriteria.AsNoTracking().Where(c => c.PostId == projectId).OrderBy(c => c.SortOrder).ToListAsync();
+            var profile = await _context.ProgrammerProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == application.ProgrammerId);
+            var coverage = (await CoverageAsync(new[] { application.Id }))[application.Id];
+
+            return (ProjectResult.Ok, new
+            {
+                applicationId = application.Id,
+                projectId,
+                projectTitle = application.Post!.Title,
+                programmerId = application.ProgrammerId,
+                programmerName = profile?.Nickname ?? "Programmer",
+                avatarUrl = profile?.ProfileImage != null ? _media.AvatarUrl(application.ProgrammerId) : null,
+                isVerified = profile?.IsVerified == true,
+                rating = profile?.Rating > 0 ? profile.Rating : (int?)null,
+                status = application.Status,
+                submittedAt = application.CreatedAt,
+                amount = application.Price,
+                durationDays = application.DurationDays,
+                approach = application.Proposal,
+                framework = application.Framework,
+                isMine = application.ProgrammerId == callerId,
+                coverage = CoverageJson(coverage, criteria.Count),
+                answers = criteria.Select(c =>
+                {
+                    var answer = application.Responses.FirstOrDefault(r => r.CriterionId == c.Id);
+                    return new { criterionId = c.Id, order = c.SortOrder, text = c.Text, response = answer?.Response, note = answer?.Note };
+                }).ToList()
+            });
+        }
+
+        /// <summary>The caller's own applications to customer projects, newest first.</summary>
+        public async Task<List<object>> MyApplications(int programmerId)
+        {
+            var applications = await _context.PostApplications.AsNoTracking()
+                .Include(a => a.Post)
+                .Where(a => a.ProgrammerId == programmerId && a.Post!.Title != null && !a.Post.IsDeleted)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToListAsync();
+            var coverage = await CoverageAsync(applications.Select(a => a.Id).ToList());
+            var postIds = applications.Select(a => a.PostId).ToList();
+            var totals = await _context.AcceptanceCriteria.Where(c => postIds.Contains(c.PostId))
+                .GroupBy(c => c.PostId).Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count);
+
+            return applications.Select(a => (object)new
+            {
+                applicationId = a.Id,
+                projectId = a.PostId,
+                projectTitle = a.Post!.Title,
+                status = a.Status,
+                isClosed = a.Post.IsClosed,
+                submittedAt = a.CreatedAt,
+                amount = a.Price,
+                durationDays = a.DurationDays,
+                coverage = CoverageJson(coverage[a.Id], totals.GetValueOrDefault(a.PostId))
+            }).ToList();
         }
     }
 }
