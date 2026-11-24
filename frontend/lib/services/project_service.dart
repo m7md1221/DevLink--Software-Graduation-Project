@@ -98,4 +98,66 @@ class ProjectService {
       _send(http.put(_uri('/$id'), headers: _json, body: jsonEncode(draft.toJson())));
 
   static Future<ProjectResponse> get(int id) => _send(http.get(_uri('/$id')));
+
+  /// Applies to a customer project with one answer per criterion.
+  static Future<ProjectResponse> apply(int projectId, ApplicationDraft draft) => _send(http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/Posts/$projectId/apply'),
+        headers: _json,
+        body: jsonEncode(draft.toJson()),
+      ));
+
+  static Future<ProjectResponse> applicants(int projectId, {String sort = 'submitted', String? dir}) =>
+      _send(http.get(_uri('/$projectId/applicants?sort=$sort${dir == null ? '' : '&dir=$dir'}')));
+
+  static Future<ProjectResponse> application(int projectId, int applicationId) =>
+      _send(http.get(_uri('/$projectId/applications/$applicationId')));
+
+  static Future<ProjectResponse> myApplications() => _send(http.get(_uri('/applications/mine')));
+}
+
+class CriterionResponse {
+  static const willMeet = 'WillMeet';
+  static const needsClarification = 'NeedsClarification';
+  static const proposeChange = 'ProposeChange';
+
+  static String label(String? response) => switch (response) {
+        willMeet => 'Will meet',
+        needsClarification => 'Needs clarification',
+        proposeChange => 'Propose change',
+        _ => 'No answer',
+      };
+}
+
+class ApplicationDraft {
+  String approach = '';
+  double? amount;
+  int? durationDays;
+  String? framework;
+  final Map<int, String> responses = {};
+  final Map<int, String> notes = {};
+
+  Map<String, dynamic> toJson() => {
+        'proposal': approach.trim(),
+        'price': amount,
+        'durationDays': durationDays,
+        if (framework != null && framework!.trim().isNotEmpty) 'framework': framework!.trim(),
+        'responses': responses.entries
+            .map((e) => {
+                  'criterionId': e.key,
+                  'response': e.value,
+                  'note': (notes[e.key] ?? '').trim().isEmpty ? null : notes[e.key]!.trim(),
+                })
+            .toList(),
+      };
+}
+
+/// "5 will meet · 1 clarify · 1 change" from a coverage object.
+String coverageLabel(Map<String, dynamic>? coverage) {
+  if (coverage == null) return '—';
+  final parts = <String>[
+    '${coverage['willMeet'] ?? 0} will meet',
+    if ((coverage['needsClarification'] ?? 0) > 0) '${coverage['needsClarification']} clarify',
+    if ((coverage['proposeChange'] ?? 0) > 0) '${coverage['proposeChange']} change',
+  ];
+  return parts.join(' · ');
 }

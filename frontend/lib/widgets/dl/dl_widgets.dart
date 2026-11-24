@@ -296,3 +296,74 @@ String formatBudget(double? min, double? max) {
 String formatDeadline(int? days) => days == null ? '—' : (days == 1 ? '1 day' : '$days days');
 
 String requirementsLabel(int count) => count == 1 ? '1 requirement' : '$count requirements';
+
+class DLAnswer {
+  final int order;
+  final String text;
+  final String? response;
+  final String? note;
+
+  const DLAnswer({required this.order, required this.text, this.response, this.note});
+}
+
+/// Numbered criteria with an applicant's answer and note under each.
+class DLAnswerList extends StatelessWidget {
+  final List<DLAnswer> answers;
+
+  const DLAnswerList({super.key, required this.answers});
+
+  static DLStatusChip chipFor(String? response) => switch (response) {
+        'WillMeet' => const DLStatusChip(label: 'Will meet', icon: Icons.check_rounded, kind: DLChipKind.success),
+        'NeedsClarification' => const DLStatusChip(label: 'Needs clarification', icon: Icons.help_outline_rounded, kind: DLChipKind.info),
+        'ProposeChange' => const DLStatusChip(label: 'Propose change', icon: Icons.edit_outlined, kind: DLChipKind.warning),
+        _ => const DLStatusChip(label: 'No answer', icon: Icons.remove_rounded, kind: DLChipKind.neutral),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(DevLinkTokens.radiusMd),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < answers.length; i++) ...[
+            if (i > 0) const DLDashedDivider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DLNumberChip(answers[i].order),
+                  const SizedBox(width: DevLinkTokens.spaceMd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(answers[i].text, style: theme.textTheme.bodyLarge),
+                        ),
+                        const SizedBox(height: DevLinkTokens.spaceSm),
+                        chipFor(answers[i].response),
+                        if ((answers[i].note ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(height: DevLinkTokens.spaceSm),
+                          Text(answers[i].note!.trim(),
+                              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

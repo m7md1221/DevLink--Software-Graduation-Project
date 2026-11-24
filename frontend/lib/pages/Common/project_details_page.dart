@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../services/media_url.dart';
-import '../../services/post_service.dart';
 import '../../services/project_service.dart';
 import '../../services/server_time.dart';
 import '../../theme/devlink_tokens.dart';
 import '../../widgets/dl/dl_widgets.dart';
-import '../Customer/apply_to_post_page.dart';
+import '../Customer/compare_applicants_page.dart';
 import '../Customer/new_project_page.dart';
-import '../Customer/post_applications_page.dart';
+import '../Programmer/project_apply_page.dart';
+import 'application_details_page.dart';
 
 /// A customer project with its numbered acceptance criteria.
 class ProjectDetailsPage extends StatefulWidget {
@@ -26,7 +26,6 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
   Map<String, dynamic>? _project;
   String? _error;
   bool _loading = true;
-  bool _hasApplied = false;
 
   @override
   void initState() {
@@ -40,14 +39,9 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
       _error = null;
     });
     final result = await ProjectService.get(widget.projectId);
-    var applied = false;
-    if (result.ok && widget.currentUserType == 'Programmer') {
-      applied = await PostService.hasUserApplied(postId: widget.projectId, userId: widget.currentUserId);
-    }
     if (!mounted) return;
     setState(() {
       _loading = false;
-      _hasApplied = applied;
       if (result.ok) {
         _project = result.body;
       } else {
@@ -90,21 +84,30 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => PostApplicationsPage(postId: widget.projectId, requesterId: widget.currentUserId, postContent: p['title']),
+          builder: (_) => CompareApplicantsPage(
+            projectId: widget.projectId,
+            projectTitle: p['title'] ?? '',
+            currentUserId: widget.currentUserId,
+            projectClosed: p['isClosed'] == true,
+          ),
         ),
       );
       if (mounted) _load();
+    } else if (p['myApplicationId'] is int) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ApplicationDetailsPage(
+            projectId: widget.projectId,
+            applicationId: p['myApplicationId'] as int,
+            currentUserId: widget.currentUserId,
+          ),
+        ),
+      );
     } else {
       final applied = await Navigator.push<bool>(
         context,
-        MaterialPageRoute(
-          builder: (_) => ApplyToPostPage(
-            postId: widget.projectId,
-            programmerId: widget.currentUserId,
-            postAuthorName: p['authorName'] ?? 'Customer',
-            postContent: p['title'],
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => ProjectApplyPage(projectId: widget.projectId, project: p)),
       );
       if (applied == true && mounted) _load();
     }
@@ -266,12 +269,12 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
     String? action;
     String? reason;
     if (isMine) {
-      action = status == 'Pending' || status == 'Rejected' ? 'Edit project' : 'View applications';
+      action = status == 'Pending' || status == 'Rejected' ? 'Edit project' : 'Compare applicants';
     } else if (isProgrammer) {
-      if (isClosed) {
+      if (p['myApplicationId'] is int) {
+        action = 'View my application';
+      } else if (isClosed) {
         reason = 'This project has already been assigned.';
-      } else if (_hasApplied) {
-        reason = "You've applied to this project.";
       } else {
         action = 'Apply with your plan';
       }

@@ -18,6 +18,7 @@ import '../Customer/user_profile_page.dart';
 import '../Customer/widgets/post_card.dart';
 import 'programmer_dashboard_page.dart';
 import 'programmer_saved_posts_page.dart';
+import 'my_applications_page.dart';
 
 class ProgrammerHomePage extends StatefulWidget {
   final int userId;
@@ -243,6 +244,14 @@ class _ProgrammerHomePageState extends State<ProgrammerHomePage>
                 ],
               ),
               actions: [
+                IconButton(
+                  tooltip: 'My applications',
+                  icon: const Icon(Icons.assignment_outlined, color: Colors.white),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => MyApplicationsPage(userId: widget.userId)),
+                  ),
+                ),
                 NotificationBell(
                   userId: widget.userId,
                   isDark: isDark,

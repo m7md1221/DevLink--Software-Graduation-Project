@@ -6,6 +6,7 @@ import '../../../widgets/custom_toast.dart';
 import '../../../theme/devlink_tokens.dart';
 import '../../../widgets/dl/dl_widgets.dart';
 import '../../Common/project_details_page.dart';
+import '../compare_applicants_page.dart';
 import 'comments_sheet.dart';
 import '../apply_to_post_page.dart';
 import '../post_applications_page.dart';
@@ -146,6 +147,8 @@ class _PostCardState extends State<PostCard>
   }
 
   Future<void> _openApply() async {
+    // Projects take the structured form, which starts from the project page.
+    if (widget.post.isProject) return _openProject();
     final applied = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -167,6 +170,21 @@ class _PostCardState extends State<PostCard>
   }
 
   Future<void> _openApplications() async {
+    if (widget.post.isProject) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CompareApplicantsPage(
+            projectId: widget.post.id,
+            projectTitle: widget.post.title ?? '',
+            currentUserId: widget.currentUserId,
+            projectClosed: _isClosed,
+          ),
+        ),
+      );
+      if (mounted) widget.onChanged();
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(
