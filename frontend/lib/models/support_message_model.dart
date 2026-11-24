@@ -1,3 +1,4 @@
+import '../services/server_time.dart';
 class SupportMessageModel {
   final int id;
   final int? userId;
@@ -42,12 +43,12 @@ class SupportMessageModel {
       status: json['status'] ?? 'New',
       adminReply: json['adminReply'],
       repliedAt: json['repliedAt'] != null
-          ? DateTime.tryParse(json['repliedAt'])
+          ? parseServerTime(json['repliedAt'])
           : null,
       createdAt:
-          DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+          parseServerTime(json['createdAt'] ?? '') ?? DateTime.now(),
       readAt: json['readAt'] != null
-          ? DateTime.tryParse(json['readAt'])
+          ? parseServerTime(json['readAt'])
           : null,
     );
   }

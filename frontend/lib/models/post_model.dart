@@ -1,3 +1,4 @@
+import '../services/server_time.dart';
 class PostImage {
   final int id;
   final String url;
@@ -82,7 +83,7 @@ class PostModel {
       authorType: json['authorType'] ?? 'Customer',
       content: json['content'],
       framework: json['framework'],
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: parseServerTime(json['createdAt'] ?? '') ?? DateTime.now(),
       imageCount: json['imageCount'] ?? 0,
       likeCount: json['likeCount'] ?? 0,
       commentCount: json['commentCount'] ?? 0,
@@ -150,7 +151,7 @@ class CommentModel {
       authorImage: json['authorImage'],
       authorType: json['authorType'] ?? 'Customer',
       content: json['content'] ?? '',
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: parseServerTime(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
 }
@@ -241,7 +242,7 @@ class UserPublicProfile {
       hasImage: json['hasImage'] == true,
       avatarUrl: json['avatarUrl'],
       postCount: json['postCount'] ?? 0,
-      createdAt: DateTime.tryParse(json['createdAt'] ?? ''),
+      createdAt: parseServerTime(json['createdAt'] ?? ''),
     );
   }
 }
@@ -300,7 +301,7 @@ class PostApplicationModel {
       duration: json['duration'],
       framework: json['framework'],
       status: json['status'] ?? 'Pending',
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: parseServerTime(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
 }

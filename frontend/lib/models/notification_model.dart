@@ -1,3 +1,4 @@
+import '../services/server_time.dart';
 class NotificationModel {
   final int id;
   final String title;
@@ -25,7 +26,7 @@ class NotificationModel {
       type: json['type'] ?? 'info',
       referenceId: json['referenceId'],
       isRead: json['isRead'] == true,
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+      createdAt: parseServerTime(json['createdAt'] ?? '') ?? DateTime.now(),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/media_url.dart';
 import '../../services/post_service.dart';
 import '../../services/project_service.dart';
+import '../../services/server_time.dart';
 import '../../theme/devlink_tokens.dart';
 import '../../widgets/dl/dl_widgets.dart';
 import '../Customer/apply_to_post_page.dart';
@@ -163,6 +164,10 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
             DLStatusChip.forPostStatus(isClosed ? 'Closed' : status),
           ],
         ),
+        if (parseServerTime(p['createdAt'] as String?) case final posted?) ...[
+          const SizedBox(height: DevLinkTokens.spaceXs),
+          Text('Posted ${_formatLocal(posted)}', style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        ],
         if (status == 'Rejected' && reason != null) ...[
           const SizedBox(height: DevLinkTokens.spaceLg),
           _reviewerNote(theme, reason),
@@ -215,6 +220,11 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
         ),
       ),
     );
+  }
+
+  static String _formatLocal(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(t.day)}/${two(t.month)}/${t.year} ${two(t.hour)}:${two(t.minute)}';
   }
 
   Widget _section(ThemeData theme, String title, String? body) => Padding(
