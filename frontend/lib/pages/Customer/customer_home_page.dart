@@ -14,6 +14,8 @@ import '../../widgets/theme_toggle.dart';
 import '../../widgets/notification_bell.dart';
 import '../../theme/theme_manager.dart';
 import 'create_post_page.dart';
+import 'new_project_page.dart';
+import '../../theme/devlink_tokens.dart';
 import 'widgets/post_card.dart' hide PostService;
 import 'user_profile_page.dart';
 import 'search_users_page.dart';
@@ -189,6 +191,55 @@ class _CustomerHomePageState extends State<CustomerHomePage>
       ),
     );
     if (created == true) _loadFeed();
+  }
+
+  Future<void> _openNewProject() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NewProjectPage(userId: widget.userId)),
+    );
+    if (mounted) _loadFeed();
+  }
+
+  Widget _buildNewProjectCard() {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(DevLinkTokens.spaceLg),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLowest,
+          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.circular(DevLinkTokens.radiusMd),
+        ),
+        child: Wrap(
+          spacing: DevLinkTokens.spaceLg,
+          runSpacing: DevLinkTokens.spaceMd,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Need something built?', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: DevLinkTokens.spaceXs),
+                  Text('Describe it step by step, with requirements a programmer can check.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: _openNewProject,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New project'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _openProfile(int userId) {
@@ -462,6 +513,8 @@ class _CustomerHomePageState extends State<CustomerHomePage>
                 ),
               ),
             ),
+
+            SliverToBoxAdapter(child: _buildNewProjectCard()),
 
             if (!isDesktop)
               SliverToBoxAdapter(

@@ -32,6 +32,17 @@ class PostModel {
   bool isSaved;
   final List<PostImage> images;
 
+  // Customer projects (Clear Scope). Social posts have isProject false and no criteria.
+  final bool isProject;
+  final String? title;
+  final String? problemStatement;
+  final String? targetUsers;
+  final double? budgetMin;
+  final double? budgetMax;
+  final int? deadlineDays;
+  final int criteriaCount;
+  final List<ProjectCriterion> criteria;
+
   PostModel({
     required this.id,
     required this.userId,
@@ -51,6 +62,15 @@ class PostModel {
     required this.isMine,
     this.isSaved = false,
     required this.images,
+    this.isProject = false,
+    this.title,
+    this.problemStatement,
+    this.targetUsers,
+    this.budgetMin,
+    this.budgetMax,
+    this.deadlineDays,
+    this.criteriaCount = 0,
+    this.criteria = const [],
   });
 
   factory PostModel.fromJson(Map<String, dynamic> json) {
@@ -75,8 +95,29 @@ class PostModel {
       images: (json['images'] as List? ?? [])
           .map((e) => PostImage.fromJson(e))
           .toList(),
+      isProject: json['isProject'] == true,
+      title: json['title'],
+      problemStatement: json['problemStatement'],
+      targetUsers: json['targetUsers'],
+      budgetMin: (json['budgetMin'] as num?)?.toDouble(),
+      budgetMax: (json['budgetMax'] as num?)?.toDouble(),
+      deadlineDays: json['deadlineDays'] as int?,
+      criteriaCount: json['criteriaCount'] ?? 0,
+      criteria: (json['criteria'] as List? ?? [])
+          .map((e) => ProjectCriterion.fromJson(e))
+          .toList(),
     );
   }
+}
+
+class ProjectCriterion {
+  final int order;
+  final String text;
+
+  const ProjectCriterion({required this.order, required this.text});
+
+  factory ProjectCriterion.fromJson(Map<String, dynamic> json) =>
+      ProjectCriterion(order: json['order'] ?? 0, text: json['text'] ?? '');
 }
 
 class CommentModel {

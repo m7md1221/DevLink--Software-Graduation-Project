@@ -3,6 +3,9 @@ import '../../../models/post_model.dart';
 import '../../../services/post_service.dart';
 import '../../../services/media_url.dart';
 import '../../../widgets/custom_toast.dart';
+import '../../../theme/devlink_tokens.dart';
+import '../../../widgets/dl/dl_widgets.dart';
+import '../../Common/project_details_page.dart';
 import 'comments_sheet.dart';
 import '../apply_to_post_page.dart';
 import '../post_applications_page.dart';
@@ -421,7 +424,9 @@ class _PostCardState extends State<PostCard>
               ),
             ),
 
-            if (widget.post.content != null &&
+            if (widget.post.isProject)
+              _buildProject(isMobile)
+            else if (widget.post.content != null &&
                 widget.post.content!.trim().isNotEmpty)
               Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -634,6 +639,77 @@ class _PostCardState extends State<PostCard>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openProject() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProjectDetailsPage(
+          projectId: widget.post.id,
+          currentUserId: widget.currentUserId,
+          currentUserType: widget.currentUserType,
+        ),
+      ),
+    );
+    if (mounted) widget.onChanged();
+  }
+
+  Widget _buildProject(bool isMobile) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final post = widget.post;
+    final meta = [
+      requirementsLabel(post.criteriaCount),
+      if (post.budgetMin != null || post.budgetMax != null) formatBudget(post.budgetMin, post.budgetMax),
+      if (post.deadlineDays != null) formatDeadline(post.deadlineDays),
+    ].join(' · ');
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 16, 0, isMobile ? 14 : 16, isMobile ? 12 : 14),
+      child: Semantics(
+        button: true,
+        label: 'Open project ${post.title}',
+        child: InkWell(
+          onTap: _openProject,
+          borderRadius: BorderRadius.circular(DevLinkTokens.radiusMd),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(DevLinkTokens.spaceLg),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLowest,
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(DevLinkTokens.radiusMd),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(post.title ?? '', style: theme.textTheme.titleMedium?.copyWith(color: scheme.onSurface)),
+                if ((post.content ?? '').isNotEmpty) ...[
+                  const SizedBox(height: DevLinkTokens.spaceXs),
+                  Text(post.content!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
+                const SizedBox(height: DevLinkTokens.spaceMd),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(meta,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                              color: scheme.onSurface, fontFeatures: const [FontFeature.tabularFigures()])),
+                    ),
+                    Text('View project', style: theme.textTheme.labelLarge?.copyWith(color: scheme.primary)),
+                    Icon(Icons.chevron_right_rounded, color: scheme.primary, size: 20),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -2,6 +2,53 @@ import 'package:flutter/material.dart';
 import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
+import '../../theme/devlink_tokens.dart';
+import '../../widgets/dl/dl_widgets.dart';
+
+/// Title, brief and numbered criteria of a customer project, so the admin reviews what programmers will see.
+class _ProjectReview extends StatelessWidget {
+  final PostModel post;
+
+  const _ProjectReview(this.post);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Widget block(String label, String? text) => (text == null || text.trim().isEmpty)
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(bottom: DevLinkTokens.spaceMd),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: DevLinkTokens.spaceXs),
+                Text(text, style: theme.textTheme.bodyLarge),
+              ],
+            ),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(post.title ?? '', style: theme.textTheme.titleMedium),
+        const SizedBox(height: DevLinkTokens.spaceSm),
+        Text(
+          '${requirementsLabel(post.criteriaCount)} · ${formatBudget(post.budgetMin, post.budgetMax)} · ${formatDeadline(post.deadlineDays)}',
+          style: theme.textTheme.labelLarge,
+        ),
+        const SizedBox(height: DevLinkTokens.spaceMd),
+        block('The problem', post.problemStatement),
+        block('Who will use it', post.targetUsers),
+        Text('Acceptance criteria', style: theme.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: DevLinkTokens.spaceSm),
+        DLCriteriaList(criteria: post.criteria.map((c) => c.text).toList()),
+      ],
+    );
+  }
+}
 
 class AdminPostsPage extends StatefulWidget {
   const AdminPostsPage({super.key});
@@ -463,7 +510,9 @@ class _AdminPostsPageState extends State<AdminPostsPage>
             ),
             const SizedBox(height: 16),
 
-            if (post.content != null && post.content!.trim().isNotEmpty)
+            if (post.isProject)
+              _ProjectReview(post)
+            else if (post.content != null && post.content!.trim().isNotEmpty)
               Text(post.content!, style: TextStyle(fontSize: 14.5, color: textPrimary, height: 1.5)),
 
             if (post.images.isNotEmpty) ...[
