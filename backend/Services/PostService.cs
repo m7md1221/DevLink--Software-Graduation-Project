@@ -367,9 +367,7 @@ namespace Services
             };
         }
 
-        // ============================================================
-        // ✅ البحث متاح للجميع (بالإيميل أو الاسم المستعار)
-        // ============================================================
+        // Emails are returned and searchable only for admins.
         public async Task<List<object>> SearchUsers(string query, string? userType, bool includeEmail)
         {
             if (string.IsNullOrWhiteSpace(query)) return new List<object>();
@@ -398,15 +396,15 @@ namespace Services
                     if (p != null) { nickname = p.Nickname; hasImage = p.ProfileImage != null; specialty = p.Specialty; }
                 }
 
-                // إذا لم يكن هناك بروفايل، نستخدم الإيميل للعرض
+                // Without a profile the only name is the email, which only admins may see.
                 if (string.IsNullOrWhiteSpace(nickname))
                 {
-                    nickname = user.Email.Split('@')[0];
+                    if (!includeEmail) continue;
+                    nickname = user.Email;
                 }
 
-                // البحث بالإيميل أو الاسم أو التخصص
-                var matches = nickname.ToLower().Contains(query) || 
-                              user.Email.ToLower().Contains(query) || 
+                var matches = nickname.ToLower().Contains(query) ||
+                              (includeEmail && user.Email.ToLower().Contains(query)) ||
                               (specialty != null && specialty.ToLower().Contains(query));
 
                 if (matches)
@@ -414,7 +412,7 @@ namespace Services
                     results.Add(new
                     {
                         userId = user.Id,
-                        email = user.Email, // ✅ إظهار الإيميل للجميع
+                        email = includeEmail ? user.Email : null,
                         nickname = nickname,
                         userType = user.UserType,
                         specialty = specialty,

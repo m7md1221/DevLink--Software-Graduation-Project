@@ -79,18 +79,12 @@ namespace Controllers
         [HttpDelete("users/{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            // ✅ التعديل: منع الأدمن من حذف نفسه فقط
-            if (_currentUser.UserId == id)
+            // Admin accounts are managed only with the seed-admin command, never through the API.
+            if (await IsAdminAsync(id))
             {
-                return BadRequest(new { message = "You cannot delete your own admin account." });
+                await _adminService.AuditBlockedDeleteAsync(id, HttpContext, CallerUserId());
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
             }
-
-            // ✅ التعديل: إزالة شرط منع حذف الأدمن الآخر
-            // if (await IsAdminAsync(id))
-            // {
-            //     await _adminService.AuditBlockedDeleteAsync(id, HttpContext, CallerUserId());
-            //     return StatusCode(StatusCodes.Status403Forbidden, new { message = AdminProvisioningMessage });
-            // }
 
             var (success, message) = await _adminService.DeleteUser(id, HttpContext, CallerUserId());
             if (!success) return BadRequest(new { message });
