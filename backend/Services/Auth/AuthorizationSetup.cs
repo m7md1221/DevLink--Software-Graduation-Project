@@ -8,6 +8,8 @@ namespace Services.Auth
     {
         // Strict: an Admin access token, never the development fallback (M2.5b routes).
         public const string AdminOnly = "AdminOnly";
+        public const string CustomerOnly = "CustomerOnly";
+        public const string MemberOnly = "MemberOnly";
 
         // An Admin access token; a request WITHOUT a token may still pass through the
         // development fallback (owner decision D-1, removed in M2.13).
@@ -102,6 +104,8 @@ namespace Services.Auth
                 options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 
                 options.AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Admin"));
+                options.AddPolicy(AuthPolicies.CustomerOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Customer"));
+                options.AddPolicy(AuthPolicies.MemberOnly, policy => policy.RequireAuthenticatedUser().RequireRole("Customer", "Programmer", "Admin"));
                 options.AddPolicy(AuthPolicies.AdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.TokenlessRequest, "Admin")));
                 options.AddPolicy(AuthPolicies.MemberOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient)));
                 options.AddPolicy(AuthPolicies.NonAdminOrDevFallback, policy => policy.AddRequirements(new RoleOrDevFallbackRequirement(LegacyFallbackCase.IdentityFromClient, "Customer", "Programmer")));

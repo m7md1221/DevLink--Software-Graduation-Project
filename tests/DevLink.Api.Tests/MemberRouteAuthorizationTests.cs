@@ -305,7 +305,7 @@ namespace DevLink.Api.Tests
                 .ToList();
 
             Assert.Empty(missing);
-            Assert.Equal(82, Actions().Count()); // M2.11b added Auth.ChangePassword; the 2026-11-21 merge added 3 saved-post routes
+            Assert.Equal(86, Actions().Count()); // 4 project routes added with Clear Scope
         }
 
         [Fact]

@@ -348,17 +348,20 @@ namespace DevLink.Api.Tests
         }
 
         [Fact]
-        public void T_7B_20b_the_service_is_the_only_post_creation_path_and_sets_pending_explicitly()
+        public void T_7B_20b_the_services_are_the_only_post_creation_paths_and_set_pending_explicitly()
         {
             var backend = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "backend"));
             var creators = Directory.GetFiles(backend, "*.cs", SearchOption.AllDirectories)
                 .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}"))
                 .Where(f => System.Text.RegularExpressions.Regex.IsMatch(System.IO.File.ReadAllText(f), @"new Post\b"))
                 .Select(Path.GetFileName)
+                .OrderBy(n => n)
                 .ToList();
 
-            Assert.Equal(new[] { "PostService.cs" }, creators);
-            Assert.Contains("Status = \"Pending\"", System.IO.File.ReadAllText(Path.Combine(backend, "Services", "PostService.cs")));
+            // Social posts and customer projects.
+            Assert.Equal(new[] { "PostService.cs", "ProjectService.cs" }, creators);
+            foreach (var file in creators)
+                Assert.Contains("Status = \"Pending\"", System.IO.File.ReadAllText(Path.Combine(backend, "Services", file!)));
         }
 
         [Fact]

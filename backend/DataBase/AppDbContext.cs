@@ -19,6 +19,7 @@ namespace DataBase
         // ✅ ضفنا جدول الإشعارات هنا
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<SavedPost> SavedPosts { get; set; }
+        public DbSet<AcceptanceCriterion> AcceptanceCriteria { get; set; }
 
         public AppDbContext(
             DbContextOptions<AppDbContext> options)
@@ -356,6 +357,20 @@ namespace DataBase
                 .HasForeignKey(sp => sp.UserId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .HasConstraintName("FK_SavedPosts_Users");
+
+            modelBuilder.Entity<AcceptanceCriterion>()
+                .ToTable("AcceptanceCriteria");
+
+            modelBuilder.Entity<AcceptanceCriterion>()
+                .HasIndex(c => new { c.PostId, c.SortOrder })
+                .IsUnique();
+
+            modelBuilder.Entity<AcceptanceCriterion>()
+                .HasOne(c => c.Post)
+                .WithMany(p => p.Criteria)
+                .HasForeignKey(c => c.PostId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_AcceptanceCriteria_Posts");
 
             // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
             ConfigureAuthSecurity(modelBuilder);

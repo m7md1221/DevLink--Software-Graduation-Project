@@ -51,6 +51,7 @@ builder.Services.AddDevLinkGoogle();
 
 // ===== NEW: Social Feature =====
 builder.Services.AddScoped<PostService>();
+builder.Services.AddScoped<ProjectService>();
 
 // ============================================================
 // Security foundation (M2.2): CORS allowlist, log-level guard,

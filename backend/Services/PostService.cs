@@ -67,6 +67,7 @@ namespace Services
                 .ToListAsync();
 
             var savedIds = await SavedPostIdsAsync(currentUserId, posts.Select(p => p.Id));
+            var criteriaCounts = await CriteriaCountsAsync(posts.Select(p => p.Id));
 
             var result = new List<object>();
 
@@ -96,6 +97,12 @@ namespace Services
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
                     framework = post.Framework,
+                    isProject = post.Title != null,
+                    title = post.Title,
+                    criteriaCount = criteriaCounts.GetValueOrDefault(post.Id),
+                    budgetMin = post.BudgetMin,
+                    budgetMax = post.BudgetMax,
+                    deadlineDays = post.DeadlineDays,
                     isSaved = savedIds.Contains(post.Id),
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
@@ -118,6 +125,7 @@ namespace Services
             if (author == null) return new List<object>();
 
             var savedIds = await SavedPostIdsAsync(currentUserId, posts.Select(p => p.Id));
+            var criteriaCounts = await CriteriaCountsAsync(posts.Select(p => p.Id));
 
             var result = new List<object>();
 
@@ -143,6 +151,12 @@ namespace Services
                     isLikedByMe = post.Likes.Any(l => l.UserId == currentUserId),
                     isMine = post.UserId == currentUserId,
                     framework = post.Framework,
+                    isProject = post.Title != null,
+                    title = post.Title,
+                    criteriaCount = criteriaCounts.GetValueOrDefault(post.Id),
+                    budgetMin = post.BudgetMin,
+                    budgetMax = post.BudgetMax,
+                    deadlineDays = post.DeadlineDays,
                     isSaved = savedIds.Contains(post.Id),
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
                 });
@@ -633,6 +647,7 @@ namespace Services
                 .Where(p => p.Status == "Pending" && !p.IsDeleted)
                 .OrderByDescending(p => p.CreatedAt)
                 .Include(p => p.Images)
+                .Include(p => p.Criteria)
                 .ToListAsync();
 
             var result = new List<object>();
@@ -652,6 +667,15 @@ namespace Services
                     avatarUrl = author.Value.hasImage ? _media.AvatarUrl(post.UserId) : null,
                     content = post.Content,
                     framework = post.Framework,
+                    isProject = post.Title != null,
+                    title = post.Title,
+                    problemStatement = post.ProblemStatement,
+                    targetUsers = post.TargetUsers,
+                    budgetMin = post.BudgetMin,
+                    budgetMax = post.BudgetMax,
+                    deadlineDays = post.DeadlineDays,
+                    criteriaCount = post.Criteria.Count,
+                    criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { order = c.SortOrder, text = c.Text }).ToList(),
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     images = post.Images.OrderBy(i => i.SortOrder).Select(i => new { id = i.Id, url = _media.PostImageUrl(i.Id) }).ToList()
@@ -711,6 +735,17 @@ namespace Services
             return saved.ToHashSet();
         }
 
+        private async Task<Dictionary<int, int>> CriteriaCountsAsync(IEnumerable<int> postIds)
+        {
+            var ids = postIds.ToList();
+            if (ids.Count == 0) return new Dictionary<int, int>();
+            return await _context.AcceptanceCriteria
+                .Where(c => ids.Contains(c.PostId))
+                .GroupBy(c => c.PostId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count);
+        }
+
         public async Task<(bool success, string message, bool isSaved)> ToggleSavePost(int postId, int userId)
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
@@ -750,6 +785,7 @@ namespace Services
                 .Include(sp => sp.Post).ThenInclude(p => p!.Likes)
                 .Include(sp => sp.Post).ThenInclude(p => p!.Comments)
                 .ToListAsync();
+            var criteriaCounts = await CriteriaCountsAsync(saved.Select(s => s.PostId));
 
             var result = new List<object>();
             foreach (var s in saved)
@@ -771,6 +807,12 @@ namespace Services
                     authorType = author.Value.userType,
                     content = post.Content,
                     framework = post.Framework,
+                    isProject = post.Title != null,
+                    title = post.Title,
+                    criteriaCount = criteriaCounts.GetValueOrDefault(post.Id),
+                    budgetMin = post.BudgetMin,
+                    budgetMax = post.BudgetMax,
+                    deadlineDays = post.DeadlineDays,
                     createdAt = post.CreatedAt,
                     imageCount = post.Images.Count,
                     likeCount = post.Likes.Count,
@@ -790,7 +832,7 @@ namespace Services
         public Task<bool> IsPostSaved(int postId, int userId) =>
             _context.SavedPosts.AnyAsync(sp => sp.PostId == postId && sp.UserId == userId);
 
-        private async Task<(string nickname, string userType, bool hasImage)?> GetAuthorInfo(int userId)
+        internal async Task<(string nickname, string userType, bool hasImage)?> GetAuthorInfo(int userId)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null) return null;

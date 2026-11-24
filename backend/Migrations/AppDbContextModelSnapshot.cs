@@ -129,6 +129,33 @@ namespace DotnetAPI.Migrations
                     b.ToTable("CustomerProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("DataBase.Models.AcceptanceCriterion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("AcceptanceCriteria", (string)null);
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -379,11 +406,20 @@ namespace DotnetAPI.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal?>("BudgetMax")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal?>("BudgetMin")
+                        .HasColumnType("decimal(12,2)");
+
                     b.Property<string>("Content")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeadlineDays")
+                        .HasColumnType("int");
 
                     b.Property<string>("Framework")
                         .HasMaxLength(50)
@@ -395,6 +431,10 @@ namespace DotnetAPI.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ProblemStatement")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -403,6 +443,14 @@ namespace DotnetAPI.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TargetUsers")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -894,6 +942,18 @@ namespace DotnetAPI.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DataBase.Models.AcceptanceCriterion", b =>
+                {
+                    b.HasOne("DataBase.Post", "Post")
+                        .WithMany("Criteria")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_AcceptanceCriteria_Posts");
+
+                    b.Navigation("Post");
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.HasOne("DataBase.User", "User")
@@ -1071,6 +1131,8 @@ namespace DotnetAPI.Migrations
                     b.Navigation("Applications");
 
                     b.Navigation("Comments");
+
+                    b.Navigation("Criteria");
 
                     b.Navigation("Images");
 

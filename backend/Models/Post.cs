@@ -20,6 +20,24 @@ namespace DataBase
         [MaxLength(50)]
         public string? Framework { get; set; }   // ✅ جديد
 
+        // Customer projects have a title; social posts don't.
+        [MaxLength(120)]
+        public string? Title { get; set; }
+
+        [MaxLength(2000)]
+        public string? ProblemStatement { get; set; }
+
+        [MaxLength(1000)]
+        public string? TargetUsers { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? BudgetMin { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? BudgetMax { get; set; }
+
+        public int? DeadlineDays { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime? UpdatedAt { get; set; }
@@ -37,5 +55,6 @@ namespace DataBase
         public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
         public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
         public ICollection<PostApplication> Applications { get; set; } = new List<PostApplication>();
+        public ICollection<AcceptanceCriterion> Criteria { get; set; } = new List<AcceptanceCriterion>();
     }
 }
