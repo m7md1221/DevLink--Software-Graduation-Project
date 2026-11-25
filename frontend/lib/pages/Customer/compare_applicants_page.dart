@@ -173,42 +173,47 @@ class _CompareApplicantsPageState extends State<CompareApplicantsPage> {
       ),
       clipBehavior: Clip.antiAlias,
       // Narrow screens scroll the table sideways inside its card, never the page.
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          sortColumnIndex: _sortColumn,
-          sortAscending: _ascending,
-          headingRowColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
-          dataRowMinHeight: 56,
-          dataRowMaxHeight: 64,
-          showCheckboxColumn: false,
-          columns: [
-            for (var i = 0; i < _columns.length; i++)
-              DataColumn(label: Text(_columns[i].label), numeric: _columns[i].numeric, onSort: (_, __) => _sortBy(i)),
-          ],
-          rows: [
-            for (final r in _rows)
-              DataRow(
-                onSelectChanged: (_) => _open(r),
-                cells: [
-                  DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(r['programmerName'] ?? 'Programmer', style: theme.textTheme.labelLarge),
-                    if (r['status'] == 'Accepted') ...[
-                      const SizedBox(width: DevLinkTokens.spaceSm),
-                      const DLStatusChip(label: 'Accepted', icon: Icons.check_rounded, kind: DLChipKind.success),
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              sortColumnIndex: _sortColumn,
+              sortAscending: _ascending,
+              headingRowColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 64,
+              showCheckboxColumn: false,
+              columns: [
+                for (var i = 0; i < _columns.length; i++)
+                  DataColumn(label: Text(_columns[i].label), numeric: _columns[i].numeric, onSort: (_, __) => _sortBy(i)),
+              ],
+              rows: [
+                for (final r in _rows)
+                  DataRow(
+                    onSelectChanged: (_) => _open(r),
+                    cells: [
+                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(r['programmerName'] ?? 'Programmer', style: theme.textTheme.labelLarge),
+                        if (r['status'] == 'Accepted') ...[
+                          const SizedBox(width: DevLinkTokens.spaceSm),
+                          const DLStatusChip(label: 'Accepted', icon: Icons.check_rounded, kind: DLChipKind.success),
+                        ],
+                      ])),
+                      DataCell(Text(_date(r['submittedAt'] as String?))),
+                      DataCell(Text(coverageLabel(r['coverage'] as Map<String, dynamic>?))),
+                      DataCell(Text(formatBudget((r['amount'] as num?)?.toDouble(), (r['amount'] as num?)?.toDouble()))),
+                      DataCell(Text(formatDeadline(r['durationDays'] as int?))),
+                      DataCell(Text(r['rating'] == null ? '—' : '${r['rating']}/5')),
+                      DataCell(r['isVerified'] == true
+                          ? const DLStatusChip(label: 'Verified', icon: Icons.verified_outlined, kind: DLChipKind.info)
+                          : Text('—', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
                     ],
-                  ])),
-                  DataCell(Text(_date(r['submittedAt'] as String?))),
-                  DataCell(Text(coverageLabel(r['coverage'] as Map<String, dynamic>?))),
-                  DataCell(Text(formatBudget((r['amount'] as num?)?.toDouble(), (r['amount'] as num?)?.toDouble()))),
-                  DataCell(Text(formatDeadline(r['durationDays'] as int?))),
-                  DataCell(Text(r['rating'] == null ? '—' : '${r['rating']}/5')),
-                  DataCell(r['isVerified'] == true
-                      ? const DLStatusChip(label: 'Verified', icon: Icons.verified_outlined, kind: DLChipKind.info)
-                      : Text('—', style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
-                ],
-              ),
-          ],
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
