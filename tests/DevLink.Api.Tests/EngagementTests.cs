@@ -307,7 +307,9 @@ namespace DevLink.Api.Tests
             var ids = x.CriterionIds;
 
             Assert.Equal(HttpStatusCode.Conflict, (await ReviewIt(x, Review(ids))).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await Deliver(x, Delivery(ids))).StatusCode);
+            var delivered = await Deliver(x, Delivery(ids));
+            Assert.Equal(HttpStatusCode.OK, delivered.StatusCode);
+            Assert.Equal("Your delivery was submitted.", await Message(delivered));
             Assert.Equal(HttpStatusCode.Conflict, (await Deliver(x, Delivery(ids))).StatusCode);
 
             // A revision needs a note.
@@ -317,6 +319,7 @@ namespace DevLink.Api.Tests
 
             var revise = await ReviewIt(x, Review(ids, i => i == 2 ? ("Revise", "Two phones booked 10:00 at the same time.", false) : ("Accept", null, false)));
             Assert.Equal(HttpStatusCode.OK, revise.StatusCode);
+            Assert.Equal("Your review was sent to the programmer.", await Message(revise));
             var e = await LoadAsync(x.EngagementId);
             Assert.Equal(EngagementStatuses.Active, e.Status);
             Assert.Equal(1, e.RevisionsUsed);
@@ -331,7 +334,9 @@ namespace DevLink.Api.Tests
 
             // The review covers exactly the re-delivered requirement.
             Assert.Equal(HttpStatusCode.BadRequest, (await ReviewIt(x, Review(ids))).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await ReviewIt(x, Review(new[] { ids[2] }))).StatusCode);
+            var complete = await ReviewIt(x, Review(new[] { ids[2] }));
+            Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+            Assert.Equal("All requirements accepted. The engagement is complete.", await Message(complete));
 
             e = await LoadAsync(x.EngagementId);
             Assert.Equal(EngagementStatuses.Completed, e.Status);

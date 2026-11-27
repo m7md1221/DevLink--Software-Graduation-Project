@@ -140,7 +140,7 @@ class _ReviewDeliveryPageState extends State<ReviewDeliveryPage> {
                 ],
                 const SizedBox(height: DevLinkTokens.spaceXl),
                 for (final c in _items) ...[_card(theme, c), const SizedBox(height: DevLinkTokens.spaceLg)],
-                if (_error != null) ...[
+                if (_error != null && _errorCriterion == null) ...[
                   Text(_error!, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.error)),
                   const SizedBox(height: DevLinkTokens.spaceMd),
                 ],
@@ -167,6 +167,10 @@ class _ReviewDeliveryPageState extends State<ReviewDeliveryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_errorCriterion == id && _error != null) ...[
+            Text(_error!, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.error)),
+            const SizedBox(height: DevLinkTokens.spaceMd),
+          ],
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             DLNumberChip(c['order'] as int),
             const SizedBox(width: DevLinkTokens.spaceMd),

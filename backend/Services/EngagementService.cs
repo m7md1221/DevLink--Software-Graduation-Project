@@ -200,7 +200,7 @@ namespace Services
             Log(e, callerId, "Delivered", $"Delivery {delivery.Round} submitted: {met} of {open.Count} requirements marked met.", now);
             Notify(e.CustomerId, "Delivery submitted", $"A delivery for \"{e.ProjectTitle}\" is ready for your review.", e.Id);
 
-            return await SaveAsync() ?? EngagementOutcome.Ok("Your delivery was submitted.", new { round = delivery.Round });
+            return await SaveAsync() ?? EngagementOutcome.Ok("Your delivery was submitted.", new { message = "Your delivery was submitted.", round = delivery.Round });
         }
 
         // ---------------- review ----------------
@@ -268,7 +268,7 @@ namespace Services
 
                 Log(e, callerId, "Completed", $"All requirements accepted. Engagement completed: criteria met {e.CriteriaMet}/{e.CriteriaTotal}.", now);
                 Notify(e.ProgrammerId, "Work accepted", $"Every requirement of \"{e.ProjectTitle}\" was accepted. The engagement is complete.", e.Id);
-                return await SaveAsync() ?? EngagementOutcome.Ok("All requirements accepted. The engagement is complete.", new { status = e.Status });
+                return await SaveAsync() ?? EngagementOutcome.Ok("", new { message = "All requirements accepted. The engagement is complete.", status = e.Status });
             }
 
             e.RevisionsUsed++;
@@ -278,7 +278,7 @@ namespace Services
                 $"Revision {e.RevisionsUsed} of {MaxRevisions} requested: {revise} {(revise == 1 ? "requirement needs" : "requirements need")} changes, {accepted} accepted.", now);
             Notify(e.ProgrammerId, "Revision requested",
                 $"{revise} {(revise == 1 ? "requirement" : "requirements")} of \"{e.ProjectTitle}\" need changes; {accepted} accepted.", e.Id);
-            return await SaveAsync() ?? EngagementOutcome.Ok("Your review was sent to the programmer.", new { status = e.Status });
+            return await SaveAsync() ?? EngagementOutcome.Ok("", new { message = "Your review was sent to the programmer.", status = e.Status });
         }
 
         // ---------------- cancellation ----------------
