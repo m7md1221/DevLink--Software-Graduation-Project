@@ -19,6 +19,7 @@ import '../Customer/widgets/post_card.dart';
 import 'programmer_dashboard_page.dart';
 import 'programmer_saved_posts_page.dart';
 import 'my_applications_page.dart';
+import '../Common/active_work_page.dart';
 
 class ProgrammerHomePage extends StatefulWidget {
   final int userId;
@@ -244,6 +245,11 @@ class _ProgrammerHomePageState extends State<ProgrammerHomePage>
                 ],
               ),
               actions: [
+                IconButton(
+                  tooltip: 'Active work',
+                  icon: const Icon(Icons.work_outline_rounded, color: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveWorkPage())),
+                ),
                 IconButton(
                   tooltip: 'My applications',
                   icon: const Icon(Icons.assignment_outlined, color: Colors.white),

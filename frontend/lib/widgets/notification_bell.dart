@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/notification_model.dart';
 import '../services/notification_service.dart';
+import '../pages/Common/engagement_page.dart';
 
 class NotificationBell extends StatefulWidget {
   final int userId;
@@ -55,6 +56,7 @@ class _NotificationBellState extends State<NotificationBell> {
       case 'comment': return Icons.comment_rounded;
       case 'accepted': return Icons.check_circle_rounded;
       case 'approved': return Icons.verified_rounded;
+      case 'engagement': return Icons.work_outline_rounded;
       default: return Icons.notifications_rounded;
     }
   }
@@ -142,6 +144,11 @@ class _NotificationBellState extends State<NotificationBell> {
                 children: _notifications.map((notif) {
                   return InkWell(
                     onTap: () async {
+                      if (notif.type == 'engagement' && notif.referenceId != null) {
+                        _menuController.close();
+                        Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => EngagementPage(engagementId: notif.referenceId!)));
+                      }
                       if (!notif.isRead) {
                         await NotificationService.markAsRead(notif.id);
                         _loadNotifications();

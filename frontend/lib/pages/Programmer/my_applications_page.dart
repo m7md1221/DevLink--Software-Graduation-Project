@@ -5,6 +5,7 @@ import '../../services/server_time.dart';
 import '../../theme/devlink_tokens.dart';
 import '../../widgets/dl/dl_widgets.dart';
 import '../Common/application_details_page.dart';
+import '../Common/engagement_page.dart';
 
 /// The programmer's applications to customer projects, with their answers one tap away.
 class MyApplicationsPage extends StatefulWidget {
@@ -118,14 +119,17 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
     final amount = (r['amount'] as num?)?.toDouble();
 
     return InkWell(
+      // An accepted application opens its engagement; the answers stay one tap away from there.
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ApplicationDetailsPage(
-            projectId: r['projectId'] as int,
-            applicationId: r['applicationId'] as int,
-            currentUserId: widget.userId,
-          ),
+          builder: (_) => r['engagementId'] is int
+              ? EngagementPage(engagementId: r['engagementId'] as int)
+              : ApplicationDetailsPage(
+                  projectId: r['projectId'] as int,
+                  applicationId: r['applicationId'] as int,
+                  currentUserId: widget.userId,
+                ),
         ),
       ),
       child: Padding(

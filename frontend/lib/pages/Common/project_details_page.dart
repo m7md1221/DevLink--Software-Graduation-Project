@@ -9,6 +9,7 @@ import '../Customer/compare_applicants_page.dart';
 import '../Customer/new_project_page.dart';
 import '../Programmer/project_apply_page.dart';
 import 'application_details_page.dart';
+import 'engagement_page.dart';
 
 /// A customer project with its numbered acceptance criteria.
 class ProjectDetailsPage extends StatefulWidget {
@@ -72,7 +73,11 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
     final p = _project!;
     final isMine = p['isMine'] == true;
     final status = p['status'] as String? ?? '';
-    if (isMine && (status == 'Pending' || status == 'Rejected')) {
+    if (p['engagementId'] is int) {
+      await Navigator.push(
+          context, MaterialPageRoute(builder: (_) => EngagementPage(engagementId: p['engagementId'] as int)));
+      if (mounted) _load();
+    } else if (isMine && (status == 'Pending' || status == 'Rejected')) {
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -268,7 +273,9 @@ class _ProjectDetailsPageState extends State<ProjectDetailsPage> {
 
     String? action;
     String? reason;
-    if (isMine) {
+    if (p['engagementId'] is int) {
+      action = 'Open engagement';
+    } else if (isMine) {
       action = status == 'Pending' || status == 'Rejected' ? 'Edit project' : 'Compare applicants';
     } else if (isProgrammer) {
       if (p['myApplicationId'] is int) {

@@ -20,6 +20,7 @@ import 'widgets/post_card.dart' hide PostService;
 import 'user_profile_page.dart';
 import 'search_users_page.dart';
 import 'contact_support_page.dart';
+import '../Common/active_work_page.dart';
 
 class CustomerHomePage extends StatefulWidget {
   final int userId;
@@ -322,6 +323,11 @@ class _CustomerHomePageState extends State<CustomerHomePage>
                 ],
               ),
               actions: [
+                IconButton(
+                  tooltip: 'Active work',
+                  icon: const Icon(Icons.work_outline_rounded, color: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveWorkPage())),
+                ),
                 NotificationBell(
                   userId: widget.userId,
                   isDark: isDark,

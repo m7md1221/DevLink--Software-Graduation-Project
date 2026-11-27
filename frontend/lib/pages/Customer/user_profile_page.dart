@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/media_url.dart';
 import '../../models/post_model.dart';
 import '../../services/post_service.dart';
+import '../../services/engagement_service.dart';
+import '../../widgets/dl/engagement_widgets.dart';
 import '../../theme/theme_manager.dart';
 import '../../widgets/theme_toggle.dart';
 import 'widgets/post_card.dart';
@@ -29,6 +31,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   UserPublicProfile? _profile;
   List<PostModel> _posts = [];
   List<UserSearchResult> _suggestedPeople = [];
+  List<Map<String, dynamic>> _completed = [];
   bool _isLoading = true;
 
   @override
@@ -46,9 +49,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
     
     final people = await PostService.searchUsers(query: 'a');
+    final completed = profile?.userType == 'Programmer' ? await EngagementService.completedFor(widget.userId) : <Map<String, dynamic>>[];
 
     if (!mounted) return;
     setState(() {
+      _completed = completed;
       _profile = profile;
       _posts = posts;
       _suggestedPeople = people.where((p) => p.userId != widget.userId).take(4).toList();
@@ -171,6 +176,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _buildLocationRow(cardColor, textPrimary, textSecondary, borderColor),
                 ),
+                if (_completed.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildCompleted(cardColor, textPrimary, textSecondary, borderColor, accent),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -216,6 +228,43 @@ class _UserProfilePageState extends State<UserProfilePage> {
                   ),
                   childCount: _posts.length,
                 ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // The amount of each engagement stays private; only the outcome is public.
+  Widget _buildCompleted(Color cardColor, Color textPrimary, Color textSecondary, Color borderColor, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(18), border: Border.all(color: borderColor, width: 1.2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Completed engagements', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: textPrimary)),
+          const SizedBox(height: 10),
+          for (final c in _completed)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline_rounded, size: 20, color: accent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c['projectTitle'] ?? '', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                        Text('Completed ${formatWhen(c['completedAt'] as String?, withTime: false)}',
+                            style: TextStyle(fontSize: 12, color: textSecondary)),
+                      ],
+                    ),
+                  ),
+                  Text(criteriaMetLabel(c['criteriaMet'] as int? ?? 0, c['criteriaTotal'] as int? ?? 0),
+                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                ],
               ),
             ),
         ],
