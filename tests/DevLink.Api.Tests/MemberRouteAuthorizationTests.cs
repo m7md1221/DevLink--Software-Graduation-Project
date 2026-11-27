@@ -305,7 +305,7 @@ namespace DevLink.Api.Tests
                 .ToList();
 
             Assert.Empty(missing);
-            Assert.Equal(89, Actions().Count()); // project routes: 4 for Clear Scope, 3 for applications
+            Assert.Equal(97, Actions().Count()); // project routes: 4 for Clear Scope, 3 for applications; 8 for engagements
         }
 
         [Fact]

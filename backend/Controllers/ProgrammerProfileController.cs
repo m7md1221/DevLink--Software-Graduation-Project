@@ -63,7 +63,8 @@ namespace Controllers
                 isVerified = profile.IsVerified,
                 hasImage = profile.ProfileImage != null,
                 avatarUrl = profile.ProfileImage != null ? _media.AvatarUrl(profile.UserId) : null,
-                createdAt = profile.CreatedAt
+                createdAt = profile.CreatedAt,
+                completedEngagements = await EngagementService.CompletedFor(_context, profile.UserId).ToListAsync()
             });
         }
 

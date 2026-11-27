@@ -241,6 +241,11 @@ namespace Services
             var author = await _posts.GetAuthorInfo(post.UserId);
             var criteria = post.Criteria.OrderBy(c => c.SortOrder).Select(c => new { id = c.Id, order = c.SortOrder, text = c.Text }).ToList();
             var canSeeReview = isMine || callerIsAdmin;
+            var engagement = await _context.Engagements.AsNoTracking()
+                .Where(e => e.PostId == post.Id)
+                .Select(e => new { e.Id, e.Status, e.CustomerId, e.ProgrammerId })
+                .FirstOrDefaultAsync();
+            var seesEngagement = engagement != null && (callerIsAdmin || engagement.CustomerId == callerId || engagement.ProgrammerId == callerId);
             var input = new ProjectInput
             {
                 Title = post.Title, ProblemStatement = post.ProblemStatement, BudgetMin = post.BudgetMin, BudgetMax = post.BudgetMax,
@@ -262,6 +267,9 @@ namespace Services
                 status = post.Status,
                 rejectionReason = canSeeReview ? post.RejectionReason : null,
                 isClosed = post.IsClosed,
+                completedAt = post.CompletedAt,
+                engagementId = seesEngagement ? engagement!.Id : (int?)null,
+                engagementStatus = seesEngagement ? engagement!.Status : null,
                 isMine,
                 createdAt = post.CreatedAt,
                 updatedAt = post.UpdatedAt,
@@ -418,6 +426,9 @@ namespace Services
             var totals = await _context.AcceptanceCriteria.Where(c => postIds.Contains(c.PostId))
                 .GroupBy(c => c.PostId).Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Key, x => x.Count);
+            var engagements = await _context.Engagements.AsNoTracking()
+                .Where(e => e.ProgrammerId == programmerId)
+                .ToDictionaryAsync(e => e.ApplicationId, e => e.Id);
 
             return applications.Select(a => (object)new
             {
@@ -429,7 +440,8 @@ namespace Services
                 submittedAt = a.CreatedAt,
                 amount = a.Price,
                 durationDays = a.DurationDays,
-                coverage = CoverageJson(coverage[a.Id], totals.GetValueOrDefault(a.PostId))
+                coverage = CoverageJson(coverage[a.Id], totals.GetValueOrDefault(a.PostId)),
+                engagementId = engagements.TryGetValue(a.Id, out var engagementId) ? engagementId : (int?)null
             }).ToList();
         }
     }

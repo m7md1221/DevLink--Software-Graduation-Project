@@ -180,6 +180,238 @@ namespace DotnetAPI.Migrations
                     b.ToTable("ApplicationCriterionResponses", (string)null);
                 });
 
+            modelBuilder.Entity("DataBase.Models.Engagement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("AgreedAmount")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("ApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancellationRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancellationRequestedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CriteriaMet")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CriteriaTotal")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeadlineAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DurationDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProgrammerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProjectTitle")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("RevisionsUsed")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId")
+                        .IsUnique();
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("PostId")
+                        .IsUnique();
+
+                    b.HasIndex("ProgrammerId");
+
+                    b.ToTable("Engagements", (string)null);
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementCriterion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EngagementId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("Waived")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("EngagementCriteria", (string)null);
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementDelivery", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EngagementId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId", "Round")
+                        .IsUnique();
+
+                    b.ToTable("EngagementDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementDeliveryItem", b =>
+                {
+                    b.Property<int>("DeliveryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CriterionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Claim")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Decision")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("Waived")
+                        .HasColumnType("bit");
+
+                    b.HasKey("DeliveryId", "CriterionId");
+
+                    b.HasIndex("CriterionId");
+
+                    b.ToTable("EngagementDeliveryItems", (string)null);
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ActorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EngagementId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EngagementId");
+
+                    b.ToTable("EngagementEvents", (string)null);
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -435,6 +667,9 @@ namespace DotnetAPI.Migrations
 
                     b.Property<decimal?>("BudgetMin")
                         .HasColumnType("decimal(12,2)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Content")
                         .HasColumnType("nvarchar(max)");
@@ -1002,6 +1237,98 @@ namespace DotnetAPI.Migrations
                     b.Navigation("Criterion");
                 });
 
+            modelBuilder.Entity("DataBase.Models.Engagement", b =>
+                {
+                    b.HasOne("DataBase.PostApplication", "Application")
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Engagements_PostApplications");
+
+                    b.HasOne("DataBase.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Engagements_Users_Customer");
+
+                    b.HasOne("DataBase.Post", "Post")
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_Engagements_Posts");
+
+                    b.HasOne("DataBase.User", null)
+                        .WithMany()
+                        .HasForeignKey("ProgrammerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Engagements_Users_Programmer");
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementCriterion", b =>
+                {
+                    b.HasOne("DataBase.Models.Engagement", "Engagement")
+                        .WithMany("Criteria")
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_EngagementCriteria_Engagements");
+
+                    b.Navigation("Engagement");
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementDelivery", b =>
+                {
+                    b.HasOne("DataBase.Models.Engagement", "Engagement")
+                        .WithMany("Deliveries")
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_EngagementDeliveries_Engagements");
+
+                    b.Navigation("Engagement");
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementDeliveryItem", b =>
+                {
+                    b.HasOne("DataBase.Models.EngagementCriterion", "Criterion")
+                        .WithMany()
+                        .HasForeignKey("CriterionId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_EngagementDeliveryItems_EngagementCriteria");
+
+                    b.HasOne("DataBase.Models.EngagementDelivery", "Delivery")
+                        .WithMany("Items")
+                        .HasForeignKey("DeliveryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_EngagementDeliveryItems_EngagementDeliveries");
+
+                    b.Navigation("Criterion");
+
+                    b.Navigation("Delivery");
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementEvent", b =>
+                {
+                    b.HasOne("DataBase.Models.Engagement", "Engagement")
+                        .WithMany("Events")
+                        .HasForeignKey("EngagementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_EngagementEvents_Engagements");
+
+                    b.Navigation("Engagement");
+                });
+
             modelBuilder.Entity("DataBase.Models.Notification", b =>
                 {
                     b.HasOne("DataBase.User", "User")
@@ -1172,6 +1499,20 @@ namespace DotnetAPI.Migrations
             modelBuilder.Entity("DataBase.AuthSession", b =>
                 {
                     b.Navigation("RefreshTokens");
+                });
+
+            modelBuilder.Entity("DataBase.Models.Engagement", b =>
+                {
+                    b.Navigation("Criteria");
+
+                    b.Navigation("Deliveries");
+
+                    b.Navigation("Events");
+                });
+
+            modelBuilder.Entity("DataBase.Models.EngagementDelivery", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("DataBase.Post", b =>

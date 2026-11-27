@@ -216,6 +216,8 @@ namespace Services
                     await _context.AuthSessions.Where(s => s.UserId == id).ExecuteDeleteAsync();
 
                     await _context.SavedPosts.Where(sp => sp.UserId == id).ExecuteDeleteAsync();
+                    // Engagements reference the application and both users without a cascade, so they go first.
+                    await _context.Engagements.Where(e => e.CustomerId == id || e.ProgrammerId == id).ExecuteDeleteAsync();
                     await _context.PostApplications.Where(a => a.ProgrammerId == id).ExecuteDeleteAsync();
                     await _context.PostComments.Where(c => c.UserId == id).ExecuteDeleteAsync();
                     await _context.PostLikes.Where(l => l.UserId == id).ExecuteDeleteAsync();

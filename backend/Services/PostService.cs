@@ -9,7 +9,8 @@ namespace Services
     {
         Ok,
         BadRequest,
-        Forbidden
+        Forbidden,
+        Conflict
     }
 
     public class PostService
@@ -624,17 +625,17 @@ namespace Services
             return result;
         }
 
-        public async Task<(PostActionStatus status, string message)> AcceptApplication(int postId, int applicationId, int requesterId)
+        public async Task<(PostActionStatus status, string message, int? engagementId)> AcceptApplication(int postId, int applicationId, int requesterId)
         {
             var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
-            if (post == null) return (PostActionStatus.BadRequest, "Post not found");
-            if (post.UserId != requesterId) return (PostActionStatus.Forbidden, "You can only manage your own posts");
-            if (!await IsOwnedByCustomerAsync(post)) return (PostActionStatus.Forbidden, "Only customers can accept applications");
-            if (post.IsClosed) return (PostActionStatus.BadRequest, "This post is already closed");
+            if (post == null) return (PostActionStatus.BadRequest, "Post not found", null);
+            if (post.UserId != requesterId) return (PostActionStatus.Forbidden, "You can only manage your own posts", null);
+            if (!await IsOwnedByCustomerAsync(post)) return (PostActionStatus.Forbidden, "Only customers can accept applications", null);
+            if (post.IsClosed) return (PostActionStatus.BadRequest, "This post is already closed", null);
 
             var application = await _context.PostApplications.FirstOrDefaultAsync(a => a.Id == applicationId && a.PostId == postId);
-            if (application == null) return (PostActionStatus.BadRequest, "Application not found");
-            if (application.Status != "Pending") return (PostActionStatus.BadRequest, "This application is not pending");
+            if (application == null) return (PostActionStatus.BadRequest, "Application not found", null);
+            if (application.Status != "Pending") return (PostActionStatus.BadRequest, "This application is not pending", null);
 
             application.Status = "Accepted";
             application.UpdatedAt = DateTime.UtcNow;
@@ -648,11 +649,33 @@ namespace Services
 
             post.IsClosed = true;
             post.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
 
-            await CreateNotification(application.ProgrammerId, "Application Accepted", "Congratulations! Your application has been accepted.", "accepted", postId);
+            // A customer project starts an engagement in the same save, so a second accept cannot slip in.
+            Engagement? engagement = null;
+            if (post.Title != null)
+            {
+                var criteria = await _context.AcceptanceCriteria.Where(c => c.PostId == postId).ToListAsync();
+                engagement = EngagementService.Build(post, application, criteria, DateTime.UtcNow);
+                _context.Engagements.Add(engagement);
+            }
 
-            return (PostActionStatus.Ok, "Application accepted successfully");
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                _context.ChangeTracker.Clear();
+                return (PostActionStatus.Conflict, "This project was just assigned. Reload to see who was accepted.", null);
+            }
+
+            await CreateNotification(application.ProgrammerId, "Application Accepted",
+                engagement == null
+                    ? "Congratulations! Your application has been accepted."
+                    : $"Congratulations! Your application to \"{post.Title}\" was accepted. Open Active work to start.",
+                "accepted", postId);
+
+            return (PostActionStatus.Ok, "Application accepted successfully", engagement?.Id);
         }
 
         public async Task<int> GetApplicationsCount(int postId)

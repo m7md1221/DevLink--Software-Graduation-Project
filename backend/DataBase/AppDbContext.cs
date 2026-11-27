@@ -395,6 +395,8 @@ namespace DataBase
                 .OnDelete(DeleteBehavior.NoAction)
                 .HasConstraintName("FK_ApplicationCriterionResponses_AcceptanceCriteria");
 
+            ConfigureEngagements(modelBuilder);
+
             // M2 security tables and the new Users columns (AppDbContext.AuthSecurity.cs).
             ConfigureAuthSecurity(modelBuilder);
         }

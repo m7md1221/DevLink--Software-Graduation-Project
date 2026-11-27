@@ -42,6 +42,9 @@ namespace DataBase
 
         public DateTime? UpdatedAt { get; set; }
 
+        // Set when the engagement for this project is completed.
+        public DateTime? CompletedAt { get; set; }
+
         public bool IsDeleted { get; set; } = false;
 
         public bool IsClosed { get; set; } = false;

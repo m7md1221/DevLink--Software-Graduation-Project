@@ -39,10 +39,12 @@ namespace Controllers
         }
 
         // M2.7b: refusals keep today's 400 { message }; ownership refusals are 403 FORBIDDEN with the same message.
-        private IActionResult Refused(PostActionStatus status, string message) =>
-            status == PostActionStatus.Forbidden
-                ? AuthProblem.Forbidden(HttpContext, message)
-                : BadRequest(new { message });
+        private IActionResult Refused(PostActionStatus status, string message) => status switch
+        {
+            PostActionStatus.Forbidden => AuthProblem.Forbidden(HttpContext, message),
+            PostActionStatus.Conflict => Conflict(new { message }),
+            _ => BadRequest(new { message })
+        };
 
         // ============================================================
         // Helper: Get City from Coordinates using Nominatim
@@ -353,13 +355,13 @@ namespace Controllers
             if (callerId is null or <= 0)
                 return BadRequest(new { message = "requesterId is required" });
 
-            var (status, message) = await _postService.AcceptApplication(
+            var (status, message, engagementId) = await _postService.AcceptApplication(
                 id, applicationId, callerId.Value);
 
             if (status != PostActionStatus.Ok)
                 return Refused(status, message);
 
-            return Ok(new { message });
+            return Ok(new { message, engagementId });
         }
 
         [HttpGet("{id}/applications/count")]
